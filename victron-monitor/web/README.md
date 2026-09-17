@@ -1,8 +1,10 @@
 # VRM Monitor — web
 
 Next.js app: marketing site + customer portal + admin dashboard, on one
-design system. Built per [`PLAN_PHASE14.md`](../../PLAN_PHASE14.md); this
-README grows with each step (deploy notes at Step 8). Today it covers what
+design system. Built per a phased plan (`PLAN_PHASE14.md`, tracked in the
+original Dimensionador repo this project split from on 2026-09-16 — not
+carried over here); this README grows with each step (deploy notes at
+Step 8). Today it covers what
 Step 1 built (the scaffold, the design tokens, and `components/ui/*`), what
 Step 2 added (the marketing site itself, as real pages), what Step 3 added
 (auth: login, session, role resolution, and the `/app` / `/admin` shells),

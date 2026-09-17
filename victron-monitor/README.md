@@ -3,7 +3,7 @@
 Professional-grade fleet monitoring for Victron Energy systems.
 Built by **Pauly y Compañía** — designed to scale across multiple client sites as a paid subscription service.
 
-As of **2026-07-13**, this project lives inside the [Pauly&Co Solar Design Tool](../CONTEXT.md) repository and shares its Supabase project — see [Shared Supabase Project](#shared-supabase-project) below. It was previously a standalone repo (`opauly/victron-monitor`).
+This is the legacy Node-RED/Google Apps Script ingestion path, one piece of the [VRM Monitor](../README.md) repo (split out of `opauly/dimensionador-fv` on 2026-09-16). It still shares one Supabase project with that repo, isolated by schema — see [Shared Supabase Project](#shared-supabase-project) below. It was previously a standalone repo (`opauly/victron-monitor`) before that.
 
 ---
 
@@ -62,7 +62,7 @@ victron-monitor/
     └── victron_weekly_report_redesign_mockup.html
 ```
 
-Source of truth for the schema is [`../database/migrations/004_add_monitoring_schema.sql`](../database/migrations/004_add_monitoring_schema.sql) at the repo root — `sql/schema.sql` here is a portable reference copy, kept manually in sync.
+The original migration (`004_add_monitoring_schema.sql`) lives only in Dimensionador's `database/migrations/` — this repo didn't inherit that folder in the split (see the top-level README's `database/` row). `sql/schema.sql` here is now the source of truth for the `monitoring` schema, kept manually in sync with the live database.
 
 ---
 
