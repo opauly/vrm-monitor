@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { IntegratorBadge } from '../IntegratorBadge/IntegratorBadge';
 import styles from './StatsBanner.module.css';
 
 export type StatsBannerProps = {
@@ -76,27 +77,33 @@ export function StatsBanner({ sitesMonitored, installedKwp, kwhTracked }: StatsB
 
   return (
     <section className={styles.banner} aria-label="Platform totals">
-      <div className={`wrap ${styles.row}`}>
-        <div className={styles.item}>
-          <div className={styles.num}>
-            {sites.toLocaleString('en-US')}
-            <span className={styles.unit}>+</span>
+      <div className="wrap">
+        <div className={styles.row}>
+          <div className={styles.item}>
+            <div className={styles.num}>
+              {sites.toLocaleString('en-US')}
+              <span className={styles.unit}>+</span>
+            </div>
+            <div className={styles.label}>Sites monitored</div>
           </div>
-          <div className={styles.label}>Sites monitored</div>
+          <div className={styles.item}>
+            <div className={styles.num}>
+              {kwp.toLocaleString('en-US')}
+              <span className={styles.unit}>+kWp</span>
+            </div>
+            <div className={styles.label}>Installed power so far</div>
+          </div>
+          <div className={styles.item}>
+            <div className={styles.num}>
+              {kwh.toLocaleString('en-US')}
+              <span className={styles.unit}>+kWh</span>
+            </div>
+            <div className={styles.label}>Solar tracked so far</div>
+          </div>
         </div>
-        <div className={styles.item}>
-          <div className={styles.num}>
-            {kwp.toLocaleString('en-US')}
-            <span className={styles.unit}>+kWp</span>
-          </div>
-          <div className={styles.label}>Installed power so far</div>
-        </div>
-        <div className={styles.item}>
-          <div className={styles.num}>
-            {kwh.toLocaleString('en-US')}
-            <span className={styles.unit}>+kWh</span>
-          </div>
-          <div className={styles.label}>Solar tracked so far</div>
+
+        <div className={styles.credentialRow}>
+          <IntegratorBadge />
         </div>
       </div>
     </section>

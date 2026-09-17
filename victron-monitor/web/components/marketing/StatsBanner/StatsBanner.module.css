@@ -51,11 +51,28 @@
   color: var(--mute);
 }
 
+/* Credential strip — the Victron Recommended Software Integrator badge,
+   folded into this same banner rather than sitting alone in the Hero
+   (2026-09-17, Oscar's own request: "same block ... below them"). A
+   hairline rather than the banner's own border-bottom repeated — this is
+   one panel with two tiers, not two stacked panels. */
+.credentialRow {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: center;
+}
+
 @media (max-width: 560px) {
   .row {
     gap: 32px;
   }
   .num {
     font-size: 30px;
+  }
+  .credentialRow {
+    margin-top: 18px;
+    padding-top: 16px;
   }
 }
