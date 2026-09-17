@@ -1,5 +1,16 @@
 import type { Metadata } from 'next';
-import { FlowSteps, Footer, Hero, LiveDashboard, ModuleGrid, Nav, Pricing, ReportPreview, StatsBanner } from '@/components/marketing';
+import {
+  FlowSteps,
+  Footer,
+  Hero,
+  IntegratorSection,
+  LiveDashboard,
+  ModuleGrid,
+  Nav,
+  Pricing,
+  ReportPreview,
+  StatsBanner,
+} from '@/components/marketing';
 import { getFeaturedSelfServePlanIds } from '@/lib/server/db/signup';
 import { getMarketingStats } from '@/lib/server/db/marketingStats';
 
@@ -62,6 +73,7 @@ export default async function MarketingPage() {
         />
       )}
       <Hero />
+      <IntegratorSection />
       <FlowSteps />
       <ModuleGrid />
       <ReportPreview />

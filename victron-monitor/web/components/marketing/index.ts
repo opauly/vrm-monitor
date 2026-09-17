@@ -2,6 +2,8 @@ export { Nav } from './Nav/Nav';
 export { Hero } from './Hero/Hero';
 export { Readout } from './Readout/Readout';
 export { StatsBanner } from './StatsBanner/StatsBanner';
+export { IntegratorBadge } from './IntegratorBadge/IntegratorBadge';
+export { IntegratorSection } from './IntegratorSection/IntegratorSection';
 export { FlowSteps } from './FlowSteps/FlowSteps';
 export { ModuleGrid } from './ModuleGrid/ModuleGrid';
 export { ReportPreview } from './ReportPreview/ReportPreview';

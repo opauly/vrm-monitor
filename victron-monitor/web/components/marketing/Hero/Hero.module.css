@@ -50,6 +50,9 @@
   color: var(--mute);
   letter-spacing: 0.02em;
 }
+.credential {
+  margin-top: 18px;
+}
 
 @media (max-width: 920px) {
   .grid {

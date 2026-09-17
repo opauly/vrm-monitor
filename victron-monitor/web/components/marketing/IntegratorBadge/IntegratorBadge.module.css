@@ -1,0 +1,31 @@
+/* Small trust-pill variant of ReportPreview's `.badge` (same border/
+   radius-pill/dot shape) — an outbound link rather than a static label, so
+   it needs its own hover state on top of that shared visual pattern. */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--paper-dim);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 7px 14px 7px 10px;
+  text-decoration: none;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+.badge:hover {
+  border-color: var(--victron-glow);
+  color: var(--paper);
+}
+.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--victron-glow);
+  box-shadow: 0 0 6px 1px var(--victron-glow);
+  flex-shrink: 0;
+}

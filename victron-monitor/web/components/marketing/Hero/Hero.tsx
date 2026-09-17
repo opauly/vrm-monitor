@@ -1,4 +1,5 @@
 import { Button, Eyebrow } from '@/components/ui';
+import { IntegratorBadge } from '../IntegratorBadge/IntegratorBadge';
 import { Readout } from '../Readout/Readout';
 import styles from './Hero.module.css';
 
@@ -41,6 +42,9 @@ export function Hero() {
           <span className={styles.note}>
             No Node-RED changes. No Cerbo reflash. Works with equipment you&apos;ve already installed.
           </span>
+          <div className={styles.credential}>
+            <IntegratorBadge />
+          </div>
         </div>
 
         <Readout />
