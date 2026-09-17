@@ -3,8 +3,16 @@
 Internal FastAPI service wrapping the VRM report pipeline
 (`victron/vrm_csv.py`, `victron/ingest.py`, `victron/weekly_report.py`,
 `database/vrm_report_db.py`) so `victron-monitor/web`'s Next.js server can
-run CSV ingestion and generate reports without a rewrite. Full design:
-[`PLAN_PHASE14.md`](../PLAN_PHASE14.md) §1.3 and §2 Step 5.
+run CSV ingestion and generate reports without a rewrite.
+
+**A note on `PLAN_PHASE*.md`/`PHASES.md` citations throughout this file**
+(starting with the one this replaced, `PLAN_PHASE14.md` §1.3 and §2 Step 5,
+for this service's original design): this repo was split out of
+Dimensionador (`github.com/opauly/dimensionador-fv`) on 2026-09-16 — those
+planning docs live in that repo's history, not this one's, so the citations
+below are no longer clickable links here. They're left as-is as a pointer
+to *where* the reasoning was originally recorded, for anyone with access to
+both repos; nothing in this file depends on actually opening them.
 
 **This service is never called from a browser.** Only the Next.js server
 calls it, over a private network path in production (Vercel → Render) and
@@ -33,8 +41,12 @@ project's dependencies) instead of the venv's — this fails with
 install is fine. Run `which uvicorn` if unsure; it should print a path
 ending in `.venv/bin/uvicorn`.
 
-Needs the same `.env` the Streamlit app reads (`database/supabase_client.py`
-loads it via `python-dotenv`, cwd-relative) — see "Env vars" below.
+Needs a `.env` at repo root (`database/supabase_client.py` loads it via
+`python-dotenv`, cwd-relative) — see "Env vars" below. Same values as
+Dimensionador's own `.env` for the shared keys (`SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY`) — this repo keeps its own separate copy of
+the file, not a shared one, since the two repos no longer share a
+filesystem.
 
 ## Env vars
 
