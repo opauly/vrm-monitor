@@ -88,10 +88,25 @@ def get_energy_daily(site_id: str, start: str | date, end: str | date, schema: s
 
 def get_daily_health(site_id: str, start: str | date, end: str | date, schema: str,
                      dump_types: tuple[str, ...] | None = None) -> list[dict]:
-    """`daily_health` rows for an inclusive date range."""
+    """`daily_health` rows for an inclusive date range.
+
+    Both schemas' `compute_daily_health()` were split 2026-09-18/09 into
+    separate `system_score`/`system_status` (equipment health) and
+    `grid_score`/`grid_status` (grid reliability) columns, replacing the
+    single blended `health_score` as the number the report's headline KPI
+    card reads (Oscar's own framing — a covered grid outage the battery
+    held fine shouldn't drag down a number that reads as "something's
+    wrong"). `weekly_report.py`'s own score/status pickers still fall back
+    to the legacy blended `health_score`/`health_status` for any row from
+    before its site's split was applied (or before that specific day gets
+    recomputed) — every row selected here always has both, whichever the
+    picker ends up using.
+    """
+    select_cols = ("date,health_score,health_status,system_score,system_status,"
+                   "alarms_count,min_soc,outage_count,outage_minutes,"
+                   "grid_dependency_pct,battery_cycles,notes")
     return (_table(schema, "daily_health")
-            .select("date,health_score,health_status,alarms_count,min_soc,"
-                    "outage_count,outage_minutes,grid_dependency_pct,battery_cycles,notes")
+            .select(select_cols)
             .eq("site_id", site_id)
             .in_("dump_type", list(_dump_types(schema, dump_types)))
             .gte("date", str(start)).lte("date", str(end))
@@ -336,17 +351,25 @@ def bucket_health_days(rows: list[dict], start: date, end: date,
     A site can have more than one `daily_health` row per date (different
     `dump_type`s), so each bucket first keeps only the highest-scoring row
     per date — identical to the whole-period average's own dedup in
-    `weekly_report.py` — then averages `health_score` across the kept rows.
+    `weekly_report.py` — then averages the score across the kept rows.
 
     Each bucket: `{label, start, end, days, health_score}`. `health_score`
     is `None` for a bucket with no health rows at all, rather than 0 — a
-    missing score must not read as a scored zero.
+    missing score must not read as a scored zero. Despite the key's name
+    (kept as-is — every caller already reads `health_score`/`healthScore`),
+    the VALUE is `system_score` whenever a row has one (2026-09-18 split,
+    `vrm` schema only) and only falls back to the legacy blended
+    `health_score` for `monitoring` rows, which never got that split — see
+    `get_daily_health()`'s own docstring.
     """
+    def _score(r: dict) -> float:
+        v = r.get("system_score")
+        return float(v if v is not None else (r.get("health_score") or 0))
+
     by_date: dict[str, dict] = {}
     for r in rows:
         d0 = r["date"]
-        if d0 not in by_date or (float(r.get("health_score") or 0)
-                                 > float(by_date[d0].get("health_score") or 0)):
+        if d0 not in by_date or _score(r) > _score(by_date[d0]):
             by_date[d0] = r
 
     buckets = []
@@ -356,8 +379,8 @@ def bucket_health_days(rows: list[dict], start: date, end: date,
         day, scores = b_start, []
         while day <= b_end:
             row = by_date.get(day.isoformat())
-            if row is not None and row.get("health_score") is not None:
-                scores.append(float(row["health_score"]))
+            if row is not None and (row.get("system_score") is not None or row.get("health_score") is not None):
+                scores.append(_score(row))
             day += timedelta(days=1)
         buckets.append({
             "label": b_start.isoformat()[5:],

@@ -528,17 +528,33 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
     worst_day = {"date": worst[0], "pv": worst[1]} if worst else None
 
     # Health: dedupe by date keeping the highest score, exactly like the original.
+    # The headline KPI card reads `system_score`/`system_status` (equipment
+    # health: alarms, SOC, cycling, temperature, voltage), not the legacy
+    # blended `health_score` — 2026-09-18, Oscar's own framing: a grid
+    # outage the battery held fine shouldn't drag down a number that reads
+    # as "something's wrong" here either, and grid reliability already has
+    # its own home in the Grid Quality section below. `system_score` only
+    # exists for `vrm`-schema rows (see `get_daily_health()`'s docstring);
+    # `_health_score()`/`_health_status()` fall back to the legacy blended
+    # fields for `monitoring` rows, which were never given that split.
+    def _health_score(r: dict) -> float | None:
+        v = r.get("system_score")
+        return _num(v) if v is not None else _num(r.get("health_score"))
+
+    def _health_status(r: dict) -> str:
+        return r.get("system_status") or r.get("health_status") or ""
+
     health = window["health"]
     avg_health, health_status, alarm_total = "", "", 0
     if health:
         by_date: dict[str, dict] = {}
         for r in health:
             d0 = r["date"]
-            if d0 not in by_date or _num(r.get("health_score")) > _num(by_date[d0].get("health_score")):
+            if d0 not in by_date or _health_score(r) > _health_score(by_date[d0]):
                 by_date[d0] = r
         grouped = [by_date[k] for k in sorted(by_date)]
-        avg_health = round(sum(_num(r.get("health_score")) for r in grouped) / len(grouped))
-        health_status = grouped[-1].get("health_status") or ""
+        avg_health = round(sum(_health_score(r) for r in grouped) / len(grouped))
+        health_status = _health_status(grouped[-1])
     # The "Total" shown in the Events section and referenced by the AI
     # narrative is the sum of the per-category breakdown (report bug fix,
     # 2026-08-19) — NOT `sum(daily_health.alarms_count)` as it was until
