@@ -99,14 +99,26 @@ export type FleetOverviewRow = {
   timezone: string | null;
   vrm_last_synced_at: string | null;
   connection_status: FleetConnectionStatus;
-  health_score: number | null;
-  health_status: string | null;
   health_date: string | null;
-  // The reasons behind health_score, straight from vrm.compute_daily_health()
-  // (migration 012) — semicolon-joined (e.g. "High grid dependency; Low
-  // battery voltage (45.2V)"), or "Normal operation" when nothing was
+  // Split into System (equipment: alarms, SOC, cycling, temperature,
+  // voltage, float charge) and Grid (outages, grid dependency) scores
+  // by `vrm.compute_daily_health()` (migration 012/2026-09-18 split) —
+  // replaces the old single blended `health_score`, which asked one
+  // number to answer two different questions ("is my equipment okay?"
+  // and "is my grid reliable?"). A covered grid outage the battery held
+  // fine now shows as a healthy System score and a dinged Grid score,
+  // instead of one misleadingly low combined number. `grid_score`/
+  // `grid_status`/`grid_notes` are `null` for an `off_grid` site with
+  // no grid connection at all — not a fabricated "perfect grid".
+  system_score: number | null;
+  system_status: string | null;
+  // Semicolon-joined reasons (e.g. "3 alarm event(s); Low battery
+  // voltage (45.2V)"), or "Normal operation" when nothing was
   // penalized. `null` only when there's no daily_health row at all yet.
-  health_notes: string | null;
+  system_notes: string | null;
+  grid_score: number | null;
+  grid_status: string | null;
+  grid_notes: string | null;
   // Live-only (2026-09-01): counts categories present in the MOST RECENT
   // live snapshot's raw.alarms/raw.critical_alerts, nothing else — not an
   // episode/history count. A category active yesterday but cleared by the
@@ -187,7 +199,11 @@ export type FleetOverview = {
   rollup: {
     site_count: number;
     online_count: number;
-    avg_health_score: number | null;
+    avg_system_score: number | null;
+    // `null` when no site in the fleet has a grid connection at all
+    // (every site off_grid) — same "no data, not a fabricated 100"
+    // rule the per-site `grid_score` follows.
+    avg_grid_score: number | null;
     total_active_alarms: number;
     total_active_critical_alerts: number;
     // Fleet Dashboard Phase 3 — count of OPEN vrm.site_anomalies rows
@@ -422,7 +438,7 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
     return {
       sites: [],
       rollup: {
-        site_count: 0, online_count: 0, avg_health_score: null,
+        site_count: 0, online_count: 0, avg_system_score: null, avg_grid_score: null,
         total_active_alarms: 0, total_active_critical_alerts: 0, total_active_anomalies: 0,
       },
     };
@@ -443,13 +459,13 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
     // are computed independently a few lines down, mirroring
     // `weekly_report.py`'s own already-correct guard instead of trusting
     // that column.
-    // `notes` — the same human-readable reasons `vrm.compute_daily_health()`
-    // (migration 012) already builds while scoring (e.g. "High grid
-    // dependency; Low battery voltage (45.2V)") and stores right alongside
-    // the score, previously computed and thrown away by never being
-    // selected here. Surfaced on the per-site page so a low score isn't
-    // just a bare number with no way to tell what actually needs attention.
-    admin.schema('vrm').from('daily_health').select('site_id, date, health_score, health_status, grid_dependency_pct, notes').in('site_id', siteIds).gte('date', lookbackDate),
+    // `system_notes`/`grid_notes` — the same human-readable reasons
+    // `vrm.compute_daily_health()` (migration 012/2026-09-18 split)
+    // already builds while scoring (e.g. "3 alarm event(s); Low battery
+    // voltage (45.2V)"), one list per score. Surfaced on the per-site
+    // page so a low score isn't just a bare number with no way to tell
+    // what actually needs attention.
+    admin.schema('vrm').from('daily_health').select('site_id, date, system_score, system_status, system_notes, grid_score, grid_status, grid_notes, grid_dependency_pct').in('site_id', siteIds).gte('date', lookbackDate),
     // `alarm_events`/`critical_alerts` deliberately NOT fetched here any
     // more (2026-09-01) — this is a live monitoring dashboard, and those
     // tables are the HISTORICAL sync's own record (through yesterday only,
@@ -508,23 +524,49 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
   // coverage, which is a sync-timing artifact, not real per-site outages)
   // — not the concrete, trustworthy signal a customer/admin should see as
   // "the" site's health. Highest-date-among-complete-days wins; a tie (two
-  // dump_types for the same date) keeps the higher health_score, same
+  // dump_types for the same date) keeps the higher system_score, same
   // dedup rule `database/vrm_report_db.py:bucket_health_days()` already
-  // uses for exactly this "which row represents this date" question. Only
-  // falls back to a partial row when literally nothing complete exists yet
-  // in the lookback window (a brand-new site with no full day scored yet) —
-  // better to show something, clearly labeled as partial, than nothing.
-  const healthRowsBySite = new Map<string, { date: string; health_score: number | null; health_status: string | null; grid_dependency_pct: number | null; notes: string | null }[]>();
+  // uses for exactly this "which row represents this date" question (picks
+  // System over Grid for the tie-break somewhat arbitrarily — both scores
+  // come from the same underlying row regardless, this only decides which
+  // of two same-date DUMP_TYPE rows wins). Only falls back to a partial row
+  // when literally nothing complete exists yet in the lookback window (a
+  // brand-new site with no full day scored yet) — better to show
+  // something, clearly labeled as partial, than nothing.
+  type HealthRow = {
+    date: string;
+    system_score: number | null;
+    system_status: string | null;
+    system_notes: string | null;
+    grid_score: number | null;
+    grid_status: string | null;
+    grid_notes: string | null;
+    grid_dependency_pct: number | null;
+  };
+  const healthRowsBySite = new Map<string, HealthRow[]>();
   for (const row of health ?? []) {
     const list = healthRowsBySite.get(row.site_id) ?? [];
-    list.push({ date: row.date, health_score: row.health_score, health_status: row.health_status, grid_dependency_pct: row.grid_dependency_pct, notes: row.notes });
+    list.push({
+      date: row.date,
+      system_score: row.system_score,
+      system_status: row.system_status,
+      system_notes: row.system_notes,
+      grid_score: row.grid_score,
+      grid_status: row.grid_status,
+      grid_notes: row.grid_notes,
+      grid_dependency_pct: row.grid_dependency_pct,
+    });
     healthRowsBySite.set(row.site_id, list);
   }
+  // `system_notes` always gets a "Partial day" marker when the underlying
+  // sync window was incomplete (regardless of system_type), unlike
+  // `grid_notes`, which is `null` entirely for an off_grid site — so this
+  // is the one field guaranteed to carry the marker on every row shape.
   const isPartialDay = (notes: string | null) => !!notes && notes.includes('Partial day');
-  const latestHealthBySite = new Map<string, { date: string; health_score: number | null; health_status: string | null; grid_dependency_pct: number | null; notes: string | null }>();
+  const latestHealthBySite = new Map<string, HealthRow>();
   for (const [siteId, rows] of healthRowsBySite) {
-    rows.sort((a, b) => (a.date === b.date ? (b.health_score ?? -1) - (a.health_score ?? -1) : b.date.localeCompare(a.date)));
-    latestHealthBySite.set(siteId, rows.find((r) => !isPartialDay(r.notes)) ?? rows[0]);
+    rows.sort((a, b) => (a.date === b.date ? (b.system_score ?? -1) - (a.system_score ?? -1) : b.date.localeCompare(a.date)));
+    latestHealthBySite.set(siteId, rows.find((r) => !isPartialDay(r.system_notes)) ?? rows[0]);
   }
 
   // Latest energy_daily row per site — same "highest date wins" rule.
@@ -595,10 +637,13 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
       timezone: s.timezone,
       vrm_last_synced_at: s.vrm_last_synced_at,
       connection_status: _connectionStatus(snapshot?.captured_at ?? null, now),
-      health_score: latestHealth?.health_score ?? null,
-      health_status: latestHealth?.health_status ?? null,
       health_date: latestHealth?.date ?? null,
-      health_notes: latestHealth?.notes ?? null,
+      system_score: latestHealth?.system_score ?? null,
+      system_status: latestHealth?.system_status ?? null,
+      system_notes: latestHealth?.system_notes ?? null,
+      grid_score: latestHealth?.grid_score ?? null,
+      grid_status: latestHealth?.grid_status ?? null,
+      grid_notes: latestHealth?.grid_notes ?? null,
       active_alarms: _activeCountFromRaw(snapshot?.raw, 'alarms'),
       active_critical_alerts: _activeCountFromRaw(snapshot?.raw, 'critical_alerts'),
       active_anomalies: anomaliesBySite.get(s.site_id) ?? [],
@@ -623,11 +668,19 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
     };
   });
 
-  const scores = rows.map((r) => r.health_score).filter((v): v is number => v !== null);
+  const avg = (values: (number | null)[]) => {
+    const present = values.filter((v): v is number => v !== null);
+    return present.length > 0 ? Math.round(present.reduce((a, b) => a + b, 0) / present.length) : null;
+  };
   const rollup = {
     site_count: rows.length,
     online_count: rows.filter((r) => r.connection_status === 'online').length,
-    avg_health_score: scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
+    avg_system_score: avg(rows.map((r) => r.system_score)),
+    // `grid_score` is `null` for every off_grid site, so a fleet of
+    // entirely off_grid systems correctly rolls up to `null` here too,
+    // rather than dividing by a count that includes sites with nothing
+    // to average.
+    avg_grid_score: avg(rows.map((r) => r.grid_score)),
     total_active_alarms: rows.reduce((a, r) => a + r.active_alarms, 0),
     total_active_critical_alerts: rows.reduce((a, r) => a + r.active_critical_alerts, 0),
     total_active_anomalies: rows.reduce((a, r) => a + r.active_anomalies.length, 0),

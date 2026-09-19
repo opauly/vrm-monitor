@@ -262,21 +262,54 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
 
         <div className={styles.gaugeCard}>
           <h2>{site.health_metrics_date ? `As of ${site.health_metrics_date}` : 'Today, at a glance'}</h2>
-          <div className={styles.cardSub}>Health score, self-sufficiency, self-consumption, and depth of discharge.</div>
-
-          <div className={styles.healthRow}>
-            <span className={`${styles.healthBadge} ${healthClass(site.health_score)}`}>
-              {site.health_score === null ? '—' : `${site.health_score}/100`}
-            </span>
-            {site.health_status && <span className={styles.healthStatus}>{site.health_status}</span>}
+          <div className={styles.cardSub}>
+            System and grid scores, self-sufficiency, self-consumption, and depth of discharge.
           </div>
-          {site.health_score !== null && (
-            <ul className={styles.healthNotes}>
-              {healthNotesList(site.health_notes).map((note, i) => (
-                <li key={i}>{note}</li>
-              ))}
-            </ul>
-          )}
+
+          {/* Split into System (equipment: alarms, SOC, cycling, temperature,
+              voltage, float charge) and Grid (outages, grid dependency)
+              scores, 2026-09-18 — a covered outage the battery held fine no
+              longer drags down a single blended number that reads as
+              "something's wrong" when nothing actually is. */}
+          <div className={styles.scoreBlockRow}>
+            <div className={styles.scoreBlock}>
+              <div className={styles.scoreBlockLabel}>System</div>
+              <div className={styles.healthRow}>
+                <span className={`${styles.healthBadge} ${healthClass(site.system_score)}`}>
+                  {site.system_score === null ? '—' : `${site.system_score}/100`}
+                </span>
+                {site.system_status && <span className={styles.healthStatus}>{site.system_status}</span>}
+              </div>
+              {site.system_score !== null && (
+                <ul className={styles.healthNotes}>
+                  {healthNotesList(site.system_notes).map((note, i) => (
+                    <li key={i}>{note}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className={styles.scoreBlock}>
+              <div className={styles.scoreBlockLabel}>Grid</div>
+              {site.grid_score === null ? (
+                <div className={styles.sub}>No grid connection on this system</div>
+              ) : (
+                <>
+                  <div className={styles.healthRow}>
+                    <span className={`${styles.healthBadge} ${healthClass(site.grid_score)}`}>
+                      {site.grid_score}/100
+                    </span>
+                    {site.grid_status && <span className={styles.healthStatus}>{site.grid_status}</span>}
+                  </div>
+                  <ul className={styles.healthNotes}>
+                    {healthNotesList(site.grid_notes).map((note, i) => (
+                      <li key={i}>{note}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          </div>
 
           <Gauge
             pct={site.self_sufficiency_pct}

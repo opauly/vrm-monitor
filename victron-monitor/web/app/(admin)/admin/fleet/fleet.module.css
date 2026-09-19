@@ -207,6 +207,11 @@
   background: var(--mute);
 }
 
+.scorePair {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
 .healthBadge {
   display: inline-block;
   font-family: var(--font-mono);

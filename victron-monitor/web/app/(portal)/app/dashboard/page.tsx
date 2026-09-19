@@ -108,12 +108,20 @@ export default async function CustomerDashboardPage() {
         </div>
       </td>
       <td>
-        <span
-          className={`${styles.healthBadge} ${healthClass(site.health_score)}`}
-          title={site.health_notes ? site.health_notes.split(';').map((n) => n.trim()).filter(Boolean).join('\n') : undefined}
-        >
-          {site.health_score === null ? '—' : `${site.health_score}/100`}
-        </span>
+        <div className={styles.scorePair}>
+          <span
+            className={`${styles.healthBadge} ${healthClass(site.system_score)}`}
+            title={site.system_notes ? site.system_notes.split(';').map((n) => n.trim()).filter(Boolean).join('\n') : undefined}
+          >
+            Sys {site.system_score === null ? '—' : `${site.system_score}/100`}
+          </span>
+          <span
+            className={`${styles.healthBadge} ${healthClass(site.grid_score)}`}
+            title={site.grid_notes ? site.grid_notes.split(';').map((n) => n.trim()).filter(Boolean).join('\n') : undefined}
+          >
+            Grid {site.grid_score === null ? '—' : `${site.grid_score}/100`}
+          </span>
+        </div>
         {site.health_date && <div className={styles.sub}>as of {site.health_date}</div>}
       </td>
       <td>{site.active_alarms > 0 ? <span className={styles.alarmCount}>{site.active_alarms}</span> : '0'}</td>
@@ -286,15 +294,31 @@ export default async function CustomerDashboardPage() {
       <div className={styles.rollupRow}>
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Avg health score</span>
-            <span className={styles.rollupValue}>{overview.rollup.avg_health_score === null ? '—' : `${overview.rollup.avg_health_score}/100`}</span>
-            <span className={styles.rollupDesc}>Average of each site&apos;s latest daily health score</span>
+            <span className={styles.rollupLabel}>Avg system score</span>
+            <span className={styles.rollupValue}>{overview.rollup.avg_system_score === null ? '—' : `${overview.rollup.avg_system_score}/100`}</span>
+            <span className={styles.rollupDesc}>Equipment health — alarms, SOC, cycling, temperature, voltage</span>
           </summary>
           <div className={styles.rollupBreakdown}>
-            {sortedByValue(sites, (s) => s.health_score).map((s) => (
+            {sortedByValue(sites, (s) => s.system_score).map((s) => (
               <div key={s.site_id} className={styles.rollupBreakdownRow}>
                 <Link href={`/app/dashboard/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{s.health_score === null ? '—' : `${s.health_score}/100`}</span>
+                <span>{s.system_score === null ? '—' : `${s.system_score}/100`}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+
+        <details className={styles.rollupCard}>
+          <summary>
+            <span className={styles.rollupLabel}>Avg grid score</span>
+            <span className={styles.rollupValue}>{overview.rollup.avg_grid_score === null ? '—' : `${overview.rollup.avg_grid_score}/100`}</span>
+            <span className={styles.rollupDesc}>Grid reliability — outages and grid dependency</span>
+          </summary>
+          <div className={styles.rollupBreakdown}>
+            {sortedByValue(sites, (s) => s.grid_score).map((s) => (
+              <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                <Link href={`/app/dashboard/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                <span>{s.grid_score === null ? '—' : `${s.grid_score}/100`}</span>
               </div>
             ))}
           </div>
