@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation';
 import { requireAdmin } from '@/lib/server/auth';
 import { getFleetSiteDetail, type SiteAnomalyRow } from '@/lib/server/db/admin';
 import { formatDateTimeInZone } from '@/lib/dates';
+import { InfoTooltip } from '@/components/ui';
+import { SYSTEM_SCORE_INFO, GRID_SCORE_INFO } from '@/lib/healthScoreInfo';
 import { FlowDiagram } from '../FlowDiagram';
 import { Gauge } from '../Gauge';
 import { PeriodStatsPanel } from '../PeriodStatsPanel';
@@ -283,7 +285,10 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
               "something's wrong" when nothing actually is. */}
           <div className={styles.scoreBlockRow}>
             <div className={styles.scoreBlock}>
-              <div className={styles.scoreBlockLabel}>System</div>
+              <div className={styles.scoreBlockLabel}>
+                System
+                <InfoTooltip label="How the system score is calculated">{SYSTEM_SCORE_INFO}</InfoTooltip>
+              </div>
               <div className={styles.healthRow}>
                 <span className={`${styles.healthBadge} ${healthClass(site.system_score)}`}>
                   {site.system_score === null ? '—' : `${site.system_score}/100`}
@@ -300,7 +305,10 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
             </div>
 
             <div className={styles.scoreBlock}>
-              <div className={styles.scoreBlockLabel}>Grid</div>
+              <div className={styles.scoreBlockLabel}>
+                Grid
+                <InfoTooltip label="How the grid score is calculated">{GRID_SCORE_INFO}</InfoTooltip>
+              </div>
               {site.grid_score === null ? (
                 <div className={styles.sub}>No grid connection on this system</div>
               ) : (

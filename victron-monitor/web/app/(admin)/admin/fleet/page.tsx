@@ -2,8 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/server/auth';
 import { getFleetOverview, type FleetConnectionStatus, type FleetOverviewRow } from '@/lib/server/db/admin';
-import { Table } from '@/components/ui';
+import { Table, InfoTooltip } from '@/components/ui';
 import { formatDateTime, formatDateTimeInZone } from '@/lib/dates';
+import { SYSTEM_SCORE_INFO, GRID_SCORE_INFO } from '@/lib/healthScoreInfo';
 import { FleetFreshness } from './FleetFreshness';
 import { FlowDiagram } from './FlowDiagram';
 import { ShapeChart } from './ShapeChart';
@@ -331,7 +332,10 @@ export default async function AdminFleetPage() {
       <div className={styles.rollupRow}>
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Avg system score</span>
+            <span className={styles.rollupLabel}>
+              Avg system score
+              <InfoTooltip label="How the system score is calculated">{SYSTEM_SCORE_INFO}</InfoTooltip>
+            </span>
             <span className={styles.rollupValue}>{overview.rollup.avg_system_score === null ? '—' : `${overview.rollup.avg_system_score}/100`}</span>
             <span className={styles.rollupDesc}>Equipment health — alarms, SOC, cycling, temperature, voltage</span>
           </summary>
@@ -347,7 +351,10 @@ export default async function AdminFleetPage() {
 
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Avg grid score</span>
+            <span className={styles.rollupLabel}>
+              Avg grid score
+              <InfoTooltip label="How the grid score is calculated">{GRID_SCORE_INFO}</InfoTooltip>
+            </span>
             <span className={styles.rollupValue}>{overview.rollup.avg_grid_score === null ? '—' : `${overview.rollup.avg_grid_score}/100`}</span>
             <span className={styles.rollupDesc}>Grid reliability — outages and grid dependency</span>
           </summary>

@@ -27,3 +27,6 @@ export type { TableProps } from './Table/Table';
 
 export { AccountMenu } from './AccountMenu/AccountMenu';
 export type { AccountMenuLink } from './AccountMenu/AccountMenu';
+
+export { InfoTooltip } from './InfoTooltip/InfoTooltip';
+export type { InfoTooltipProps } from './InfoTooltip/InfoTooltip';

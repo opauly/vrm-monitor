@@ -5,7 +5,8 @@ import { requireCustomer } from '@/lib/server/auth';
 import { getCustomer, getDashboardAccess, getCustomerFleetSiteDetail, type SiteAnomalyRow } from '@/lib/server/db';
 import { formatDateTimeInZone } from '@/lib/dates';
 import { t } from '@/lib/i18n/strings';
-import { Panel, Button } from '@/components/ui';
+import { Panel, Button, InfoTooltip } from '@/components/ui';
+import { SYSTEM_SCORE_INFO, GRID_SCORE_INFO } from '@/lib/healthScoreInfo';
 import { FlowDiagram } from '../../../../(admin)/admin/fleet/FlowDiagram';
 import { Gauge } from '../../../../(admin)/admin/fleet/Gauge';
 import { PeriodStatsPanel } from '../../../../(admin)/admin/fleet/PeriodStatsPanel';
@@ -273,7 +274,10 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
               "something's wrong" when nothing actually is. */}
           <div className={styles.scoreBlockRow}>
             <div className={styles.scoreBlock}>
-              <div className={styles.scoreBlockLabel}>System</div>
+              <div className={styles.scoreBlockLabel}>
+                System
+                <InfoTooltip label="How the system score is calculated">{SYSTEM_SCORE_INFO}</InfoTooltip>
+              </div>
               <div className={styles.healthRow}>
                 <span className={`${styles.healthBadge} ${healthClass(site.system_score)}`}>
                   {site.system_score === null ? '—' : `${site.system_score}/100`}
@@ -290,7 +294,10 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
             </div>
 
             <div className={styles.scoreBlock}>
-              <div className={styles.scoreBlockLabel}>Grid</div>
+              <div className={styles.scoreBlockLabel}>
+                Grid
+                <InfoTooltip label="How the grid score is calculated">{GRID_SCORE_INFO}</InfoTooltip>
+              </div>
               {site.grid_score === null ? (
                 <div className={styles.sub}>No grid connection on this system</div>
               ) : (
