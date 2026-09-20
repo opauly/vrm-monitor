@@ -14,13 +14,16 @@ const LOGO_HEIGHT = 156;
 
 // Server Component — nothing HERE reads client state (the auth-aware
 // corner is its own small Client Component, `NavAuthArea`, so this stays a
-// Server Component otherwise). The template's nav links are anchors to
-// in-page section ids (`/#how`, `/#modules`, ...) — an absolute path, not a
-// bare `#how`, since `Nav` now renders on `/login`/`/signup`/etc. too
+// Server Component otherwise). Most nav links are anchors to in-page
+// section ids (`/#how`, `/#preview`, ...) — an absolute path, not a bare
+// `#how`, since `Nav` now renders on `/login`/`/signup`/etc. too
 // (2026-08-21): a bare hash from one of those routes would just scroll the
 // current (sectionless) page to nowhere, while `/#how` correctly navigates
-// to the marketing page and scrolls there, from anywhere. Rendered via
-// `next/link` rather than a plain `<a>` — eslint's
+// to the marketing page and scrolls there, from anywhere. "What's inside"
+// is the one exception (2026-09-19) — it points at its own real page,
+// `/whats-inside`, not an anchor; the home page keeps a short teaser
+// under the same `#modules` id for anyone who lands there directly.
+// Rendered via `next/link` rather than a plain `<a>` — eslint's
 // `@next/next/no-html-link-for-pages` is right that a same-origin path
 // belongs on `Link`, hash suffix or not; `Link` still performs a normal
 // scroll-to-element after navigating, same as a plain anchor would.
@@ -48,7 +51,7 @@ export function Nav() {
         </div>
         <div className={styles.links}>
           <Link href="/#how">How it works</Link>
-          <Link href="/#modules">What&apos;s inside</Link>
+          <Link href="/whats-inside">What&apos;s inside</Link>
           <Link href="/#preview">Sample report</Link>
           <Link href="/#dashboard">Live dashboard</Link>
           <Link href="/#pricing">Pricing</Link>

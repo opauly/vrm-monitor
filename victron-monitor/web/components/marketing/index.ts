@@ -6,6 +6,7 @@ export { IntegratorBadge } from './IntegratorBadge/IntegratorBadge';
 export { IntegratorSection } from './IntegratorSection/IntegratorSection';
 export { FlowSteps } from './FlowSteps/FlowSteps';
 export { ModuleGrid } from './ModuleGrid/ModuleGrid';
+export { ModuleTeaser } from './ModuleTeaser/ModuleTeaser';
 export { ReportPreview } from './ReportPreview/ReportPreview';
 export { LiveDashboard } from './LiveDashboard/LiveDashboard';
 export { Pricing } from './Pricing/Pricing';

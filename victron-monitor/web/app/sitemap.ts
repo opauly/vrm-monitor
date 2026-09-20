@@ -1,11 +1,11 @@
 import type { MetadataRoute } from 'next';
 import { SITE_URL } from '@/lib/site';
 
-// One entry: the marketing home page is the only public, indexable route
-// this step ships. /login (Step 3) is a form, not content to index; /app
-// and /admin (Steps 3-4) are behind auth. Extend this array as later steps
-// add public marketing routes — there are none planned yet (§4's non-goals
-// rule out a blog/CMS).
+// /login and /signup are forms, not content to index; /app and /admin are
+// behind auth. Extended 2026-09-19 to include every other real, public
+// marketing route that now exists — /whats-inside (the report/dashboard
+// deep-dive, moved off the home page the same day), plus /terms and
+// /privacy, both previously live but never listed here.
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {
@@ -13,6 +13,22 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date(),
       changeFrequency: 'monthly',
       priority: 1,
+    },
+    {
+      url: `${SITE_URL}/whats-inside`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}/terms`,
+      changeFrequency: 'yearly',
+      priority: 0.2,
+    },
+    {
+      url: `${SITE_URL}/privacy`,
+      changeFrequency: 'yearly',
+      priority: 0.2,
     },
   ];
 }

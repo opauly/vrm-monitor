@@ -5,7 +5,7 @@ import {
   Hero,
   IntegratorSection,
   LiveDashboard,
-  ModuleGrid,
+  ModuleTeaser,
   Nav,
   Pricing,
   ReportPreview,
@@ -13,6 +13,7 @@ import {
 } from '@/components/marketing';
 import { getFeaturedSelfServePlanIds } from '@/lib/server/db/signup';
 import { getMarketingStats } from '@/lib/server/db/marketingStats';
+import { SITE_URL } from '@/lib/site';
 
 // Page-specific metadata layered on top of the root layout's defaults
 // (app/layout.tsx) — the marketing home page is the one URL that should
@@ -25,6 +26,12 @@ export const metadata: Metadata = {
   title: { absolute: 'VRM Monitor — Live dashboard + weekly reports for your Victron system' },
   description:
     'Watch your Victron system live, and get a branded, AI-narrated report every week — for your own home, or every customer on an installer fleet.',
+  // Explicit now that `metadataBase` (app/layout.tsx) resolves it to a
+  // real absolute URL — matters once the real domain and the Vercel
+  // preview URL both serve this same deployment, so search engines
+  // credit the intended canonical host rather than whichever one they
+  // happened to crawl first.
+  alternates: { canonical: '/' },
   openGraph: {
     title: 'VRM Monitor — Live dashboard + weekly reports for your Victron system',
     description:
@@ -46,6 +53,35 @@ export const metadata: Metadata = {
 // unrelated deploy.
 export const revalidate = 86400;
 
+// JSON-LD (2026-09-19) — the schema.org shape both classic rich results
+// and LLM/AI answer engines look for to identify what this page is about,
+// same reasoning as /whats-inside's own FAQPage block. `offers` mirrors
+// Pricing.tsx's own literal $29.99/$99.99 strings exactly (that component
+// has no dynamic price source to read from instead — both places would
+// need updating together regardless of this block existing). Deliberately
+// no `aggregateRating`/review fields — inventing those is exactly the
+// kind of structured-data spam Google's own guidelines call out, and
+// there's no real review data to report yet.
+const SOFTWARE_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'VRM Monitor',
+  applicationCategory: 'BusinessApplication',
+  operatingSystem: 'Web',
+  url: SITE_URL,
+  description:
+    'A live dashboard and weekly AI-narrated PDF report for any Victron Energy solar or hybrid system, built by Pauly & Co., a Victron Recommended Software Integrator.',
+  provider: {
+    '@type': 'Organization',
+    name: 'Pauly & Co.',
+    url: 'https://paulyco.com',
+  },
+  offers: [
+    { '@type': 'Offer', name: 'Starter', price: '29.99', priceCurrency: 'USD', description: 'Up to 10 sites, automatic weekly & overview reports.' },
+    { '@type': 'Offer', name: 'Growth', price: '99.99', priceCurrency: 'USD', description: 'Up to 50 sites, adds the live dashboard and AI Insights.' },
+  ],
+};
+
 // (marketing) is a route group — it does not add a URL segment, so this is
 // still the site root ("/"). Grouped so later steps' (auth)/(portal)/(admin)
 // route groups can each carry their own layout without this one's Nav/
@@ -64,6 +100,10 @@ export default async function MarketingPage() {
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(SOFTWARE_JSON_LD) }}
+      />
       <Nav />
       {stats && (
         <StatsBanner
@@ -75,7 +115,7 @@ export default async function MarketingPage() {
       <Hero />
       <IntegratorSection />
       <FlowSteps />
-      <ModuleGrid />
+      <ModuleTeaser />
       <ReportPreview />
       <LiveDashboard />
       <Pricing starterPlanId={featuredPlans.starter} growthPlanId={featuredPlans.growth} />

@@ -7,16 +7,23 @@ export function Hero() {
     <header className={styles.hero}>
       <div className={`wrap ${styles.grid}`}>
         <div>
-          <Eyebrow className={styles.eyebrow}>Built on Victron VRM data</Eyebrow>
+          {/* Promoted from a supporting badge (IntegratorBadge, in
+              StatsBanner below) to the hero's own eyebrow — 2026-09-19,
+              Oscar's own call: the credential belongs in the headline
+              itself, the first thing read, not two sections down. "Built
+              on Victron VRM data" moved into the lede's own opening
+              clause instead of being dropped. */}
+          <Eyebrow className={styles.eyebrow}>Victron Recommended Software Integrator</Eyebrow>
           <h1 className={styles.h1}>
             Your system, <em className={styles.em}>live</em>.
             <br />
             Your story, <em className={styles.em}>weekly</em>.
           </h1>
           <p className={`lede ${styles.lede}`}>
-            Every Cerbo GX is already logging health score, grid independence, and battery behavior. Watch it live
-            on a dashboard that updates every ~15 minutes, and get the full story in a branded, AI-narrated report —
-            for your own system, or every customer on your fleet — automatically, every week.
+            Built on real Victron VRM data — every Cerbo GX is already logging health score, grid independence, and
+            battery behavior. Watch it live on a dashboard that updates every ~15 minutes, and get the full story in
+            a branded, AI-narrated report — for your own system, or every customer on your fleet — automatically,
+            every week.
           </p>
           <div className={styles.ctas}>
             {/* PLAN_PHASE16.md §8 Step 5.5 — replaces the old `#cta` anchor

@@ -1,0 +1,115 @@
+/* Page-specific layout only — section shell (padding, .band, .wrap) and
+   type scale all come from styles/base.css, same as the home page. */
+
+.intro {
+  padding: 64px 0 0;
+}
+.introLede {
+  max-width: 720px;
+  margin-top: 18px;
+}
+.introBody {
+  max-width: 720px;
+  margin-top: 16px;
+  color: var(--paper-dim);
+}
+.introBody p {
+  margin-bottom: 14px;
+}
+.introBody p:last-child {
+  margin-bottom: 0;
+}
+
+.backLink {
+  display: inline-block;
+  margin-bottom: 24px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--mute);
+  text-decoration: none;
+}
+.backLink:hover {
+  color: var(--paper-dim);
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  margin-top: 8px;
+}
+.detailGrid h3 {
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+.detailGrid p {
+  color: var(--paper-dim);
+  font-size: 14.5px;
+  margin-bottom: 12px;
+}
+.detailGrid ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.detailGrid li {
+  font-size: 13.5px;
+  color: var(--paper-dim);
+  padding-left: 16px;
+  position: relative;
+}
+.detailGrid li::before {
+  content: '\2022';
+  position: absolute;
+  left: 0;
+  color: var(--victron-glow);
+}
+.detailGrid b {
+  color: var(--paper);
+}
+
+@media (max-width: 920px) {
+  .detailGrid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+}
+
+.faqList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 8px;
+}
+.faqItem {
+  border-top: 1px solid var(--line);
+  padding: 22px 0;
+}
+.faqItem:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.faqItem h3 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+.faqItem p {
+  color: var(--paper-dim);
+  font-size: 14.5px;
+  max-width: 720px;
+}
+
+.ctaBand {
+  text-align: center;
+  padding: 72px 0;
+}
+.ctaBand h2 {
+  margin-bottom: 16px;
+}
+.ctaBand p {
+  color: var(--paper-dim);
+  max-width: 480px;
+  margin: 0 auto 28px;
+}

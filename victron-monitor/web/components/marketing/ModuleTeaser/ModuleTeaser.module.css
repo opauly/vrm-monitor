@@ -1,0 +1,52 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.card h3 {
+  margin-bottom: 10px;
+  font-size: 17px;
+}
+.body {
+  font-size: 13.5px;
+}
+
+.icon {
+  display: block;
+  width: 26px;
+  height: 26px;
+  color: var(--victron-glow);
+  margin-bottom: 10px;
+}
+.icon svg {
+  width: 100%;
+  height: 100%;
+}
+.tag {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mute);
+  margin-bottom: 12px;
+}
+
+.cta {
+  display: inline-block;
+  margin-top: 28px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--victron-glow);
+  text-decoration: none;
+}
+.cta:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 920px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
