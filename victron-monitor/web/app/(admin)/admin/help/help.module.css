@@ -1,7 +1,7 @@
-/* app/(admin)/admin/help — same conventions as fleet's own modules
-   (styles/tokens.css only); mirrors app/(portal)/app/help's layout without
-   the topic-switcher (admin has three static sections, not a multi-topic
-   FAQ needing a client component to switch between them). */
+/* app/(admin)/admin/help — mirrors app/(portal)/app/help's own module
+   almost verbatim (styles/tokens.css only). Rebuilt 2026-09-19 from three
+   static, VRM-Fleet-only sections into a topic switcher covering every
+   admin nav item, same reasoning as the customer side's own audit. */
 
 .intro {
   color: var(--paper-dim);
@@ -9,8 +9,35 @@
   margin-bottom: 24px;
 }
 
+.topicGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  max-width: 760px;
+  margin-bottom: 16px;
+}
+.topicCard,
+.topicCardActive {
+  cursor: pointer;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  color: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.topicCardActive {
+  background: var(--panel-2);
+  border-color: var(--victron);
+  color: var(--victron-glow);
+}
+
 .section {
-  max-width: 720px;
+  max-width: 760px;
   padding: 22px 26px;
   margin-bottom: 20px;
 }
@@ -23,6 +50,24 @@
 }
 .section p + p {
   margin-top: 10px;
+}
+
+.linkRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.pageLink {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--victron-glow);
+  text-decoration: none;
+}
+.pageLink:hover {
+  text-decoration: underline;
 }
 
 .stepList,

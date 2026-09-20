@@ -8,10 +8,26 @@
 // are split out of `app/(portal)/app/page.tsx` — everything that doesn't
 // need interactivity (the FAQ list, the contact card) stays server-rendered
 // there instead of being dragged into this client bundle for no reason.
+//
+// 2026-09-19 audit (Oscar's own request: "every step should be clear...
+// using tabs, cards, images, charts, bullets, links to the mentioned
+// sections"). Three topics added (Reports, Upload, Dashboard — the three
+// nav pages that had zero coverage here before), every topic now carries
+// a real `links` row instead of a page name in plain text, and two shared
+// illustrative diagrams (components/app/HelpDiagrams) replace what used
+// to be pure prose for the CSV-vs-VRM fork and the score bands. Topic
+// order now mirrors the actual sidebar nav order (`app/(portal)/app/
+// layout.tsx`) top to bottom, not an arbitrary "onboarding narrative"
+// order — a reader scanning the sidebar and scanning these tabs should
+// see the same sequence.
 import { useState } from 'react';
+import Link from 'next/link';
 import { t, type Lang, type StringKey } from '@/lib/i18n/strings';
 import { Panel } from '@/components/ui';
+import { DataSourceDiagram, ScoreLegend } from '@/components/app';
 import styles from './help.module.css';
+
+type TopicLink = { href: string; labelKey: StringKey };
 
 type Topic = {
   id: string;
@@ -20,12 +36,30 @@ type Topic = {
   leadKey: StringKey;
   steps?: StringKey[];
   bullets?: StringKey[];
+  diagram?: 'dataSource' | 'scoreLegend';
+  links: TopicLink[];
 };
 
-// Order here is the order topic cards render in — roughly the order a new
-// customer actually touches these screens (connect a site, schedule it,
-// then the less-frequently-visited billing/branding/account settings).
 const TOPICS: Topic[] = [
+  {
+    id: 'reports',
+    navKey: 'help_nav_reports',
+    titleKey: 'help_section_reports_title',
+    leadKey: 'help_section_reports_lead',
+    steps: ['help_reports_step_1', 'help_reports_step_2', 'help_reports_step_3'],
+    bullets: ['help_reports_bullet_history', 'help_reports_bullet_scheduled'],
+    links: [{ href: '/app', labelKey: 'nav_reports' }],
+  },
+  {
+    id: 'upload',
+    navKey: 'help_nav_upload',
+    titleKey: 'help_section_upload_title',
+    leadKey: 'help_section_upload_lead',
+    steps: ['help_upload_step_1', 'help_upload_step_2', 'help_upload_step_3'],
+    bullets: ['help_upload_bullet_history', 'help_upload_bullet_limit'],
+    diagram: 'dataSource',
+    links: [{ href: '/app/upload', labelKey: 'nav_upload' }],
+  },
   {
     id: 'sites',
     navKey: 'help_nav_sites',
@@ -33,6 +67,8 @@ const TOPICS: Topic[] = [
     leadKey: 'help_section_sites_lead',
     steps: ['help_sites_step_1', 'help_sites_step_2'],
     bullets: ['help_sites_bullet_reconnect'],
+    diagram: 'dataSource',
+    links: [{ href: '/app/sites', labelKey: 'nav_my_sites' }],
   },
   {
     id: 'schedule',
@@ -41,6 +77,19 @@ const TOPICS: Topic[] = [
     leadKey: 'help_section_schedule_lead',
     steps: ['help_schedule_step_1', 'help_schedule_step_2', 'help_schedule_step_3', 'help_schedule_step_4', 'help_schedule_step_5'],
     bullets: ['help_schedule_bullet_recipients', 'help_schedule_bullet_cap', 'help_schedule_bullet_bulk'],
+    links: [{ href: '/app/sites', labelKey: 'nav_my_sites' }],
+  },
+  {
+    id: 'dashboard',
+    navKey: 'help_nav_dashboard',
+    titleKey: 'help_section_dashboard_title',
+    leadKey: 'help_section_dashboard_lead',
+    bullets: ['help_dashboard_bullet_scores', 'help_dashboard_bullet_insights', 'help_dashboard_bullet_upgrade'],
+    diagram: 'scoreLegend',
+    links: [
+      { href: '/app/dashboard', labelKey: 'nav_dashboard' },
+      { href: '/app/billing', labelKey: 'nav_billing' },
+    ],
   },
   {
     id: 'branding',
@@ -48,6 +97,7 @@ const TOPICS: Topic[] = [
     titleKey: 'help_section_branding_title',
     leadKey: 'help_section_branding_lead',
     bullets: ['help_branding_bullet_who', 'help_branding_bullet_what', 'help_branding_bullet_where'],
+    links: [{ href: '/app/branding', labelKey: 'nav_branding' }],
   },
   {
     id: 'billing',
@@ -55,6 +105,7 @@ const TOPICS: Topic[] = [
     titleKey: 'help_section_billing_title',
     leadKey: 'help_section_billing_lead',
     bullets: ['help_billing_bullet_plan', 'help_billing_bullet_limit', 'help_billing_bullet_upgrade'],
+    links: [{ href: '/app/billing', labelKey: 'nav_billing' }],
   },
   {
     id: 'account',
@@ -62,6 +113,7 @@ const TOPICS: Topic[] = [
     titleKey: 'help_section_account_title',
     leadKey: 'help_section_account_lead',
     bullets: ['help_account_bullet_password', 'help_account_bullet_language'],
+    links: [{ href: '/app/profile', labelKey: 'nav_profile' }],
   },
 ];
 
@@ -96,6 +148,8 @@ export function HelpManager({ lang }: { lang: Lang }) {
             ))}
           </ol>
         )}
+        {active.diagram === 'dataSource' && <DataSourceDiagram />}
+        {active.diagram === 'scoreLegend' && <ScoreLegend />}
         {active.bullets && (
           <ul className={styles.bulletList}>
             {active.bullets.map((key) => (
@@ -103,6 +157,13 @@ export function HelpManager({ lang }: { lang: Lang }) {
             ))}
           </ul>
         )}
+        <div className={styles.linkRow}>
+          {active.links.map((link) => (
+            <Link key={link.href} href={link.href} className={styles.pageLink}>
+              {t(lang, link.labelKey)} &rarr;
+            </Link>
+          ))}
+        </div>
       </Panel>
     </div>
   );

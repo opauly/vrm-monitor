@@ -1,0 +1,64 @@
+.diagram {
+  width: 100%;
+  height: auto;
+  margin: 16px 0 4px;
+  font-family: var(--font-mono);
+}
+.box {
+  fill: var(--panel-2);
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.boxLive {
+  fill: var(--panel-2);
+  stroke: var(--victron);
+  stroke-width: 1.2;
+}
+.boxLabel {
+  fill: var(--paper);
+  font-size: 11px;
+}
+.boxSubLabel {
+  fill: var(--mute);
+  font-size: 9.5px;
+}
+.arrow {
+  stroke: var(--mute);
+  stroke-width: 1.2;
+  fill: none;
+}
+.arrowHead {
+  fill: var(--mute);
+}
+.arrowLabel {
+  fill: var(--victron-glow);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.footnote {
+  fill: var(--mute);
+  font-size: 9.5px;
+  font-style: italic;
+}
+
+.legendRow {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 14px 0 4px;
+}
+.legendChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--paper-dim);
+}
+.legendSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}

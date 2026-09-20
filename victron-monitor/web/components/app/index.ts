@@ -9,3 +9,6 @@ export type { VrmConnectionBannerProps } from './VrmConnectionBanner/VrmConnecti
 
 export { BillingBanners } from './BillingBanners/BillingBanners';
 export type { BillingBannersProps, BillingBannerStatus } from './BillingBanners/BillingBanners';
+
+export { DataSourceDiagram } from './HelpDiagrams/DataSourceDiagram';
+export { ScoreLegend } from './HelpDiagrams/ScoreLegend';

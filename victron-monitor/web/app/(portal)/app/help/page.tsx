@@ -29,6 +29,8 @@ const FAQ_KEYS: Array<{ q: StringKey; a: StringKey }> = [
   { q: 'help_faq_q8', a: 'help_faq_a8' },
   { q: 'help_faq_q9', a: 'help_faq_a9' },
   { q: 'help_faq_q10', a: 'help_faq_a10' },
+  { q: 'help_faq_q11', a: 'help_faq_a11' },
+  { q: 'help_faq_q12', a: 'help_faq_a12' },
 ];
 
 // `app/(portal)/app/help` — the topic switcher (`HelpManager`) is the only

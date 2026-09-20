@@ -644,11 +644,14 @@ export const STRINGS = {
     help_title: 'Help & guide',
     help_intro:
       'Everything you need to get sites connected, reports scheduled, and your account set up the way you want it.',
+    help_nav_reports: 'Reports',
+    help_nav_upload: 'Upload CSV',
     help_nav_sites: 'Getting started',
     help_nav_schedule: 'Scheduling',
+    help_nav_dashboard: 'Live dashboard',
     help_nav_branding: 'Branding',
     help_nav_billing: 'Billing & plans',
-    help_nav_account: 'Account',
+    help_nav_account: 'Profile',
     help_section_sites_title: 'Getting a site into your account',
     help_section_sites_lead: 'There are two ways to get a site into VRM Monitor:',
     help_sites_step_1:
@@ -686,6 +689,37 @@ export const STRINGS = {
     help_account_bullet_password: 'Change your password at any time, under "Change password."',
     help_account_bullet_language:
       "Each site has its own report language (English or Spanish), independent of the dashboard's language, set when you add or edit that site.",
+    help_section_reports_title: 'Viewing and generating reports',
+    help_section_reports_lead:
+      'Reports — your homepage in the app — lists every report generated for your sites, and lets you pull a fresh one for any range on demand.',
+    help_reports_step_1: 'Pick a site and a date range, then click Generate.',
+    help_reports_step_2:
+      "A range of 31 days or fewer produces the detailed, day-by-day report; 32 days to 6 months switches automatically to a summarized Overview — no setting to remember.",
+    help_reports_step_3: 'Once it finishes, click Download to save the PDF.',
+    help_reports_bullet_history:
+      'Every report ever generated for your account — scheduled or on-demand — is listed below the generator, most recent first.',
+    help_reports_bullet_scheduled:
+      'A site with its own recurring schedule (see Scheduling) sends reports here automatically — nothing to click.',
+    help_section_upload_title: 'Uploading a CSV report',
+    help_section_upload_lead:
+      "A one-off report from a file you export yourself from VRM — the site can't be scheduled, since there's no live connection to pull new data from automatically.",
+    help_upload_step_1: 'Choose an existing site, or add a new one right from this form.',
+    help_upload_step_2: 'Pick the CSV file you exported from VRM and click Process.',
+    help_upload_step_3:
+      'Review the preview — days covered, samples, alarms, outages, and any partial-day warnings — then confirm to generate the report.',
+    help_upload_bullet_history:
+      'Every past upload for your account is listed below the form, so you can always see what was already processed.',
+    help_upload_bullet_limit:
+      "Adding a new site here still counts against your plan's site limit, the same as adding one from My Sites.",
+    help_section_dashboard_title: 'Reading the live dashboard',
+    help_section_dashboard_lead:
+      'Available on Growth and Fleet: a live view of every connected site, refreshed every ~15 minutes.',
+    help_dashboard_bullet_scores:
+      "Each site gets two scores instead of one blended number: System (equipment health — alarms, battery SOC, cycling, temperature, voltage) and Grid (grid reliability — outages, grid dependency). A low SOC isn't penalized when a real grid outage explains it — the battery covering the load while the grid is down is the system working, not a fault.",
+    help_dashboard_bullet_insights:
+      "AI Insights are four deterministic checks against each site's own history, not a model: Unexpected silence, Quiet drift, Underperformance, and Incomplete charging.",
+    help_dashboard_bullet_upgrade:
+      "On Starter? Reports still cover everything — Live dashboard and AI Insights are the one thing Growth and Fleet add on top.",
     help_faq_title: 'Frequently asked questions',
     help_faq_q1: "What's the difference between a report generated automatically and one I upload a CSV for?",
     help_faq_a1:
@@ -714,6 +748,12 @@ export const STRINGS = {
       'Go to My Sites and reconnect your VRM account from there. This usually happens when a VRM access token expires or is revoked from the VRM side, not from anything wrong on our end.',
     help_faq_q10: 'How do I change my password?',
     help_faq_a10: 'From Profile, under "Change password."',
+    help_faq_q11: 'Why does my dashboard show two scores instead of one?',
+    help_faq_a11:
+      "System and Grid used to be blended into a single health score, which could hide which one actually needed attention — a grid outage the battery covered fine looked the same as an unexplained battery problem. They're now scored separately: System covers equipment (alarms, SOC, cycling, temperature, voltage), Grid covers reliability (outages, grid dependency).",
+    help_faq_q12: 'What are AI Insights, exactly?',
+    help_faq_a12:
+      "Four deterministic checks run against each site's own history, not a machine-learning model: Unexpected silence (a real zero during hours this site normally produces), Quiet drift (trending down vs. its own recent baseline), Underperformance (below what its installed size should deliver), and Incomplete charging (battery hasn't reached full charge in 5+ of the last 7 days).",
     help_contact_title: 'Still need help?',
     help_contact_body: "Email us directly and we'll get back to you.",
   },
@@ -1300,11 +1340,14 @@ export const STRINGS = {
     // ── Help (customer-facing guide + FAQ + support contact) ────────────
     help_title: 'Ayuda y guía',
     help_intro: 'Todo lo que necesitás para conectar sitios, programar reportes y configurar tu cuenta como querés.',
+    help_nav_reports: 'Reportes',
+    help_nav_upload: 'Cargar CSV',
     help_nav_sites: 'Primeros pasos',
     help_nav_schedule: 'Programación',
+    help_nav_dashboard: 'Panel en vivo',
     help_nav_branding: 'Marca',
     help_nav_billing: 'Facturación y planes',
-    help_nav_account: 'Cuenta',
+    help_nav_account: 'Perfil',
     help_section_sites_title: 'Cómo agregar un sitio a tu cuenta',
     help_section_sites_lead: 'Hay dos formas de agregar un sitio a VRM Monitor:',
     help_sites_step_1:
@@ -1342,6 +1385,37 @@ export const STRINGS = {
     help_account_bullet_password: 'Cambiá tu contraseña cuando quieras, en "Cambiar contraseña."',
     help_account_bullet_language:
       'Cada sitio tiene su propio idioma de reporte (inglés o español), independiente del idioma del panel, que se elige al agregar o editar ese sitio.',
+    help_section_reports_title: 'Ver y generar reportes',
+    help_section_reports_lead:
+      'Reportes — tu página de inicio en la app — lista todos los reportes generados para tus sitios, y te deja generar uno nuevo para cualquier rango cuando quieras.',
+    help_reports_step_1: 'Elegí un sitio y un rango de fechas, después hacé clic en Generar.',
+    help_reports_step_2:
+      'Un rango de 31 días o menos genera el reporte detallado, día por día; de 32 días a 6 meses cambia automáticamente a un Resumen — no hay ninguna opción que recordar.',
+    help_reports_step_3: 'Cuando termine, hacé clic en Descargar para guardar el PDF.',
+    help_reports_bullet_history:
+      'Todos los reportes generados para tu cuenta — programados o manuales — aparecen abajo del generador, del más reciente al más antiguo.',
+    help_reports_bullet_scheduled:
+      'Un sitio con su propio horario recurrente (ver Programación) manda reportes acá automáticamente — no hay que hacer clic en nada.',
+    help_section_upload_title: 'Cargar un reporte por CSV',
+    help_section_upload_lead:
+      'Un reporte puntual a partir de un archivo que exportás vos mismo desde VRM — el sitio no se puede programar, ya que no hay una conexión en vivo de la que traer datos nuevos automáticamente.',
+    help_upload_step_1: 'Elegí un sitio existente, o agregá uno nuevo directo desde este formulario.',
+    help_upload_step_2: 'Elegí el archivo CSV que exportaste desde VRM y hacé clic en Procesar.',
+    help_upload_step_3:
+      'Revisá la vista previa — días cubiertos, muestras, alarmas, cortes y cualquier aviso de día parcial — y confirmá para generar el reporte.',
+    help_upload_bullet_history:
+      'Todas las cargas anteriores de tu cuenta aparecen abajo del formulario, para que siempre puedas ver qué ya se procesó.',
+    help_upload_bullet_limit:
+      'Agregar un sitio nuevo acá también cuenta contra el límite de sitios de tu plan, igual que agregarlo desde Mis sitios.',
+    help_section_dashboard_title: 'Cómo leer el panel en vivo',
+    help_section_dashboard_lead:
+      'Disponible en Growth y Fleet: una vista en vivo de cada sitio conectado, actualizada cada ~15 minutos.',
+    help_dashboard_bullet_scores:
+      'Cada sitio tiene dos puntajes en lugar de uno solo combinado: Sistema (salud del equipo — alarmas, SOC de batería, ciclos, temperatura, voltaje) y Red (confiabilidad de la red — cortes, dependencia de la red). Un SOC bajo no se penaliza cuando lo explica un corte real de la red — que la batería cubra la carga mientras no hay red es el sistema funcionando, no una falla.',
+    help_dashboard_bullet_insights:
+      'Los AI Insights son cuatro chequeos determinísticos contra el propio historial de cada sitio, no un modelo: Silencio inesperado, Caída sostenida, Bajo rendimiento y Carga incompleta.',
+    help_dashboard_bullet_upgrade:
+      '¿Estás en Starter? Los reportes ya cubren todo — Panel en vivo y AI Insights son lo único que suman Growth y Fleet.',
     help_faq_title: 'Preguntas frecuentes',
     help_faq_q1: '¿Cuál es la diferencia entre un reporte generado automáticamente y uno que subo por CSV?',
     help_faq_a1:
@@ -1370,6 +1444,12 @@ export const STRINGS = {
       'Andá a Mis sitios y reconectá tu cuenta de VRM desde ahí. Esto suele pasar cuando un token de acceso de VRM vence o se revoca del lado de VRM, no por algo de nuestro lado.',
     help_faq_q10: '¿Cómo cambio mi contraseña?',
     help_faq_a10: 'Desde Perfil, en "Cambiar contraseña."',
+    help_faq_q11: '¿Por qué mi panel muestra dos puntajes en vez de uno?',
+    help_faq_a11:
+      'Antes Sistema y Red se combinaban en un solo puntaje de salud, lo que podía esconder cuál de los dos realmente necesitaba atención — un corte de red que la batería cubrió bien se veía igual que un problema real de batería sin explicación. Ahora se puntúan por separado: Sistema cubre el equipo (alarmas, SOC, ciclos, temperatura, voltaje), Red cubre la confiabilidad (cortes, dependencia de la red).',
+    help_faq_q12: '¿Qué son exactamente los AI Insights?',
+    help_faq_a12:
+      'Cuatro chequeos determinísticos contra el propio historial de cada sitio, no un modelo de machine learning: Silencio inesperado (un cero real en horas que el sitio normalmente produce), Caída sostenida (tendencia a la baja contra su propia línea base reciente), Bajo rendimiento (por debajo de lo que debería entregar su tamaño instalado), y Carga incompleta (la batería no llegó a carga completa en 5 o más de los últimos 7 días).',
     help_contact_title: '¿Todavía necesitás ayuda?',
     help_contact_body: 'Escribinos directamente y te respondemos.',
   },
