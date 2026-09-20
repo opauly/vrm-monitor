@@ -21,6 +21,14 @@ pydantic>=2.7.0
 # is a no-op locally, only load-bearing in the container.
 tzdata>=2024.1
 
+# vrm_api's own half of the analytics setup (2026-09-19) — the Next.js app
+# already has posthog-js/posthog-node (victron-monitor/web/package.json);
+# this is the server-side event vrm_api itself fires (vrm_api/analytics.py),
+# for the one funnel step that only ever resolves inside this service's own
+# billing reconciliation, never in a single Next.js route handler — see that
+# module's docstring.
+posthog>=3.7.0
+
 # `vrm_api/schemas.py` starts `from __future__ import annotations` (this
 # repo's convention, §3 of PLAN_PHASE14.md) and uses `X | None` unions.
 # Pydantic v2 evaluates those postponed (string) annotations at class-

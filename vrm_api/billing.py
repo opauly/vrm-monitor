@@ -78,6 +78,7 @@ from datetime import datetime, timedelta, timezone
 
 from database.supabase_client import get_client
 from vrm_api import onvo, tenancy
+from vrm_api.analytics import capture_server_event
 
 logger = logging.getLogger("vrm_api.billing")
 
@@ -688,6 +689,35 @@ def apply_entitlements(customer_id: str) -> None:
                 "signup.promoted customer_id=%s plan=%s site_limit=%s",
                 customer_id, updates.get("plan", customer.get("plan")),
                 updates.get("site_limit", customer.get("site_limit")),
+            )
+            # `subscription_started` — the analytics counterpart to the log
+            # line above, and deliberately hung on the SAME guard, for the
+            # same reason: `updates.get("provisioning_state") == "active"`
+            # is only ever true on the one reconcile call whose `_set()`
+            # above actually staged that write (line ~669's own `if
+            # customer.get("provisioning_state") == "pending_subscription"`
+            # gate), and after this UPDATE lands, `provisioning_state` is
+            # `"active"` from then on — so no later reconcile (a webhook
+            # retry, the daily reconcile-due sweep, another subscribe/
+            # cancel/change call) ever sees `"pending_subscription"` again
+            # to re-stage it. That one-way promotion (§4.5 rule 8) is what
+            # makes this safe to fire here at all, unlike almost anywhere
+            # else in this function — see vrm_api/analytics.py's own
+            # module docstring for the full reasoning, and this event's
+            # sibling `trial_started` (Next.js `lib/server/signup.ts`) for
+            # the earlier half of the same funnel. Known gap, not
+            # attempted here: a customer who cancels and later
+            # re-subscribes already has `provisioning_state == "active"`
+            # from their first subscription, so this specific guard does
+            # not fire a second time for that win-back case.
+            capture_server_event(
+                customer.get("contact_email") or customer.get("auth_email") or customer_id,
+                "subscription_started",
+                {
+                    "customer_id": customer_id,
+                    "plan": updates.get("plan", customer.get("plan")),
+                    "site_limit": updates.get("site_limit", customer.get("site_limit")),
+                },
             )
 
 

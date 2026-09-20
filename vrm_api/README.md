@@ -68,8 +68,10 @@ All already present in the repo-root `.env` (never committed; see
 | `RESEND_API_KEY` | `victron/mailer.py:send()` — the Resend API key `vrm_api/report_delivery.py` sends scheduled report emails through. Same value as `victron-monitor/web`'s own `RESEND_API_KEY` (that app uses it independently for invite/password-reset emails), but each process reads its own copy — neither ever calls the other to send mail. |
 | `PORTAL_FROM_EMAIL` | `victron/mailer.py:send()`'s default `from` address when no `from_` is passed explicitly — every scheduled report email and the Cap B "limit reached" notice use this. |
 | `VRM_ADMIN_TOKEN` | `routers/vrm_fleet.py` — Oscar's own Victron VRM personal access token, used only by the admin fleet flow (`/admin/vrm-fleet`) to read/link installations under his own VRM account. Never a customer's own token (that's `secrets.read_customer_vrm_token()`, Vault-backed, unrelated to this var). |
+| `NEXT_PUBLIC_POSTHOG_KEY` | `vrm_api/analytics.py:capture_server_event()` — fires the one analytics event this service captures itself, `subscription_started` (`billing.py:apply_entitlements()`). Same cross-runtime-shared-secret pattern as `REPORT_UNSUBSCRIBE_SECRET` above: the identical value is also set in `victron-monitor/web`'s own env (`NEXT_PUBLIC_POSTHOG_KEY`, used client-side there — see `victron-monitor/web/README.md`), one PostHog project, two independent SDKs. Missing key fails soft: analytics is simply not captured, never an error (see that module's own docstring). |
+| `NEXT_PUBLIC_POSTHOG_HOST` | Same file — PostHog's regional API host (`https://us.i.posthog.com` or `https://eu.i.posthog.com`, matching whichever region the PostHog project was created in). Optional; defaults to the US host if unset. |
 
-In production (Render), all thirteen vars above are set directly in the
+In production (Render), all fifteen vars above are set directly in the
 service's environment — no `.env` file is deployed.
 
 **`ONVO_WEBHOOK_SECRET` is deliberately NOT in this list — this service never
