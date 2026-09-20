@@ -1,16 +1,23 @@
 import type { Metadata } from 'next';
 import { fontVariables } from './fonts';
+import { SITE_URL } from '@/lib/site';
+import { PostHogProvider } from '@/components/analytics/PostHogProvider';
 import '../styles/tokens.css';
 import '../styles/base.css';
 
-// No `metadataBase` here on purpose: Next.js needs it to turn the marketing
-// page's relative `openGraph.images` path into an absolute URL, but the
-// real domain is PLAN_PHASE14.md §0.4 Q1 — still open, resolved only at
-// Step 8. Leaving it unset produces a harmless build-time console warning
-// (Next falls back to resolving against the request's own origin) instead
-// of baking in a domain guess (`monitor.paulyco.com`) that Oscar hasn't
-// confirmed; revisit this once §0.4 Q1 is answered.
+// `metadataBase` set 2026-09-19 — `SITE_URL` (lib/site.ts) resolved the
+// "which domain" question weeks ago (`monitor.paulyco.com`, overridable
+// via the `SITE_URL` env var for local dev); what's still pending is the
+// DNS/Vercel-domain wiring to actually make that hostname serve this app
+// instead of falling through to the main paulyco.com site (a known,
+// separate, non-code gap — see the top-level README's own domain note if
+// added, or ask Oscar). Setting this now regardless: it's what turns
+// every page's relative `openGraph.images` path into a correct absolute
+// URL, canonical links, etc. — all of which should already point at the
+// real intended domain, not `localhost` or whatever origin happened to
+// serve a given request, even while that domain's DNS catches up.
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: 'VRM Monitor',
     template: '%s · VRM Monitor',
@@ -25,7 +32,9 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
   // can resolve --font-big-shoulders / --font-plex-sans / --font-plex-mono.
   return (
     <html lang="en" className={fontVariables}>
-      <body>{children}</body>
+      <body>
+        <PostHogProvider>{children}</PostHogProvider>
+      </body>
     </html>
   );
 }

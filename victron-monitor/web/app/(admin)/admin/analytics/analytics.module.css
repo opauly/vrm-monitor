@@ -1,0 +1,72 @@
+.setupCard {
+  max-width: 640px;
+  margin-top: 20px;
+}
+.setupCard h2 {
+  font-size: 18px;
+  margin-bottom: 12px;
+}
+.setupCard ol {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.setupCard li {
+  font-size: 13.5px;
+  color: var(--paper-dim);
+}
+.setupCard code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--panel-2);
+  border-radius: var(--radius-sm);
+  padding: 1px 5px;
+}
+
+.eventList {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.eventRow {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 13px;
+}
+.eventName {
+  font-family: var(--font-mono);
+  color: var(--victron-glow);
+}
+.eventDesc {
+  color: var(--mute);
+}
+
+.frameWrap {
+  margin-top: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--panel);
+}
+.frame {
+  width: 100%;
+  height: 900px;
+  border: 0;
+  display: block;
+}
+
+.externalLink {
+  display: inline-block;
+  margin-top: 16px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--victron-glow);
+  text-decoration: none;
+}
+.externalLink:hover {
+  text-decoration: underline;
+}

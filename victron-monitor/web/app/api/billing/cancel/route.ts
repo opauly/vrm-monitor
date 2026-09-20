@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireCustomerForRouteAllowPending } from '@/lib/server/auth';
 import { billingCancel, toErrorResponse } from '@/lib/server/pipeline';
+import { captureServerEvent } from '@/lib/server/analytics';
 
 const bodySchema = z.object({ mode: z.literal('at_period_end') });
 
@@ -26,6 +27,12 @@ export async function POST(request: Request) {
 
   try {
     const result = await billingCancel({ customer_id: session.customerId, mode: parsed.data.mode });
+    // Keyed on `customerId`, not email (unlike signup's own events in
+    // lib/server/signup.ts) — this route only has the session's internal
+    // id on hand, not the auth email, and a second DB round trip just to
+    // unify the two isn't worth it for a fire-and-forget analytics call.
+    // Still counts correctly toward "how many unsubscribe" either way.
+    captureServerEvent(session.customerId, 'subscription_cancelled', { mode: parsed.data.mode });
     return NextResponse.json(result);
   } catch (err) {
     const res = toErrorResponse(err);

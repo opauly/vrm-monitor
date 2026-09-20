@@ -41,6 +41,7 @@ import {
 import { createOrLinkAuthUser, stampInvited } from './invites';
 import { renderActivationEmail } from './emailTemplates';
 import { sendEmail } from './resend';
+import { captureServerEvent } from './analytics';
 import type { AccountType, Lang } from './db/types';
 
 // PLAN_PHASE16.md §6.6's rate-limit table, verbatim — one exported constant
@@ -260,6 +261,11 @@ export async function submitSignup(input: SubmitSignupInput): Promise<void> {
       expiresAt,
     });
 
+    // Top-of-funnel intent — expressed interest, not yet a real account
+    // (that's `trial_started`, captured in `redeemSignupToken()` below,
+    // once the verification email is actually clicked).
+    captureServerEvent(email, 'signup_request_submitted', { account_type: input.accountType });
+
     // Never log `token` — it is the same class of single-use secret as an
     // emailed invite link (§11).
     await sendVerificationEmail(email, token);
@@ -327,6 +333,15 @@ export async function redeemSignupToken(rawToken: string): Promise<RedeemSignupR
   // over if this write itself fails.
   await linkSignupRequestToCustomer(request.id, customer.id).catch((err) => {
     console.error('redeemSignupToken: linking signup_requests.customer_id failed (diagnostics only)', err);
+  });
+
+  // The real account now exists — a trial, not yet a confirmed paid
+  // subscription (that resolution happens in vrm_api's own billing
+  // reconciliation, deliberately not captured from here — see
+  // lib/server/analytics.ts's own header comment on why).
+  captureServerEvent(request.email, 'trial_started', {
+    account_type: request.account_type,
+    plan_id: request.plan_id,
   });
 
   const nextPath = request.plan_id ? `/app/billing?plan=${request.plan_id}` : '/app/billing';

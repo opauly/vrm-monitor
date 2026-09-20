@@ -108,6 +108,24 @@ REPORT_UNSUBSCRIBE_SECRET=...   # cross-runtime shared secret, same shape as
                                  # `python3 -c "import secrets; print(secrets.token_hex(32))"`.
 ```
 
+2026-09-19 addition (`components/analytics/PostHogProvider.tsx`,
+`lib/server/analytics.ts` — visits/clicks/signup-cancel-funnel tracking,
+surfaced at `/admin/analytics`):
+
+```bash
+NEXT_PUBLIC_POSTHOG_KEY=phc_...          # PostHog Project API key. Unset means analytics
+                                          # is simply not captured (client or server side) —
+                                          # fails soft, never an error. The SAME value must
+                                          # also be set in vrm_api's own env (Render), which
+                                          # independently captures subscription_started —
+                                          # see vrm_api/README.md and vrm_api/analytics.py.
+NEXT_PUBLIC_POSTHOG_HOST=                # optional — defaults to https://us.i.posthog.com.
+                                          # Set to https://eu.i.posthog.com if the PostHog
+                                          # project was created in the EU region instead.
+POSTHOG_DASHBOARD_URL=                   # optional — a PostHog dashboard's public Share
+                                          # link, embedded at /admin/analytics once set.
+```
+
 `ONVO_SECRET_KEY`/`ONVO_PUBLISHABLE_KEY`/`ONVO_MODE` are **not** read by this
 app at all — they live in the root `.env` and are read only by `vrm_api`
 (`vrm_api/onvo.py`, `vrm_api/routers/billing.py`); see `vrm_api/README.md`.
