@@ -28,6 +28,20 @@ import { t } from '@/lib/i18n/strings';
 
 const ALLOWED_TYPES: readonly string[] = ['invite', 'recovery', 'magiclink'];
 
+// Min 8 chars + at least one letter, one digit, one symbol — the actual
+// enforcement (the client-side `pattern` on ActivateClient.tsx's `<Input>`
+// is a same-rule UX hint only; this is the one check that can't be
+// bypassed by a direct POST to this Server Action). Deliberately NOT
+// requiring both upper- AND lower-case — that rule is a well-documented
+// dead end (NIST SP 800-63B §5.1.1.2 explicitly recommends against
+// composition rules beyond a length minimum, since they measurably push
+// people toward predictable substitutions like "Password1!" without
+// raising real entropy) — "a letter" is enough to block a pure-digit PIN.
+function isPasswordStrongEnough(password: string): boolean {
+  if (password.length < 8) return false;
+  return /[a-zA-Z]/.test(password) && /[0-9]/.test(password) && /[^a-zA-Z0-9]/.test(password);
+}
+
 export type VerifyResult = { ok: true } | { ok: false };
 
 /**
@@ -78,7 +92,7 @@ export async function setActivationPasswordAction(nextPath: string, _prevState: 
   const password = String(formData.get('password') ?? '');
   const confirm = String(formData.get('confirm_password') ?? '');
 
-  if (password.length < 8) return { error: t('en', 'activate_error_short') };
+  if (!isPasswordStrongEnough(password)) return { error: t('en', 'activate_error_short') };
   if (password !== confirm) return { error: t('en', 'activate_error_mismatch') };
 
   const supabase = await createSupabaseServerClient();

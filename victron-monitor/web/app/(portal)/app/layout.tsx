@@ -16,10 +16,13 @@ import { t } from '@/lib/i18n/strings';
 // pending customer visiting `/app/billing` directly would be redirected to
 // `/app/billing` by the layout that renders `/app/billing`, an infinite
 // redirect loop. The actual gate still applies: each individual page under
-// this layout calls `requireCustomer()` itself (see e.g. `app/(portal)/app/
-// page.tsx`'s own "never inferred from layout nesting" comment), and THAT
-// call is what sends a pending customer to `/app/billing` — from a page
-// that isn't `/app/billing` itself, so no loop.
+// this layout makes its own `provisioningState` decision (see e.g.
+// `app/(portal)/app/page.tsx`'s own "never inferred from layout nesting"
+// comment) — most now via `requireCustomerAllowPending()` plus an explicit
+// `PendingSubscriptionUpsell` branch (2026-09-21, `lib/server/auth.ts:
+// requireCustomer()`'s own comment has the full list and why), a few still
+// via plain `requireCustomer()`'s own redirect where no page body would
+// make sense pending (e.g. a site's own drill-down page).
 export default async function PortalLayout({ children }: { children: ReactNode }) {
   const session = await requireCustomerAllowPending();
 
@@ -29,8 +32,9 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     { href: '/app/sites', label: t(session.uiLanguage, 'nav_my_sites') },
     // Shown to every customer regardless of tier — navigation-level gating
     // is UX, never the control (AppShellProps' own comment); the page
-    // itself (requireCustomer() + getDashboardAccess()) decides real
-    // content vs. the upsell, same as /app/branding below.
+    // itself (requireCustomerAllowPending() + getDashboardAccess()) decides
+    // real content vs. one of two upsells (pending-subscription vs.
+    // tier), same as /app/branding below.
     { href: '/app/dashboard', label: t(session.uiLanguage, 'nav_dashboard') },
     { href: '/app/branding', label: t(session.uiLanguage, 'nav_branding') },
     { href: '/app/billing', label: t(session.uiLanguage, 'nav_billing') },

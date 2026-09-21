@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { requireCustomer } from '@/lib/server/auth';
+import { requireCustomerAllowPending } from '@/lib/server/auth';
 import { getCustomer, getDashboardAccess, getCustomerFleetOverview, type FleetConnectionStatus, type FleetOverviewRow } from '@/lib/server/db';
 import { Table, Panel, Button, InfoTooltip } from '@/components/ui';
+import { PendingSubscriptionUpsell } from '@/components/app';
 import { formatDateTime, formatDateTimeInZone } from '@/lib/dates';
 import { SYSTEM_SCORE_INFO, GRID_SCORE_INFO } from '@/lib/healthScoreInfo';
 import { t } from '@/lib/i18n/strings';
@@ -75,8 +76,21 @@ function sortedAlphabetically(sites: FleetOverviewRow[]): FleetOverviewRow[] {
 }
 
 export default async function CustomerDashboardPage() {
-  const session = await requireCustomer();
+  const session = await requireCustomerAllowPending();
   const lang = session.uiLanguage;
+  // `…AllowPending`, not plain `requireCustomer()` (2026-09-21) — see
+  // `app/(portal)/app/page.tsx`'s own comment for why. Checked BEFORE
+  // `getCustomer()`/`getDashboardAccess()` below: a `pending_subscription`
+  // customer has no real plan for the tier-gated upsell branch further
+  // down to meaningfully distinguish from, so this short-circuits first.
+  if (session.provisioningState !== 'active') {
+    return (
+      <div>
+        <h1>{t(lang, 'dashboard_title')}</h1>
+        <PendingSubscriptionUpsell lang={lang} />
+      </div>
+    );
+  }
   const customer = await getCustomer(session.customerId);
   const allowed = await getDashboardAccess(customer);
 

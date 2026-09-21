@@ -93,7 +93,22 @@ function SetPasswordForm({ action }: { action: SetPasswordAction }) {
   return (
     <form action={formAction} className={styles.form} noValidate>
       <Field label={t('en', 'activate_password')} htmlFor="activate-password" required>
-        <Input id="activate-password" name="password" type="password" autoComplete="new-password" minLength={8} required disabled={pending} />
+        {/* `pattern` mirrors actions.ts's own `isPasswordStrongEnough()`
+            exactly (letter + digit + symbol, 8+ chars) — a same-rule UX
+            hint only, `noValidate` is already set on the <form> below so
+            this never blocks a submit the server wouldn't also reject;
+            the server check is the one that actually matters. */}
+        <Input
+          id="activate-password"
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          minLength={8}
+          pattern="(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
+          title={t('en', 'activate_password_hint')}
+          required
+          disabled={pending}
+        />
         <p className={styles.hint}>{t('en', 'activate_password_hint')}</p>
       </Field>
       <Field label={t('en', 'activate_confirm_password')} htmlFor="activate-confirm" required>

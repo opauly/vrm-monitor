@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
-import { requireCustomer } from '@/lib/server/auth';
+import { requireCustomerAllowPending } from '@/lib/server/auth';
 import { getBranding, getBrandingAccess, getCustomer } from '@/lib/server/db';
 import { createBrandingLogoUrl } from '@/lib/server/storage';
 import { t } from '@/lib/i18n/strings';
 import { Panel, Button } from '@/components/ui';
+import { PendingSubscriptionUpsell } from '@/components/app';
 import { BrandingForm } from './BrandingForm';
 import styles from './branding.module.css';
 
@@ -19,16 +20,25 @@ export const metadata: Metadata = {
 // branding status card pointing here, matching how it already handles VRM
 // connection and billing).
 //
-// Regular `requireCustomer()`, not `requireCustomerAllowPending()` — unlike
-// `/app/profile` and `/app/billing`, a `pending_subscription` customer has
-// no plan/entitlement for branding to even be gated ON yet, so there's
-// nothing here for them; the normal gate sends them to `/app/billing`
-// first, same as every other portal page.
+// `…AllowPending`, not plain `requireCustomer()` (2026-09-21, corrected —
+// see `app/(portal)/app/page.tsx`'s own comment for the full "why"). A
+// `pending_subscription` customer still has no plan/entitlement for
+// branding to be gated ON — that part of this comment's original reasoning
+// stands — but "nothing here for them" used to mean a silent redirect
+// instead of the explicit `PendingSubscriptionUpsell` branch below.
 export default async function BrandingPage() {
-  const session = await requireCustomer();
+  const session = await requireCustomerAllowPending();
+  const lang = session.uiLanguage;
+  if (session.provisioningState !== 'active') {
+    return (
+      <div>
+        <h1>{t(lang, 'branding_title')}</h1>
+        <PendingSubscriptionUpsell lang={lang} />
+      </div>
+    );
+  }
   const customer = await getCustomer(session.customerId);
   const allowed = await getBrandingAccess(customer);
-  const lang = session.uiLanguage;
 
   if (!allowed) {
     // An `owner` account has no third party for a report to be "branded"

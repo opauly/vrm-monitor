@@ -200,24 +200,41 @@ export async function requireCustomer(): Promise<CustomerSession> {
   // every future one written by someone who never read this comment sends
   // it straight to `/app/billing`, the only place it's allowed to be.
   // Placed in the DEFAULT function deliberately (§6.4: "fail-closed for
-  // code that doesn't know about it"). Three call sites opt out via
-  // `requireCustomerAllowPending()` below — `/app/billing`'s own page
-  // (this redirect would otherwise loop back to itself), `/app/profile`
-  // (sign-out and password-change live there), and `app/api/billing/*`
-  // (the only routes a pending customer legitimately calls). Defense in
-  // depth either way: a pending customer's `site_limit` is `0`, so
-  // `canAddSite()` refuses independently of this gate ever running.
+  // code that doesn't know about it"). Defense in depth either way: a
+  // pending customer's `site_limit` is `0`, so `canAddSite()` refuses
+  // independently of this gate ever running.
+  //
+  // Opt-outs use `requireCustomerAllowPending()` below — originally just
+  // three fixed places (`/app/billing`'s own page, since this redirect
+  // would otherwise loop back to itself; `/app/profile`, where sign-out
+  // and password-change live; and `app/api/billing/*`, the only routes a
+  // pending customer legitimately calls). 2026-09-21 (Oscar's own report):
+  // every OTHER portal page's silent redirect-with-no-explanation read as
+  // a bug, not a control — clicking any nav tab besides Billing/Profile/
+  // Help produced a blank flash mid-navigation before landing on Billing
+  // unannounced. Reports/Upload/My Sites/Dashboard/Branding now opt out
+  // too, each rendering `PendingSubscriptionUpsell`
+  // (`components/app/PendingSubscriptionUpsell`) in place of its real body
+  // when `provisioningState !== 'active'` — the access DECISION is
+  // unchanged (still exactly what this gate would have enforced), only
+  // where it's rendered moved from a redirect to the page itself. A new
+  // opt-out that does NOT render that same fallback (or an equivalent
+  // explicit check) is the actual regression this comment now warns
+  // against — not the opt-out itself.
   if (session.provisioningState !== 'active') redirect('/app/billing');
   return session;
 }
 
 /**
  * The explicit opt-out from `requireCustomer()`'s pending-account gate
- * above (PLAN_PHASE16.md §6.4) — everything else about `requireCustomer()`
- * (redirect to `/login` when signed out, to `/admin` for the wrong role)
- * stays identical. Used by exactly the three places named in that
- * function's own comment; a new call site here is a review question, not
- * a routine addition.
+ * above (PLAN_PHASE16.md §6.4, extended 2026-09-21) — everything else
+ * about `requireCustomer()` (redirect to `/login` when signed out, to
+ * `/admin` for the wrong role) stays identical. See that function's own
+ * comment for the full, current list of call sites and why each one opts
+ * out — every call site outside `/app/billing`/`/app/profile`/
+ * `app/api/billing/*` MUST render `PendingSubscriptionUpsell` (or
+ * equivalent) for a `pending_subscription` session, never its normal body
+ * — that's what keeps this a UX change, not a control regression.
  */
 export async function requireCustomerAllowPending(): Promise<CustomerSession> {
   const session = await getSessionContext();

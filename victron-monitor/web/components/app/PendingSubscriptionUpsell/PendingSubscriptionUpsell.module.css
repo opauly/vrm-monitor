@@ -1,0 +1,11 @@
+.upsell {
+  max-width: 480px;
+  padding: 26px 28px;
+}
+.upsell h2 {
+  margin-bottom: 10px;
+}
+.upsell p {
+  color: var(--paper-dim);
+  margin-bottom: 18px;
+}

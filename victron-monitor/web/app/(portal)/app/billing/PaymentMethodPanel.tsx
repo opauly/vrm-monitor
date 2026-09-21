@@ -38,10 +38,17 @@
 // itself (`vrm_api`'s own `billing.reconcile_customer()`).
 import { startTransition, useEffect, useRef, useState } from 'react';
 import Script from 'next/script';
+import Link from 'next/link';
 import { Button } from '@/components/ui';
 import { t, type Lang } from '@/lib/i18n/strings';
+import { formatDate, type DateLocale } from '@/lib/dates';
 import type { BillingStatusOut } from '@/lib/server/pipeline';
 import styles from './billing.module.css';
+
+// Duplicated rather than shared — see e.g. `profile/page.tsx`'s own
+// comment on why `DATE_LOCALE` is repeated per client component in this
+// app rather than centralized.
+const DATE_LOCALE: Record<Lang, DateLocale> = { en: 'en-US', es: 'es-CR' };
 
 // The ONVO web SDK is a plain global script, not an npm package (§0.2 [C])
 // — no published types exist to import, so this is the minimal shape this
@@ -70,6 +77,11 @@ export type PaymentMethodSession = {
   onvoSubscriptionId: string;
   onvoCustomerId: string;
   publishableKey: string;
+  /** `null` in `mode="replace"` (a card swap on an existing subscription
+   * has no trial to speak of) — only ever set from `mode="subscribe"`'s
+   * own `BillingSubscribeOut.trial_end`, the real ONVO-computed date, not
+   * a client-guessed "+7 days." */
+  trialEnd: string | null;
 };
 
 export type PaymentMethodPanelProps = {
@@ -150,6 +162,7 @@ export function PaymentMethodPanel({ lang, mode, subscribeSession, onSuccess, on
             onvoSubscriptionId: data.onvo_subscription_id,
             onvoCustomerId: data.onvo_customer_id,
             publishableKey: data.publishable_key,
+            trialEnd: null,
           });
         }
       } catch {
@@ -252,12 +265,35 @@ export function PaymentMethodPanel({ lang, mode, subscribeSession, onSuccess, on
         }}
       />
       <h2>{t(lang, 'billing_payment_method_title')}</h2>
+      {/* Real, ONVO-computed date (session.trialEnd), never a client-
+          guessed "+7 days" — see PaymentMethodSession's own comment.
+          `null` in mode="replace" (a card swap has no trial), so this
+          only ever shows on a genuine first subscribe. */}
+      {session?.trialEnd && (
+        <p className={styles.trialNotice}>
+          {t(lang, 'billing_payment_method_trial_notice').replace('{date}', formatDate(session.trialEnd, DATE_LOCALE[lang]))}
+        </p>
+      )}
       {(phase === 'priming' || !scriptReady) && phase !== 'error' && (
         <p className={styles.status}>{t(lang, 'billing_payment_method_loading')}</p>
       )}
       <div id={CONTAINER_ID} className={styles.sdkContainer} />
       {phase === 'saving' && <p className={styles.status}>{t(lang, 'billing_payment_method_saving')}</p>}
       {error && <p className={styles.error}>{error}</p>}
+      {/* A card is being collected on this screen either way (subscribe OR
+          replace) — shown regardless of mode, not gated behind
+          session?.trialEnd the way the notice above is. */}
+      <p className={styles.legalNote}>
+        {t(lang, 'billing_payment_method_legal_lead')}{' '}
+        <Link href="/terms" target="_blank" rel="noopener noreferrer">
+          {t(lang, 'billing_payment_method_legal_terms')}
+        </Link>{' '}
+        {t(lang, 'billing_payment_method_legal_and')}{' '}
+        <Link href="/privacy" target="_blank" rel="noopener noreferrer">
+          {t(lang, 'billing_payment_method_legal_privacy')}
+        </Link>
+        .
+      </p>
       {onCancel && (
         <div className={styles.formActions}>
           <Button type="button" variant="ghost" onClick={onCancel} disabled={phase === 'saving'}>

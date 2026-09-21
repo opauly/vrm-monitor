@@ -589,11 +589,20 @@ class BillingSubscribeOut(BaseModel):
     `onvo_subscription_id` is the just-created subscription — no payment
     method is attached to it yet (its real ONVO `status` is `trialing`
     immediately, not `incomplete` — see `routers/billing.py:
-    post_subscription()`'s own docstring)."""
+    post_subscription()`'s own docstring).
+
+    `trial_end` (2026-09-21) is the one field on this model that ISN'T for
+    the SDK — the "minimum the SDK needs" rule above is about what the
+    ONVO widget itself requires to render, not about what the page around
+    it may show. `PaymentMethodPanel.tsx` displays it as "you won't be
+    charged until {date}" so the card step doesn't read as an immediate
+    charge — the real number already exists on `sub` at creation (`trial_
+    period_days=7` is always set), it just wasn't being returned before."""
 
     onvo_subscription_id: str
     onvo_customer_id: str
     publishable_key: str
+    trial_end: str | None = None
 
 
 class BillingPaymentMethodSessionRequest(BaseModel):

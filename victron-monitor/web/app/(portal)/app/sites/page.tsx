@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-import { requireCustomer } from '@/lib/server/auth';
+import { requireCustomerAllowPending } from '@/lib/server/auth';
 import { canAddSite, getCustomer, getReportModulesAccess, getVrmLinkStatus, listSites } from '@/lib/server/db';
 import { t } from '@/lib/i18n/strings';
-import { VrmConnectionBanner } from '@/components/app';
+import { PendingSubscriptionUpsell, VrmConnectionBanner } from '@/components/app';
 import { SitesManager } from './SitesManager';
 import { VrmLinkPanel } from './VrmLinkPanel';
 import styles from './sites.module.css';
@@ -15,11 +15,20 @@ export const metadata: Metadata = {
 // / §8 Step 5) — Server Component: fetches this customer's own sites, the
 // add-site gate, and now the Victron VRM connection state, then hands all
 // of it to the client-side `SitesManager`/`VrmLinkPanel` for the
-// interactive table/forms. `requireCustomer()` first, per §3, even though
-// the layout above already called it — "never inferred from layout
-// nesting."
+// interactive table/forms. `requireCustomerAllowPending()` first, per §3,
+// even though the layout above already called it — "never inferred from
+// layout nesting." See `app/(portal)/app/page.tsx`'s own comment for why
+// this is `…AllowPending` now, not plain `requireCustomer()`.
 export default async function SitesPage() {
-  const session = await requireCustomer();
+  const session = await requireCustomerAllowPending();
+  if (session.provisioningState !== 'active') {
+    return (
+      <div>
+        <h1>{t(session.uiLanguage, 'sites_title')}</h1>
+        <PendingSubscriptionUpsell lang={session.uiLanguage} />
+      </div>
+    );
+  }
 
   // `listSites`/`canAddSite`/`getVrmLinkStatus` all take only
   // `session.customerId` — there is no `site_id` or `customer_id` anywhere

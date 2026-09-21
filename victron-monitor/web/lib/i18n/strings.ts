@@ -64,11 +64,11 @@ export const STRINGS = {
     activate_title: 'Set your password',
     activate_subtitle: 'Choose a password for your VRM Monitor account.',
     activate_password: 'New password',
-    activate_password_hint: 'At least 8 characters.',
+    activate_password_hint: 'At least 8 characters, with a letter, a number, and a symbol.',
     activate_confirm_password: 'Confirm password',
     activate_submit: 'Set password',
     activate_setting: 'Setting password…',
-    activate_error_short: 'Use at least 8 characters.',
+    activate_error_short: 'Use at least 8 characters, including a letter, a number, and a symbol.',
     activate_error_mismatch: "Passwords don't match.",
     activate_error_generic: "Couldn't set your password. Please try again.",
     forgot_title: 'Reset your password',
@@ -546,6 +546,11 @@ export const STRINGS = {
     billing_change_after_card_body: 'Ready to switch to {plan}? This starts a new billing period right away.',
     billing_payment_method_cancel_button: 'Cancel',
     billing_payment_method_loading: 'Loading secure card form…',
+    billing_payment_method_trial_notice: "You won't be charged until your free trial ends on {date}. We'll email you a reminder before then.",
+    billing_payment_method_legal_lead: 'By continuing, you agree to our',
+    billing_payment_method_legal_terms: 'Terms of Service',
+    billing_payment_method_legal_and: 'and',
+    billing_payment_method_legal_privacy: 'Privacy Policy',
     billing_payment_method_save_button: 'Save card',
     billing_payment_method_subscribe_button: 'Start subscription',
     billing_payment_method_saving: 'Saving…',
@@ -587,6 +592,15 @@ export const STRINGS = {
     profile_billing_title: 'Billing',
     profile_billing_no_plan: 'No active plan yet.',
     profile_billing_manage_cta: 'Manage billing',
+
+    // ── Pending-subscription placeholder (2026-09-21) — shared across
+    // every page a `pending_subscription` customer could otherwise land on
+    // (Reports, Upload, My Sites, Dashboard, Branding): replaces a silent
+    // requireCustomer() redirect straight to /app/billing with an in-place
+    // explanation of why, plus a way there. See PendingSubscriptionUpsell.tsx. ──
+    pending_subscription_title: 'Finish setting up your account',
+    pending_subscription_body: 'Select a plan and add a card to unlock the rest of VRM Monitor — reports, live monitoring, and everything else.',
+    pending_subscription_cta: 'Choose a plan',
 
     // ── Branding (PLAN_PHASE17.md §4.5, §8 Step 5) ──────────────────────
     profile_branding_title: 'Report branding',
@@ -793,11 +807,11 @@ export const STRINGS = {
     activate_title: 'Elegí tu contraseña',
     activate_subtitle: 'Elegí una contraseña para tu cuenta de VRM Monitor.',
     activate_password: 'Nueva contraseña',
-    activate_password_hint: 'Al menos 8 caracteres.',
+    activate_password_hint: 'Al menos 8 caracteres, con una letra, un número y un símbolo.',
     activate_confirm_password: 'Confirmar contraseña',
     activate_submit: 'Guardar contraseña',
     activate_setting: 'Guardando…',
-    activate_error_short: 'Usá al menos 8 caracteres.',
+    activate_error_short: 'Usá al menos 8 caracteres, incluyendo una letra, un número y un símbolo.',
     activate_error_mismatch: 'Las contraseñas no coinciden.',
     activate_error_generic: 'No se pudo guardar la contraseña. Intentá de nuevo.',
     forgot_title: 'Restablecer tu contraseña',
@@ -1244,6 +1258,11 @@ export const STRINGS = {
     billing_change_after_card_body: '¿Listo para cambiar a {plan}? Esto inicia un nuevo período de facturación de inmediato.',
     billing_payment_method_cancel_button: 'Cancelar',
     billing_payment_method_loading: 'Cargando formulario seguro de tarjeta…',
+    billing_payment_method_trial_notice: 'No se te cobrará hasta que termine tu prueba gratuita, el {date}. Te enviaremos un recordatorio por correo antes de esa fecha.',
+    billing_payment_method_legal_lead: 'Al continuar, aceptás nuestros',
+    billing_payment_method_legal_terms: 'Términos de Servicio',
+    billing_payment_method_legal_and: 'y nuestra',
+    billing_payment_method_legal_privacy: 'Política de Privacidad',
     billing_payment_method_save_button: 'Guardar tarjeta',
     billing_payment_method_subscribe_button: 'Iniciar suscripción',
     billing_payment_method_saving: 'Guardando…',
@@ -1285,6 +1304,11 @@ export const STRINGS = {
     profile_billing_title: 'Facturación',
     profile_billing_no_plan: 'Todavía no hay un plan activo.',
     profile_billing_manage_cta: 'Gestionar facturación',
+
+    // ── Placeholder de suscripción pendiente (2026-09-21) ────────────────
+    pending_subscription_title: 'Terminá de configurar tu cuenta',
+    pending_subscription_body: 'Elegí un plan y agregá una tarjeta para desbloquear el resto de VRM Monitor — reportes, monitoreo en vivo y todo lo demás.',
+    pending_subscription_cta: 'Elegir un plan',
 
     // ── Branding (PLAN_PHASE17.md §4.5, §8 Step 5) ──────────────────────
     profile_branding_title: 'Marca del reporte',

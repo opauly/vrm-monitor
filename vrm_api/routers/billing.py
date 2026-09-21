@@ -635,7 +635,7 @@ def post_subscription(body: BillingSubscribeRequest) -> BillingSubscribeOut:
 
     return BillingSubscribeOut(
         onvo_subscription_id=sub["id"], onvo_customer_id=onvo_customer_id,
-        publishable_key=_publishable_key(),
+        publishable_key=_publishable_key(), trial_end=sub.get("trialEnd"),
     )
 
 

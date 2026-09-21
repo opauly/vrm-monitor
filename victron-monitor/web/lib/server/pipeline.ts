@@ -601,7 +601,7 @@ export async function billingInvoices(
 export async function billingSubscribe(body: {
   customer_id: string;
   plan_id: string;
-}): Promise<{ onvo_subscription_id: string; onvo_customer_id: string; publishable_key: string }> {
+}): Promise<{ onvo_subscription_id: string; onvo_customer_id: string; publishable_key: string; trial_end: string | null }> {
   return pipelineJson('/v1/billing/subscription', jsonInit(body));
 }
 

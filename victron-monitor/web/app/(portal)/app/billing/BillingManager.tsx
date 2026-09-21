@@ -187,11 +187,13 @@ export function BillingManager({ status: initialStatus, lang, firstRun, initialP
         onvo_subscription_id: string;
         onvo_customer_id: string;
         publishable_key: string;
+        trial_end: string | null;
       };
       setSubscribeSession({
         onvoSubscriptionId: data.onvo_subscription_id,
         onvoCustomerId: data.onvo_customer_id,
         publishableKey: data.publishable_key,
+        trialEnd: data.trial_end,
       });
       setPanel('payment_method');
     } catch {

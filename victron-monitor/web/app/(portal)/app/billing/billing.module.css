@@ -188,6 +188,25 @@
   font-size: 12px;
   margin-top: 4px;
 }
+.trialNotice {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--good);
+  border-radius: var(--radius-lg);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--paper-dim);
+}
+.legalNote {
+  color: var(--mute);
+  font-size: 12px;
+  margin-top: 14px;
+}
+.legalNote a {
+  color: var(--victron);
+  text-decoration: underline;
+}
 
 .confirmBox {
   border: 1px solid var(--signal);
