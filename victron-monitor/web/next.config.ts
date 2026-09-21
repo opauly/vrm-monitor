@@ -21,9 +21,19 @@ import type { NextConfig } from "next";
 // violation warnings) before trusting this policy is complete**, since a
 // third-party SDK's exact origin list isn't something to guess with
 // confidence from reading its embed snippet alone.
+//
+// PostHog domains added 2026-09-21 — found live, both broken by the
+// original policy: (1) PostHogProvider.tsx's own client-side SDK was
+// silently failing every pageview/event (script-src/connect-src
+// violations, console: "Refused to connect/load ... us(-assets).i.posthog
+// .com"), and (2) /admin/analytics's embedded dashboard iframe
+// (POSTHOG_DASHBOARD_URL) rendered as a blank "This content is blocked"
+// placeholder — frame-src had no PostHog origin at all, only ONVO's. Both
+// US and EU regions are listed since NEXT_PUBLIC_POSTHOG_HOST is a
+// runtime env var this build-time CSP can't branch on.
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://sdk.onvopay.com",
+  "script-src 'self' 'unsafe-inline' https://sdk.onvopay.com https://us-assets.i.posthog.com https://eu-assets.i.posthog.com",
   "style-src 'self' 'unsafe-inline'",
   // `blob:` is required for BrandingForm.tsx's instant local logo preview
   // (`URL.createObjectURL(file)`, before the upload round trip completes) —
@@ -31,8 +41,8 @@ const csp = [
   // failed to render the just-picked file with no console error, since a
   // blocked `blob:` <img> src fails quietly rather than throwing.
   "img-src 'self' data: blob: https://*.supabase.co",
-  "connect-src 'self' https://*.supabase.co https://sdk.onvopay.com https://api.onvopay.com",
-  "frame-src https://sdk.onvopay.com",
+  "connect-src 'self' https://*.supabase.co https://sdk.onvopay.com https://api.onvopay.com https://us.i.posthog.com https://eu.i.posthog.com https://us-assets.i.posthog.com https://eu-assets.i.posthog.com",
+  "frame-src https://sdk.onvopay.com https://us.posthog.com https://eu.posthog.com",
   "font-src 'self' data:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
