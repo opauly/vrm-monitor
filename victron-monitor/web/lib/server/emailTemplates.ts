@@ -1,4 +1,5 @@
 import 'server-only';
+import { SITE_URL } from '@/lib/site';
 
 // The activation/invite email's HTML, rendered directly in TypeScript.
 //
@@ -32,15 +33,22 @@ const VICTRON_BLUE = '#0789d4';
 
 // Absolute URL, not a relative `/pauly_logo.png` — email clients fetch
 // images over plain HTTP with no notion of "relative to this app," so the
-// path has to be resolved against a real origin. Falls back to the
-// production domain the same way `lib/server/signup.ts`'s own `SITE_URL()`
-// does; in local dev (`SITE_URL=http://localhost:3000`) the image simply
-// won't load in a real mail client, since nothing outside this machine can
-// reach localhost — expected, not a bug, and `alt` below is what a
-// recipient sees either way until they click "show images" (most clients'
-// default), which is why it carries the real brand name, not just "logo."
+// path has to be resolved against a real origin. Uses `lib/site.ts`'s own
+// already-normalized `SITE_URL` (2026-09-21 fix — this used to read
+// `process.env.SITE_URL` directly here, a second, independently-unsafe
+// copy of the same env read `lib/server/signup.ts`'s own `SITE_URL()` had:
+// found live, a malformed `SITE_URL` — a bare hostname with no scheme —
+// silently produced a broken `<img src>` and broken footer link in every
+// email this template renders, since a plain string `.replace()` here
+// never throws the way `new URL(bareHostname)` does elsewhere, so nothing
+// ever surfaced the bad value). In local dev (`SITE_URL=http://
+// localhost:3000`) the image simply won't load in a real mail client,
+// since nothing outside this machine can reach localhost — expected, not
+// a bug, and `alt` below is what a recipient sees either way until they
+// click "show images" (most clients' default), which is why it carries
+// the real brand name, not just "logo."
 function siteBase(): string {
-  return (process.env.SITE_URL ?? 'https://monitor.paulyco.com').replace(/\/+$/, '');
+  return SITE_URL;
 }
 
 function logoUrl(): string {

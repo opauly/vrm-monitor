@@ -42,6 +42,7 @@ import { createOrLinkAuthUser, stampInvited } from './invites';
 import { renderActivationEmail } from './emailTemplates';
 import { sendEmail } from './resend';
 import { captureServerEvent } from './analytics';
+import { SITE_URL } from '@/lib/site';
 import type { AccountType, Lang } from './db/types';
 
 // PLAN_PHASE16.md §6.6's rate-limit table, verbatim — one exported constant
@@ -116,7 +117,7 @@ async function clientMeta(): Promise<{ ipHash: string | null; userAgent: string 
 }
 
 async function sendVerificationEmail(email: string, token: string): Promise<void> {
-  const url = new URL('/signup/verify', SITE_URL());
+  const url = new URL('/signup/verify', SITE_URL);
   url.searchParams.set('token', token);
   const html = renderActivationEmail({
     heading: 'Confirm your email',
@@ -145,7 +146,7 @@ async function sendVerificationEmail(email: string, token: string): Promise<void
  * account holder gets a useful email if it was actually them.
  */
 async function sendExistingAccountEmail(email: string): Promise<void> {
-  const url = new URL('/login', SITE_URL());
+  const url = new URL('/login', SITE_URL);
   const html = renderActivationEmail({
     heading: 'You already have a VRM Monitor account',
     intro: `An account already exists for ${email}. Sign in below — or use "Forgot your password?" on that page if you don't remember it.`,
@@ -158,15 +159,6 @@ async function sendExistingAccountEmail(email: string): Promise<void> {
   } catch (err) {
     console.error('submitSignup: existing-account email failed to send', err);
   }
-}
-
-function SITE_URL(): string {
-  // Deliberately re-read on every call rather than imported as a top-level
-  // constant from `lib/site.ts` — this file is imported by Server Actions
-  // AND the verify Route Handler, and `lib/site.ts`'s own module-level
-  // constant is fine either way, but keeping the read local to this module
-  // avoids a second import of a value only these two email builders need.
-  return process.env.SITE_URL ?? 'https://monitor.paulyco.com';
 }
 
 export type SubmitSignupInput = {
