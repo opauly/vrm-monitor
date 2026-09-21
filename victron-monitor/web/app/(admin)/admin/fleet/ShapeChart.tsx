@@ -75,58 +75,82 @@ const SERIES: { key: SeriesKey; label: string; color: string; fill?: string }[] 
 ];
 
 const W = 960;
-const H = 240;
-const ZERO_Y = 170;
-const HEADROOM_ABOVE = ZERO_Y; // px available for positive values
-const HEADROOM_BELOW = H - ZERO_Y; // px available for negative values (battery discharge, grid export)
+// Calibration target, not a hard cap — the height/density a chart with
+// EVERY series at its full observed magnitude would render at. Real
+// per-render headroom (`computeLayout` below) is usually smaller than
+// this, and the chart shrinks to fit.
+const TARGET_HEADROOM_ABOVE = 170; // px, if the biggest positive series were visible at its own max
+const TARGET_HEADROOM_BELOW = 70; // px, same for the biggest negative series
 
 function xFor(i: number) {
   return Math.round(i * (W / 23));
 }
 
-/** Scale is computed fresh per fetch from the ACTUAL data (with headroom),
- * not a hardcoded constant — a hardcoded scale clipped real fleet load
- * (found live: fleet load regularly exceeds the number this was first
- * shipped with). Positive and negative values get independent scales so a
- * small battery dip doesn't waste most of the chart's height, and solar's
- * real peak doesn't get clipped by a scale sized for battery instead.
- *
- * Takes only the CURRENTLY VISIBLE series' arrays, not every fetched
- * series — computing it from the full fetch regardless of which
- * checkboxes are on left the axis (and half the chart's height) reserved
- * for Battery/Grid's negative range even with both unchecked, the actual
- * default state. Toggling a series does reflow the scale as a result; kept
- * that way on purpose, matching "show me what's actually on screen" over
- * a perfectly stable axis nothing is using. */
-function computeScale(visible: (number | null)[][]): { pxPerWPos: number; pxPerWNeg: number; topW: number; bottomW: number; hasNegative: boolean } {
-  let maxPos = 0;
-  let maxNeg = 0;
-  for (const arr of visible) {
+function maxAbs(arrays: (number | null)[][], sign: 1 | -1): number {
+  let max = 0;
+  for (const arr of arrays) {
     for (const v of arr) {
       if (v === null) continue;
-      if (v > maxPos) maxPos = v;
-      if (-v > maxNeg) maxNeg = -v;
+      const signed = v * sign;
+      if (signed > max) max = signed;
     }
   }
-  // 20% headroom so a peak never touches the very top/bottom edge; a flat
-  // all-zero series still gets a sane, non-infinite scale. `topW`/`bottomW`
-  // are the actual W value sitting at the chart's top/bottom edge under
-  // that headroom — what the y-axis labels below are built from, so the
-  // axis always matches the scale exactly instead of being a second,
-  // separately-guessed set of numbers.
-  const topW = Math.max(maxPos * 1.2, 1);
-  const bottomW = Math.max(maxNeg * 1.2, 1);
-  const pxPerWPos = HEADROOM_ABOVE / topW;
-  const pxPerWNeg = HEADROOM_BELOW / bottomW;
-  return { pxPerWPos, pxPerWNeg, topW, bottomW, hasNegative: maxNeg > 0 };
+  return max;
+}
+
+/** The chart's per-watt pixel density — computed ONCE from every fetched
+ * series (solar/load/grid/battery), regardless of which checkboxes are
+ * currently on. This used to be recomputed from only the CURRENTLY
+ * VISIBLE series on every toggle (a hardcoded scale clipped real fleet
+ * load, so "compute it from the data" was the original fix) — found live,
+ * 2026-09-20: that made an already-visible, UNCHANGED series (e.g. Grid)
+ * visibly compress or stretch every time an unrelated one (Battery) was
+ * toggled, since both shared one scale sized to fit inside a fixed total
+ * chart height. A series that isn't moving must never look like it's
+ * moving. Density is now fixed for the whole fetched dataset — only new
+ * data (a range switch) changes it — and `computeLayout` below is what
+ * responds to which series are actually checked, by resizing the chart
+ * instead of restretching what's already on it. */
+function computeDensity(allSeries: (number | null)[][]): { pxPerWPos: number; pxPerWNeg: number } {
+  const maxPos = Math.max(maxAbs(allSeries, 1) * 1.2, 1);
+  const maxNeg = Math.max(maxAbs(allSeries, -1) * 1.2, 1);
+  return { pxPerWPos: TARGET_HEADROOM_ABOVE / maxPos, pxPerWNeg: TARGET_HEADROOM_BELOW / maxNeg };
+}
+
+// Never fully collapses even when every visible series is flat/all-null —
+// a sliver-thin chart reads as broken, not "nothing to show."
+const MIN_HEADROOM_ABOVE = 40;
+const MIN_HEADROOM_BELOW = 24;
+
+/** How tall the chart actually renders, and where its zero-line sits —
+ * driven by the CURRENTLY VISIBLE series only, at the stable density
+ * `computeDensity` produced. This is what grows/shrinks on a checkbox
+ * toggle now, not the density: showing Battery on top of Grid makes the
+ * chart taller to fit Battery's own range, without changing one pixel of
+ * where Grid was already drawn. `topW`/`bottomW` are the real W value
+ * sitting at the resulting top/bottom edge — what the y-axis labels are
+ * built from, so the axis always matches the drawn scale exactly. */
+function computeLayout(visible: (number | null)[][], density: { pxPerWPos: number; pxPerWNeg: number }) {
+  const maxPos = maxAbs(visible, 1) * 1.2;
+  const maxNeg = maxAbs(visible, -1) * 1.2;
+  const headroomAbove = Math.max(maxPos * density.pxPerWPos, MIN_HEADROOM_ABOVE);
+  const headroomBelow = maxNeg > 0 ? Math.max(maxNeg * density.pxPerWNeg, MIN_HEADROOM_BELOW) : 0;
+  return {
+    ...density,
+    zeroY: headroomAbove,
+    height: headroomAbove + headroomBelow,
+    topW: maxPos / density.pxPerWPos > 0 ? headroomAbove / density.pxPerWPos : 1,
+    bottomW: headroomBelow / density.pxPerWNeg,
+    hasNegative: maxNeg > 0,
+  };
 }
 
 function formatW(w: number): string {
   return Math.abs(w) >= 1000 ? `${(w / 1000).toFixed(1)}kW` : `${Math.round(w)}W`;
 }
 
-function yFor(v: number, scale: { pxPerWPos: number; pxPerWNeg: number }) {
-  return v >= 0 ? ZERO_Y - v * scale.pxPerWPos : ZERO_Y - v * scale.pxPerWNeg;
+function yFor(v: number, zeroY: number, density: { pxPerWPos: number; pxPerWNeg: number }) {
+  return v >= 0 ? zeroY - v * density.pxPerWPos : zeroY - v * density.pxPerWNeg;
 }
 
 /** Splits into contiguous non-null runs (a gap in the data breaks the line
@@ -136,7 +160,12 @@ function yFor(v: number, scale: { pxPerWPos: number; pxPerWNeg: number }) {
  * each pair of points round that off without overshooting past the real
  * values, matching the smoother look the mockup's hand-picked illustrative
  * numbers happened to have for free. */
-function buildPaths(arr: (number | null)[], scale: { pxPerWPos: number; pxPerWNeg: number }, withFill: boolean): { linePath: string; fillPath: string } {
+function buildPaths(
+  arr: (number | null)[],
+  zeroY: number,
+  density: { pxPerWPos: number; pxPerWNeg: number },
+  withFill: boolean,
+): { linePath: string; fillPath: string } {
   const runs: [number, number][][] = [];
   let current: [number, number][] = [];
   for (let i = 0; i < arr.length; i++) {
@@ -146,7 +175,7 @@ function buildPaths(arr: (number | null)[], scale: { pxPerWPos: number; pxPerWNe
       current = [];
       continue;
     }
-    current.push([xFor(i), yFor(v, scale)]);
+    current.push([xFor(i), yFor(v, zeroY, density)]);
   }
   if (current.length >= 2) runs.push(current);
 
@@ -164,7 +193,7 @@ function buildPaths(arr: (number | null)[], scale: { pxPerWPos: number; pxPerWNe
     if (withFill) {
       const [lastX] = run[run.length - 1];
       const [firstX] = run[0];
-      fillPath += `${seg} L ${lastX} ${ZERO_Y} L ${firstX} ${ZERO_Y} Z `;
+      fillPath += `${seg} L ${lastX} ${zeroY} L ${firstX} ${zeroY} Z `;
     }
   }
   return { linePath: linePath.trim(), fillPath: fillPath.trim() };
@@ -363,18 +392,26 @@ export function ShapeChart({
     [ready, checked, gridDisabled]
   );
 
-  const scale = useMemo(
-    () => (ready ? computeScale(visibleSeries.map((s) => ready.data[s.key])) : null),
-    [ready, visibleSeries]
+  // Density is keyed only to `ready` (the fetched dataset), never to which
+  // checkboxes are on — see computeDensity's own comment for why toggling a
+  // series must not restretch one that's already drawn.
+  const density = useMemo(
+    () => (ready ? computeDensity(SERIES.map((s) => ready.data[s.key])) : null),
+    [ready]
+  );
+
+  const layout = useMemo(
+    () => (ready && density ? computeLayout(visibleSeries.map((s) => ready.data[s.key]), density) : null),
+    [ready, density, visibleSeries]
   );
 
   const paths = useMemo(() => {
-    if (!ready || !scale) return [];
+    if (!ready || !layout) return [];
     return visibleSeries.map((s) => ({
       ...s,
-      ...buildPaths(ready.data[s.key], scale, Boolean(s.fill)),
+      ...buildPaths(ready.data[s.key], layout.zeroY, layout, Boolean(s.fill)),
     }));
-  }, [ready, scale, visibleSeries]);
+  }, [ready, layout, visibleSeries]);
 
   return (
     <div className={styles.card}>
@@ -417,23 +454,23 @@ export function ShapeChart({
       <div className={styles.chartWrap}>
         {status === 'loading' && !ready && <div className={styles.status}>Loading real VRM data…</div>}
         {status === 'error' && !ready && <div className={styles.status}>Could not load this chart right now.</div>}
-        {ready && scale && (
+        {ready && layout && (
           <>
             {status === 'loading' && <div className={styles.updating}>Updating…</div>}
             {status === 'partial' && <div className={styles.updating}>Some sites couldn&apos;t be reached — totals may be undercounted.</div>}
             {status === 'error' && <div className={styles.updating}>Couldn&apos;t refresh — showing the last loaded data.</div>}
-            <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-              <line x1="0" y1={ZERO_Y} x2={W} y2={ZERO_Y} stroke="var(--line)" strokeWidth={1.2} />
+            <svg viewBox={`0 0 ${W} ${layout.height}`} preserveAspectRatio="none">
+              <line x1="0" y1={layout.zeroY} x2={W} y2={layout.zeroY} stroke="var(--line)" strokeWidth={1.2} />
               {[6, 12, 18].map((h) => (
-                <line key={h} x1={xFor(h)} y1={0} x2={xFor(h)} y2={H} stroke="var(--line)" strokeWidth={1} strokeDasharray="2 4" />
+                <line key={h} x1={xFor(h)} y1={0} x2={xFor(h)} y2={layout.height} stroke="var(--line)" strokeWidth={1} strokeDasharray="2 4" />
               ))}
-              {/* Y-axis gridlines behind the data, matching the scale
-                  exactly since both come from the same computeScale() call
+              {/* Y-axis gridlines behind the data, matching the layout
+                  exactly since both come from the same computeLayout() call
                   — never a separately-guessed set of numbers that could
                   drift out of sync with where the lines actually are. */}
               <line x1="0" y1={4} x2={W} y2={4} stroke="var(--line)" strokeWidth={1} strokeDasharray="2 4" opacity={0.5} />
-              {scale.hasNegative && (
-                <line x1="0" y1={H - 4} x2={W} y2={H - 4} stroke="var(--line)" strokeWidth={1} strokeDasharray="2 4" opacity={0.5} />
+              {layout.hasNegative && (
+                <line x1="0" y1={layout.height - 4} x2={W} y2={layout.height - 4} stroke="var(--line)" strokeWidth={1} strokeDasharray="2 4" opacity={0.5} />
               )}
               {paths.map(
                 (p) =>
@@ -447,14 +484,14 @@ export function ShapeChart({
               {/* Labels drawn last (on top of the data) so a line passing
                   near the left edge never covers the axis text. */}
               <text x={6} y={13} fontSize={11} fill="var(--paper-dim)" fontFamily="var(--font-mono)" style={{ paintOrder: 'stroke' }} stroke="var(--panel)" strokeWidth={3}>
-                {formatW(scale.topW)}
+                {formatW(layout.topW)}
               </text>
-              <text x={6} y={ZERO_Y - 5} fontSize={11} fill="var(--paper-dim)" fontFamily="var(--font-mono)" style={{ paintOrder: 'stroke' }} stroke="var(--panel)" strokeWidth={3}>
+              <text x={6} y={layout.zeroY - 5} fontSize={11} fill="var(--paper-dim)" fontFamily="var(--font-mono)" style={{ paintOrder: 'stroke' }} stroke="var(--panel)" strokeWidth={3}>
                 0
               </text>
-              {scale.hasNegative && (
-                <text x={6} y={H - 8} fontSize={11} fill="var(--paper-dim)" fontFamily="var(--font-mono)" style={{ paintOrder: 'stroke' }} stroke="var(--panel)" strokeWidth={3}>
-                  -{formatW(scale.bottomW)}
+              {layout.hasNegative && (
+                <text x={6} y={layout.height - 8} fontSize={11} fill="var(--paper-dim)" fontFamily="var(--font-mono)" style={{ paintOrder: 'stroke' }} stroke="var(--panel)" strokeWidth={3}>
+                  -{formatW(layout.bottomW)}
                 </text>
               )}
             </svg>
