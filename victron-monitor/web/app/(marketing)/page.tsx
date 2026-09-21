@@ -1,11 +1,10 @@
 import type { Metadata } from 'next';
 import {
+  CapabilitiesTeaser,
   FlowSteps,
   Footer,
   Hero,
   IntegratorSection,
-  LiveDashboard,
-  ModuleTeaser,
   Nav,
   Pricing,
   StatsBanner,
@@ -114,8 +113,7 @@ export default async function MarketingPage() {
       <Hero />
       <IntegratorSection />
       <FlowSteps />
-      <ModuleTeaser />
-      <LiveDashboard />
+      <CapabilitiesTeaser />
       <Pricing starterPlanId={featuredPlans.starter} growthPlanId={featuredPlans.growth} />
       <Footer />
     </>

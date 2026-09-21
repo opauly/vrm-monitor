@@ -10,8 +10,8 @@ import styles from './whats-inside.module.css';
 //      was asked to carry the whole "what do you actually get" case before
 //      a first-time visitor ever reached Pricing. Oscar's own read: that
 //      diluted the pitch rather than supporting it. ModuleGrid moved here
-//      unchanged; the home page keeps a 3-card teaser instead
-//      (ModuleTeaser) that links here.
+//      unchanged; the home page keeps a short teaser instead
+//      (`CapabilitiesTeaser`) that links here.
 //   2. This is also the fix for the "AI SEO" content gap flagged in the
 //      landing-page diagnosis: a single product-pitch page has nothing an
 //      answer engine can cite. This page is written to directly answer
@@ -21,17 +21,25 @@ import styles from './whats-inside.module.css';
 //      JSON-LD (`FAQPage`) is the same content in the schema.org shape
 //      both classic rich results and LLM crawlers look for.
 //
-// 2026-09-20 (Oscar's own audit of this page): the nav collapsed "How it
-// works"/"Sample report"/"Live dashboard" into one dropdown pointing at the
-// home page's own anchors plus this page, which meant a "Sample report"
-// link landing here needed something to land ON — `ReportPreview` (the
-// real rendered PDF screenshot) moved off the home page entirely and lives
-// here now, right before `ModuleGrid`'s own full section-by-section
-// breakdown. Same audit flagged this page as almost pure prose for a
-// section literally titled "in detail" — `DashboardPreview` (the
-// illustrative sample-fleet panel + chart, extracted out of
-// `LiveDashboard.tsx` so both pages share one implementation) now backs
-// that claim with an actual visual instead of describing it.
+// 2026-09-20 (Oscar's own audit of this page): `ReportPreview` (the real
+// rendered PDF screenshot) moved off the home page entirely and lives here
+// now, right before `ModuleGrid`'s own full section-by-section breakdown.
+// Same audit flagged this page as almost pure prose for a section
+// literally titled "in detail" — `DashboardPreview` (the sample-fleet
+// panel + the REAL `ShapeChart` component, extracted out of the
+// since-retired `LiveDashboard.tsx` so both pages share one
+// implementation) now backs that claim with an actual visual instead of
+// describing it.
+//
+// 2026-09-21 (Oscar's own follow-up): the home page's `ModuleTeaser` and
+// `LiveDashboard` sections — each pitching one half of the product on its
+// own — merged into one `CapabilitiesTeaser` section, which is what links
+// here now (nav's own "How it works" dropdown no longer does — see
+// `Nav.tsx`'s own header comment). This page's own intro and "live
+// dashboard, in detail" text were trimmed at the same time — Oscar's own
+// read: they read as two separate features in prose rather than the one
+// two-way product the visuals below them (`DashboardPreview`,
+// `ReportPreview`, `ModuleGrid`) already prove.
 export const metadata: Metadata = {
   title: "What's Inside",
   description:
@@ -91,24 +99,19 @@ export default function WhatsInsidePage() {
       <Nav />
 
       <header className={`wrap ${styles.intro}`}>
-        <Link href="/#modules" className={styles.backLink}>
+        <Link href="/#capabilities" className={styles.backLink}>
           &larr; Back to VRM Monitor
         </Link>
         <SectionHead eyebrow="What's inside">What&apos;s inside VRM Monitor.</SectionHead>
         <div className={styles.introBody}>
           <p>
-            VRM Monitor is a live dashboard and a weekly, AI-narrated PDF report for any Victron Energy solar or
-            hybrid system &mdash; built by Pauly & Co., a{' '}
+            VRM Monitor is two connected views of one Victron system: a <b>live dashboard</b> that updates every
+            ~15 minutes, and an automated, AI-narrated <b>PDF report</b> delivered on its own schedule &mdash;
+            personalized to each site, built by Pauly &amp; Co., a{' '}
             <a href="https://www.victronenergy.com/blog/2024/12/04/introducing-our-new-software-integrator-program/" target="_blank" rel="noopener noreferrer">
               Victron Recommended Software Integrator
             </a>
-            . It reads data your equipment is already generating, straight from Victron&apos;s own VRM Portal &mdash;
-            via CSV export or the VRM API &mdash; no changes to an existing Node-RED flow, no re-flashing a Cerbo GX.
-          </p>
-          <p>
-            One homeowner watching a single system and an installer managing a hundred customer sites are reading
-            the exact same numbers, computed the exact same way &mdash; just at different scale. Below is every
-            signal the live dashboard tracks, and every section a report can contain.
+            . Both read data your equipment already generates &mdash; no Node-RED changes, no Cerbo reflash.
           </p>
         </div>
       </header>
@@ -121,21 +124,13 @@ export default function WhatsInsidePage() {
           <div className={styles.detailGrid}>
             <div>
               <h3>Two scores, not one</h3>
-              <p>
-                Every site gets a <b>System score</b> and a <b>Grid score</b>, computed separately &mdash; not one
-                blended number that hides which one actually needs attention.
-              </p>
+              <p>Not one blended number that hides which one actually needs attention.</p>
               <ul>
                 <li>
-                  <b>System</b> &mdash; equipment health: alarm events, battery SOC, cycling, temperature, voltage,
-                  and whether the battery reached a full charge. A low SOC isn&apos;t penalized when a real grid
-                  outage explains it &mdash; a battery discharging to cover the load while the grid is down is the
-                  system working as designed, not a fault.
+                  <b>System</b> &mdash; equipment health: alarms, SOC, cycling, temperature, voltage.
                 </li>
                 <li>
-                  <b>Grid</b> &mdash; grid reliability: how long and how often the grid was out, and how much of the
-                  load came from the grid instead of solar or battery. Not shown for an off-grid system with no grid
-                  connection to score.
+                  <b>Grid</b> &mdash; reliability: outage time and how much load came from the grid.
                 </li>
               </ul>
             </div>
@@ -144,18 +139,16 @@ export default function WhatsInsidePage() {
               <p>Four deterministic checks against each site&apos;s own history &mdash; not a model, not a guess.</p>
               <ul>
                 <li>
-                  <b>Unexpected silence</b> &mdash; a real zero during hours this site has historically produced.
+                  <b>Unexpected silence</b> &mdash; a real zero when this site usually produces.
                 </li>
                 <li>
-                  <b>Quiet drift</b> &mdash; trending down versus this site&apos;s own recent baseline.
+                  <b>Quiet drift</b> &mdash; trending down vs. this site&apos;s own baseline.
                 </li>
                 <li>
-                  <b>Underperformance</b> &mdash; solar output below what this site&apos;s installed size should
-                  deliver, checked against modeled irradiance for its own location.
+                  <b>Underperformance</b> &mdash; solar below what this site&apos;s size should deliver.
                 </li>
                 <li>
-                  <b>Incomplete charging</b> &mdash; battery hasn&apos;t reached full charge in 5 or more of the
-                  last 7 days.
+                  <b>Incomplete charging</b> &mdash; no full charge in 5+ of the last 7 days.
                 </li>
               </ul>
             </div>

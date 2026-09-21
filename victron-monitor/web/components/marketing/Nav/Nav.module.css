@@ -19,6 +19,10 @@
   height: 72px;
 }
 
+/* Now an <a> (Link href="/"), not a plain <div> (2026-09-21, links the
+   logo/wordmark to the home page) — text-decoration reset since the
+   global `a { color: inherit }` rule doesn't touch the browser's default
+   underline. */
 .brand {
   display: flex;
   align-items: center;
@@ -29,6 +33,7 @@
   letter-spacing: 0.01em;
   color: #fff;
   text-transform: uppercase;
+  text-decoration: none;
 }
 .logoImg {
   height: 25px;

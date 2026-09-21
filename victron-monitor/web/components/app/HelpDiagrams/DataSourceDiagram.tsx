@@ -1,9 +1,12 @@
 import styles from './HelpDiagrams.module.css';
 
-// Illustrative, not a screenshot — same "labeled diagram, not a live
-// widget" convention the marketing site's own LiveDashboard.tsx chart
-// already follows. Explains the one fork every new site actually goes
-// through (My Sites' VRM connection vs. Upload's one-off CSV) and why
+// Illustrative, not a screenshot — the marketing site's own
+// DashboardPreview.tsx chart went the other way (2026-09-20, it now embeds
+// the real ShapeChart component instead of a labeled illustration), but
+// that's real production data on a public page reading believable rather
+// than an internal admin diagram, which is what this stays. Explains the
+// one fork every new site actually goes through (My Sites' VRM connection
+// vs. Upload's one-off CSV) and why
 // they behave differently downstream — referenced from both the customer
 // Sites/Upload help topics and the admin Sites/Upload/VRM Fleet ones,
 // hence living in components/app (shared), not duplicated per surface.
