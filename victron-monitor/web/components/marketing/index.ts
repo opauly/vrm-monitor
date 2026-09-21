@@ -9,6 +9,7 @@ export { ModuleGrid } from './ModuleGrid/ModuleGrid';
 export { ModuleTeaser } from './ModuleTeaser/ModuleTeaser';
 export { ReportPreview } from './ReportPreview/ReportPreview';
 export { LiveDashboard } from './LiveDashboard/LiveDashboard';
+export { DashboardPreview } from './DashboardPreview/DashboardPreview';
 export { Pricing } from './Pricing/Pricing';
 export type { PricingProps } from './Pricing/Pricing';
 export { Footer } from './Footer/Footer';

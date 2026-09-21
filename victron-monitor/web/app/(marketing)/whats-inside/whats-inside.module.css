@@ -78,6 +78,16 @@
   }
 }
 
+/* DashboardPreview here has no text column beside it (unlike its other
+   call site, LiveDashboard.tsx, which pairs it with the AI Insights list) —
+   this section's own two-column .detailGrid above already covers that
+   copy, so the panel stands alone, capped and centered rather than
+   stretching full-width the way a two-column grid's own column would. */
+.dashboardPreviewWrap {
+  max-width: 640px;
+  margin: 40px auto 0;
+}
+
 .faqList {
   display: flex;
   flex-direction: column;

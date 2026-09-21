@@ -8,7 +8,6 @@ import {
   ModuleTeaser,
   Nav,
   Pricing,
-  ReportPreview,
   StatsBanner,
 } from '@/components/marketing';
 import { getFeaturedSelfServePlanIds } from '@/lib/server/db/signup';
@@ -116,7 +115,6 @@ export default async function MarketingPage() {
       <IntegratorSection />
       <FlowSteps />
       <ModuleTeaser />
-      <ReportPreview />
       <LiveDashboard />
       <Pricing starterPlanId={featuredPlans.starter} growthPlanId={featuredPlans.growth} />
       <Footer />

@@ -1,4 +1,4 @@
-import { Button, Eyebrow } from '@/components/ui';
+import { Button } from '@/components/ui';
 import { Readout } from '../Readout/Readout';
 import styles from './Hero.module.css';
 
@@ -7,13 +7,13 @@ export function Hero() {
     <header className={styles.hero}>
       <div className={`wrap ${styles.grid}`}>
         <div>
-          {/* Promoted from a supporting badge (IntegratorBadge, in
-              StatsBanner below) to the hero's own eyebrow — 2026-09-19,
-              Oscar's own call: the credential belongs in the headline
-              itself, the first thing read, not two sections down. "Built
-              on Victron VRM data" moved into the lede's own opening
-              clause instead of being dropped. */}
-          <Eyebrow className={styles.eyebrow}>Victron Recommended Software Integrator</Eyebrow>
+          {/* No eyebrow here (reverted 2026-09-20) — briefly promoted from
+              StatsBanner's own IntegratorBadge pill up into this headline
+              (2026-09-19), but StatsBanner renders directly above Hero, so
+              the two stacked back to back into the same credential stated
+              twice in a row. The pill is the stronger mark of the two
+              (clickable, links to Victron's real announcement, names
+              "Costa Rica") — it stays the single instance instead. */}
           <h1 className={styles.h1}>
             Your system, <em className={styles.em}>live</em>.
             <br />
@@ -32,9 +32,10 @@ export function Hero() {
                 decision to retire the request-access form).
                 Both CTAs point at /signup now (2026-09-08, Oscar's
                 decision) — the sample report is still reachable without
-                committing via Nav's own "Sample report" link (/#preview),
-                so this isn't removing that path, just no longer giving it
-                its own hero-level button. Second button's label changed to
+                committing via Nav's own "Sample report" link (in the "How
+                it works" dropdown, /whats-inside#preview), so this isn't
+                removing that path, just no longer giving it its own
+                hero-level button. Second button's label changed to
                 match its real destination (Pricing's own "every plan
                 starts with a 7-day free trial" line) rather than promising
                 a sample and delivering a signup form. */}

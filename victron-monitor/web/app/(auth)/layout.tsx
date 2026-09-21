@@ -14,7 +14,7 @@ import styles from './auth.module.css';
 // who isn't signed in") no longer holds now that Nav itself has no
 // session-dependent state; it renders identically for a signed-out
 // visitor as for anyone else. `Nav`'s in-page anchors (`#how`/`#modules`/
-// `#preview`/`#pricing`) are written as bare hashes for the marketing
+// `#dashboard`/`#pricing`) are written as bare hashes for the marketing
 // page's own use — from any OTHER route they'd silently no-op (a same-page
 // scroll-to-nothing), which is exactly why Nav.tsx's anchors are `/#how`
 // etc., not `#how`: an absolute path+hash navigates to the marketing page

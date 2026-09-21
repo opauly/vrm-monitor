@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Button, SectionHead } from '@/components/ui';
-import { Footer, ModuleGrid, Nav } from '@/components/marketing';
+import { DashboardPreview, Footer, ModuleGrid, Nav, ReportPreview } from '@/components/marketing';
 import styles from './whats-inside.module.css';
 
 // A dedicated, indexable deep-dive page (2026-09-19) for two reasons at
@@ -20,6 +20,18 @@ import styles from './whats-inside.module.css';
 //      quotable sentences — not just move a component. The FAQ section's
 //      JSON-LD (`FAQPage`) is the same content in the schema.org shape
 //      both classic rich results and LLM crawlers look for.
+//
+// 2026-09-20 (Oscar's own audit of this page): the nav collapsed "How it
+// works"/"Sample report"/"Live dashboard" into one dropdown pointing at the
+// home page's own anchors plus this page, which meant a "Sample report"
+// link landing here needed something to land ON — `ReportPreview` (the
+// real rendered PDF screenshot) moved off the home page entirely and lives
+// here now, right before `ModuleGrid`'s own full section-by-section
+// breakdown. Same audit flagged this page as almost pure prose for a
+// section literally titled "in detail" — `DashboardPreview` (the
+// illustrative sample-fleet panel + chart, extracted out of
+// `LiveDashboard.tsx` so both pages share one implementation) now backs
+// that claim with an actual visual instead of describing it.
 export const metadata: Metadata = {
   title: "What's Inside",
   description:
@@ -148,8 +160,14 @@ export default function WhatsInsidePage() {
               </ul>
             </div>
           </div>
+
+          <div className={styles.dashboardPreviewWrap}>
+            <DashboardPreview />
+          </div>
         </div>
       </section>
+
+      <ReportPreview />
 
       <ModuleGrid />
 
