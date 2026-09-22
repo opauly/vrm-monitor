@@ -148,7 +148,7 @@ export function PlanPicker({ lang, mode, onSelect, onCancel, busy = false, initi
                     <span className={styles.planSavings}>{t(lang, 'billing_plan_annual_savings').replace('{pct}', String(savingsPct))}</span>
                   )}
                 </div>
-                <Button type="button" variant="ghost" disabled={disabled} onClick={() => onSelect(plan)}>
+                <Button type="button" variant="ghost" className={styles.planSelectButton} disabled={disabled} onClick={() => onSelect(plan)}>
                   {t(lang, 'billing_plan_select_button')}
                 </Button>
               </div>

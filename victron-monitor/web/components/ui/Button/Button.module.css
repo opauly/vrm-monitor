@@ -37,6 +37,30 @@
   outline: 2px solid var(--victron-glow);
   outline-offset: 3px;
 }
+/* Found live, 2026-09-21 — a disabled button (e.g. PlanPicker's own
+   "Select" while a subscribe request is in flight) had NO visual
+   difference from an enabled one anywhere in this file; only the native
+   `cursor: not-allowed` gave any hint, easy to miss entirely. Clicking a
+   button that then does nothing VISIBLE reads as broken, not as "working,
+   please wait" — this is the fix for that, not just this one call site. */
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.btn:disabled:hover {
+  background: var(--btn-fill);
+  border-color: var(--line);
+  color: var(--paper);
+  transform: none;
+  box-shadow: none;
+}
+.ghost:disabled:hover {
+  background: transparent;
+  color: var(--paper);
+  border-color: var(--line);
+}
 
 .ghost {
   background: transparent;

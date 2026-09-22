@@ -80,11 +80,24 @@
    as already highlighted once the customer reaches this picker after
    activating), matching the same selected-border treatment `SignupForm`'s
    own plan cards and the marketing `Pricing.tsx` component both use. */
+/* flex column so `.planSelectButton`'s `margin-top: auto` can pin it to
+   the bottom of the card regardless of how much a given card's own content
+   takes above it (e.g. an annual card's extra "Save X%" badge) — `.grid`
+   already stretches every card in a row to equal height by default (CSS
+   Grid's own `align-items: stretch`), this is what makes THAT equal height
+   actually line every button up instead of leaving it wherever content
+   height happened to end. */
 .planCard {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   padding: 18px 20px;
   background: var(--panel);
+  display: flex;
+  flex-direction: column;
+}
+.planSelectButton {
+  margin-top: auto;
+  align-self: flex-start;
 }
 .planCardSelected {
   border-color: var(--victron);

@@ -380,6 +380,13 @@ export function BillingManager({ status: initialStatus, lang, firstRun, initialP
         ) : (
           <>
             {subscribeError && <p className={styles.error}>{subscribeError}</p>}
+            {/* Found live, 2026-09-21: clicking "Select" fires a real
+                network round-trip (creating the ONVO subscription) with
+                every button silently disabled and no other visual change —
+                indistinguishable from the click not registering at all.
+                Paired with Button.module.css's own new `:disabled` styling
+                (same pass) so the buttons themselves also visibly dim. */}
+            {subscribeBusy && <p className={styles.status}>{t(lang, 'billing_creating_subscription')}</p>}
             <PlanPicker lang={lang} mode="subscribe" onSelect={handlePlanSelected} busy={subscribeBusy} initialPlanId={initialPlanId} />
           </>
         )}
@@ -543,6 +550,15 @@ export function BillingManager({ status: initialStatus, lang, firstRun, initialP
              renders it separately in the over-limit case; this covers
              every OTHER failure (e.g. no_payment_method). */}
           {changeError && <p className={styles.error}>{changeError}</p>}
+          {/* Same "Select does nothing" failure mode as first-run's own
+              panel above (2026-09-21) — busy here covers both submitChange()
+              (an existing subscription) and the subscribe path (a lapsed
+              customer re-subscribing), same as PlanPicker's own `busy` prop
+              below already does. Different copy per path — "switching
+              plans" reads wrong for a lapsed customer who never had a live
+              plan to switch FROM. */}
+          {changeBusy && <p className={styles.status}>{t(lang, 'billing_change_applying')}</p>}
+          {subscribeBusy && <p className={styles.status}>{t(lang, 'billing_creating_subscription')}</p>}
           <PlanPicker
             lang={lang}
             mode={hasLiveSubscription ? 'change' : 'subscribe'}

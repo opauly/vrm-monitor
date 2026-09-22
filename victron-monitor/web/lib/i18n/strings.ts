@@ -521,6 +521,12 @@ export const STRINGS = {
     billing_plans_loading: 'Loading plans…',
     billing_plans_empty: 'No plans are available right now — contact proyectos@paulyco.com.',
     billing_plans_error: "Couldn't load plans. Please try again.",
+    // Shown while `POST /api/billing/subscribe` is in flight, right after
+    // a "Select" click — found live, 2026-09-21: with no visual `:disabled`
+    // state anywhere (Button.module.css's own fix, same pass) and no status
+    // text here either, a real (if brief) network round-trip looked
+    // indistinguishable from "the button did nothing."
+    billing_creating_subscription: 'Setting up your subscription…',
     billing_plan_current_tag: 'Current plan',
     billing_plan_per_month: '/ mo',
     billing_plan_per_year: '/ yr',
@@ -1233,6 +1239,7 @@ export const STRINGS = {
     billing_plans_loading: 'Cargando planes…',
     billing_plans_empty: 'No hay planes disponibles en este momento — contactá a proyectos@paulyco.com.',
     billing_plans_error: 'No se pudieron cargar los planes. Intentá de nuevo.',
+    billing_creating_subscription: 'Configurando tu suscripción…',
     billing_plan_current_tag: 'Plan actual',
     billing_plan_per_month: '/ mes',
     billing_plan_per_year: '/ año',
