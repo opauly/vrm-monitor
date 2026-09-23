@@ -369,14 +369,35 @@ export function BillingManager({ status: initialStatus, lang, firstRun, initialP
       <div>
         <h1>{t(lang, 'billing_first_run_title')}</h1>
         <p className={styles.intro}>{t(lang, 'billing_first_run_intro')}</p>
-        {panel === 'payment_method' && selectedPlan && subscribeSession ? (
-          <PaymentMethodPanel
-            lang={lang}
-            mode="subscribe"
-            subscribeSession={subscribeSession}
-            onSuccess={handleSubscribed}
-            onCancel={closePanel}
-          />
+        {/* Found live, 2026-09-21 (real vrm_api log: a 400 `no_payment_method`
+            on POST /v1/billing/subscription/change) — a first-run customer
+            who clicked Select once already (creating a real ONVO
+            subscription, `status: trialing`, no card attached — see
+            post_subscription()'s own docstring) and then left before
+            entering a card comes back to `hasLiveSubscription` now being
+            TRUE on next load (`status.status === 'trialing'` is neither
+            null nor 'canceled'). Clicking Select again then routes through
+            `submitChange()`, not the subscribe path — correctly, from the
+            backend's own `no_payment_method` guard, but this branch's JSX
+            never checked for THAT outcome (only the `Normal` branch below
+            already did, since 2026-08-21's own "Select does nothing"
+            fix) — `pendingPlanChange`/`changeError` were being set with
+            nothing here rendering either, so the retry looked identical to
+            a dead click. Mirrors the Normal branch's own handling exactly,
+            just inside this earlier return. */}
+        {panel === 'payment_method' && pendingPlanChange && changeError && <p className={styles.error}>{changeError}</p>}
+        {panel === 'payment_method' ? (
+          selectedPlan && subscribeSession ? (
+            <PaymentMethodPanel
+              lang={lang}
+              mode="subscribe"
+              subscribeSession={subscribeSession}
+              onSuccess={handleSubscribed}
+              onCancel={closePanel}
+            />
+          ) : (
+            <PaymentMethodPanel lang={lang} mode="replace" onSuccess={handlePaymentMethodChanged} onCancel={closePanel} />
+          )
         ) : (
           <>
             {subscribeError && <p className={styles.error}>{subscribeError}</p>}
@@ -387,8 +408,29 @@ export function BillingManager({ status: initialStatus, lang, firstRun, initialP
                 Paired with Button.module.css's own new `:disabled` styling
                 (same pass) so the buttons themselves also visibly dim. */}
             {subscribeBusy && <p className={styles.status}>{t(lang, 'billing_creating_subscription')}</p>}
-            <PlanPicker lang={lang} mode="subscribe" onSelect={handlePlanSelected} busy={subscribeBusy} initialPlanId={initialPlanId} />
+            {changeBusy && <p className={styles.status}>{t(lang, 'billing_change_applying')}</p>}
+            <PlanPicker lang={lang} mode="subscribe" onSelect={handlePlanSelected} busy={subscribeBusy || changeBusy} initialPlanId={initialPlanId} />
           </>
+        )}
+        {/* Same "card added — confirm your plan change" second step the
+            Normal branch's own `pendingPlanConfirm` box below uses — a
+            first-run customer in this exact recovery path DOES have a real
+            (if never-completed) subscription already, so `submitChange()`
+            is the correct call once the card is on file, same as there. */}
+        {pendingPlanConfirm && (
+          <div className={styles.confirmBox}>
+            <h3>{t(lang, 'billing_change_after_card_title')}</h3>
+            <p>{t(lang, 'billing_change_after_card_body').replace('{plan}', planLabel(pendingPlanConfirm.plan_key))}</p>
+            {changeError && <p className={styles.error}>{changeError}</p>}
+            <div className={styles.formActions}>
+              <Button type="button" onClick={() => submitChange(pendingPlanConfirm, false)} disabled={changeBusy}>
+                {changeBusy ? t(lang, 'billing_change_applying') : t(lang, 'billing_change_confirm_button')}
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setPendingPlanConfirm(null)} disabled={changeBusy}>
+                {t(lang, 'billing_back_button')}
+              </Button>
+            </div>
+          </div>
         )}
       </div>
     );
