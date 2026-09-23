@@ -4,6 +4,16 @@ import styles from './ReportPreview.module.css';
 
 // public/sample_report.png is 1819x2573 (landing-page/assets/sample_report.png,
 // copied not moved — see PLAN_PHASE14.md §6.2).
+//
+// 2026-09-22 (Oscar's own audit, /whats-inside): title changed from "What
+// lands in the inbox." to "The weekly report, in detail." — matching the
+// "[SECTION], in detail." pattern that page's own live-dashboard section
+// already uses, now that this component's only call site is that page (not
+// the home page). Dropped the "Not a mockup —" opening too — flagged as
+// misleading (it invites the question "then why say so unless something
+// ELSE here isn't real"); the very next clause already says what this
+// actually is (the real pipeline, an invented household) without needing a
+// denial first.
 const SHOT_WIDTH = 1819;
 const SHOT_HEIGHT = 2573;
 
@@ -13,9 +23,9 @@ export function ReportPreview() {
       <div className={`wrap ${styles.grid}`}>
         <div>
           <Eyebrow>Sample report</Eyebrow>
-          <h2>What lands in the inbox.</h2>
+          <h2>The weekly report, in detail.</h2>
           <p style={{ marginTop: 16 }}>
-            Not a mockup — this is page one of an actual report, rendered by the same pipeline that generates every
+            This is page one of an actual report, rendered by the same pipeline that generates every
             customer&apos;s PDF: real health scoring, a real AI narrative, real savings math against live tariff
             tables. Only the household is invented.
           </p>

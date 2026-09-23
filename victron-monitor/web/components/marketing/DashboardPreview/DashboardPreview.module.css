@@ -80,17 +80,39 @@
   color: var(--paper);
   flex: 1;
 }
-.health,
-.healthFlag {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+/* System + Grid as two separate pill badges — same shape and thresholds
+   as the real dashboard's own `.scorePair`/`.healthBadge`/`healthClass()`
+   (app/(portal)/app/dashboard/page.tsx, dashboard.module.css), not a
+   single blended number invented for this marketing panel (2026-09-22 —
+   see DashboardPreview.tsx's own header comment for why that mattered). */
+.scorePair {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
-.health {
+.healthBadge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+}
+.healthExcellent {
+  background: rgba(63, 191, 143, 0.16);
   color: var(--good);
 }
-.healthFlag {
+.healthGood {
+  background: rgba(7, 137, 212, 0.16);
+  color: var(--victron-glow);
+}
+.healthFair {
+  background: rgba(242, 169, 59, 0.18);
   color: var(--signal);
+}
+.healthPoor {
+  background: rgba(201, 64, 64, 0.18);
+  color: #e37b7b;
 }
 .pv {
   font-family: var(--font-mono);

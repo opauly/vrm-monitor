@@ -1,8 +1,12 @@
 /* Page-specific layout only — section shell (padding, .band, .wrap) and
    type scale all come from styles/base.css, same as the home page. */
 
+/* `padding-bottom` added 2026-09-22 — found live: with none at all, the
+   intro's own text ran straight into `section.band`'s `border-top`
+   (styles/base.css) the moment it wrapped to more than a couple of lines,
+   with zero breathing room regardless of copy length. */
 .intro {
-  padding: 64px 0 0;
+  padding: 64px 0 40px;
 }
 .introLede {
   max-width: 720px;
@@ -32,49 +36,55 @@
   color: var(--paper-dim);
 }
 
-.detailGrid {
+/* Card grid for the 6 live-dashboard signals (System/Grid score + the 4 AI
+   Insight checks) — replaces the old two-column bullet-list `.detailGrid`
+   (2026-09-22, Oscar's own audit) with the same icon+tag+title+body card
+   shape `ModuleGrid.module.css`'s own `.moduleCard` uses for "every report
+   section," so the two "everything this computes" blocks on this page read
+   as one consistent pattern rather than two different treatments (a card
+   grid for report sections, plain prose for dashboard signals). Classes
+   are a fresh, page-local set rather than importing ModuleGrid's own
+   module — same "duplicated per file" convention this app already uses
+   for DATE_LOCALE etc. (see e.g. PaymentMethodPanel.tsx's own comment). */
+.signalGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 40px;
-  margin-top: 8px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 24px;
 }
-.detailGrid h3 {
-  font-size: 18px;
+.signalCard h3 {
+  margin-bottom: 10px;
+  font-size: 17px;
+}
+.signalIcon {
+  display: block;
+  width: 26px;
+  height: 26px;
+  color: var(--victron-glow);
   margin-bottom: 10px;
 }
-.detailGrid p {
-  color: var(--paper-dim);
-  font-size: 14.5px;
+.signalIcon svg {
+  width: 100%;
+  height: 100%;
+}
+.signalTag {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mute);
   margin-bottom: 12px;
 }
-.detailGrid ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.detailGrid li {
+.signalBody {
   font-size: 13.5px;
   color: var(--paper-dim);
-  padding-left: 16px;
-  position: relative;
-}
-.detailGrid li::before {
-  content: '\2022';
-  position: absolute;
-  left: 0;
-  color: var(--victron-glow);
-}
-.detailGrid b {
-  color: var(--paper);
+  min-height: 40px;
 }
 
 @media (max-width: 920px) {
-  .detailGrid {
+  .signalGrid {
     grid-template-columns: 1fr;
-    gap: 28px;
   }
 }
 

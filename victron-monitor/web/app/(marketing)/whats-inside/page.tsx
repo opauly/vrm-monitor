@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Button, SectionHead } from '@/components/ui';
+import { Button, Panel, SectionHead } from '@/components/ui';
 import { DashboardPreview, Footer, ModuleGrid, Nav, ReportPreview } from '@/components/marketing';
+import { FIXED_MODULE_ICONS, REPORT_MODULE_ICONS } from '@/lib/reportModuleThumbnails';
 import styles from './whats-inside.module.css';
 
 // A dedicated, indexable deep-dive page (2026-09-19) for two reasons at
@@ -40,6 +41,19 @@ import styles from './whats-inside.module.css';
 // read: they read as two separate features in prose rather than the one
 // two-way product the visuals below them (`DashboardPreview`,
 // `ReportPreview`, `ModuleGrid`) already prove.
+//
+// 2026-09-22 (Oscar's own audit): the "~15 minutes" refresh cadence was
+// stated three times before a reader even reached the FAQ (intro,
+// SectionHead lede, and again inside the dashboard-detail prose) — now
+// stated exactly once, in the SectionHead lede right where it's relevant;
+// the FAQ's own answers keep it, since each is meant to stand alone as an
+// independently-citable fact for an answer engine, not read top-to-bottom.
+// The former two-column bullet list for "every dashboard signal" is now a
+// 6-card grid — the same icon+tag+title+body shape `ModuleGrid` already
+// uses for "every report section," so the two "everything this computes"
+// blocks on this page read as one pattern instead of two different
+// treatments. `ReportPreview`'s own title/copy were also normalized here
+// (see that component's own header comment).
 export const metadata: Metadata = {
   title: "What's Inside",
   description:
@@ -105,9 +119,9 @@ export default function WhatsInsidePage() {
         <SectionHead eyebrow="What's inside">What&apos;s inside VRM Monitor.</SectionHead>
         <div className={styles.introBody}>
           <p>
-            VRM Monitor is two connected views of one Victron system: a <b>live dashboard</b> that updates every
-            ~15 minutes, and an automated, AI-narrated <b>PDF report</b> delivered on its own schedule &mdash;
-            personalized to each site, built by Pauly &amp; Co., a{' '}
+            VRM Monitor is two connected views of one Victron system: a <b>live dashboard</b> and an automated,
+            AI-narrated <b>PDF report</b> delivered on its own schedule &mdash; personalized to each site, built by
+            Pauly &amp; Co., a{' '}
             <a href="https://www.victronenergy.com/blog/2024/12/04/introducing-our-new-software-integrator-program/" target="_blank" rel="noopener noreferrer">
               Victron Recommended Software Integrator
             </a>
@@ -121,37 +135,43 @@ export default function WhatsInsidePage() {
           <SectionHead eyebrow="Live, right now" lede="Refreshed every ~15 minutes, straight from the VRM API — the same feed your Cerbo GX already reports to.">
             The live dashboard, in detail.
           </SectionHead>
-          <div className={styles.detailGrid}>
-            <div>
-              <h3>Two scores, not one</h3>
-              <p>Not one blended number that hides which one actually needs attention.</p>
-              <ul>
-                <li>
-                  <b>System</b> &mdash; equipment health: alarms, SOC, cycling, temperature, voltage.
-                </li>
-                <li>
-                  <b>Grid</b> &mdash; reliability: outage time and how much load came from the grid.
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h3>AI Insights</h3>
-              <p>Four deterministic checks against each site&apos;s own history &mdash; not a model, not a guess.</p>
-              <ul>
-                <li>
-                  <b>Unexpected silence</b> &mdash; a real zero when this site usually produces.
-                </li>
-                <li>
-                  <b>Quiet drift</b> &mdash; trending down vs. this site&apos;s own baseline.
-                </li>
-                <li>
-                  <b>Underperformance</b> &mdash; solar below what this site&apos;s size should deliver.
-                </li>
-                <li>
-                  <b>Incomplete charging</b> &mdash; no full charge in 5+ of the last 7 days.
-                </li>
-              </ul>
-            </div>
+          <div className={styles.signalGrid}>
+            <Panel className={styles.signalCard} variant="card" interactive led>
+              <span className={styles.signalIcon} aria-hidden="true">{FIXED_MODULE_ICONS.kpi}</span>
+              <span className={styles.signalTag}>Score</span>
+              <h3>System score</h3>
+              <p className={styles.signalBody}>Alarms, SOC, cycling, temperature, voltage &mdash; one number, always current.</p>
+            </Panel>
+            <Panel className={styles.signalCard} variant="card" interactive led>
+              <span className={styles.signalIcon} aria-hidden="true">{REPORT_MODULE_ICONS.grid_quality}</span>
+              <span className={styles.signalTag}>Score</span>
+              <h3>Grid score</h3>
+              <p className={styles.signalBody}>Outage time, and how much load came from the grid instead of solar or battery.</p>
+            </Panel>
+            <Panel className={styles.signalCard} variant="card" interactive led>
+              <span className={styles.signalIcon} aria-hidden="true">{REPORT_MODULE_ICONS.critical_alerts}</span>
+              <span className={styles.signalTag}>AI Insight</span>
+              <h3>Unexpected silence</h3>
+              <p className={styles.signalBody}>A real zero during hours this site has historically produced.</p>
+            </Panel>
+            <Panel className={styles.signalCard} variant="card" interactive led>
+              <span className={styles.signalIcon} aria-hidden="true">{REPORT_MODULE_ICONS.trend}</span>
+              <span className={styles.signalTag}>AI Insight</span>
+              <h3>Quiet drift</h3>
+              <p className={styles.signalBody}>Trending down versus this site&apos;s own recent baseline.</p>
+            </Panel>
+            <Panel className={styles.signalCard} variant="card" interactive led>
+              <span className={styles.signalIcon} aria-hidden="true">{REPORT_MODULE_ICONS.solar_performance}</span>
+              <span className={styles.signalTag}>AI Insight</span>
+              <h3>Underperformance</h3>
+              <p className={styles.signalBody}>Solar output below what this site&apos;s installed size should deliver.</p>
+            </Panel>
+            <Panel className={styles.signalCard} variant="card" interactive led>
+              <span className={styles.signalIcon} aria-hidden="true">{REPORT_MODULE_ICONS.battery_health}</span>
+              <span className={styles.signalTag}>AI Insight</span>
+              <h3>Incomplete charging</h3>
+              <p className={styles.signalBody}>Battery hasn&apos;t reached full charge in 5 or more of the last 7 days.</p>
+            </Panel>
           </div>
 
           <div className={styles.dashboardPreviewWrap}>

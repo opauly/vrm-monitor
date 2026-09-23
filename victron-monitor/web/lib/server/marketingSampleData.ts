@@ -1,4 +1,4 @@
-import type { SiteShapeOut, SiteSavingsOut } from './pipeline';
+import type { SiteShapeOut, SiteSavingsOut, SiteShapeRange } from './pipeline';
 
 // Fabricated "Casa Modelo" telemetry, shared by the two
 // `/api/marketing/dashboard-sample/*` routes those feed the REAL
@@ -19,36 +19,66 @@ import type { SiteShapeOut, SiteSavingsOut } from './pipeline';
 // back up the report's own "94.0% grid independence" framing) — not
 // energy-balanced to the watt, same "illustrative but plausible" standard
 // the SVG mockup it replaces already used for its own PV_POINTS/LOAD_POINTS
-// arrays. All three ranges (today/week/month) return this same "typical
-// day" shape — this is a fixed demo dataset, not a live aggregation, so
-// there's nothing for the three ranges to genuinely differ on.
-const SOLAR_W: (number | null)[] = [
-  0, 0, 0, 0, 0, 0, 100, 550, 1600, 2900, 3900, 4400, 4600, 4400, 3800, 2900, 1700, 650, 100, 0, 0, 0, 0, 0,
-];
-const LOAD_W: (number | null)[] = [
-  750, 700, 680, 670, 690, 780, 1050, 1300, 1200, 1100, 1050, 1080, 1120, 1080, 1050, 1100, 1350, 1900, 2200, 2050, 1650, 1300, 1000, 850,
-];
-// Positive = discharging (covering load beyond what solar/grid supply),
-// negative = charging from solar surplus.
-const BATTERY_W: (number | null)[] = [
-  680, 650, 630, 620, 640, 730, 900, 700, -380, -1750, -2800, -3000, -3000, -3000, -2700, -1750, -330, 1200, 2000, 1950, 1550, 1220, 930, 800,
-];
-// Positive = imported from the grid, negative = exported to it — kept
-// small all day, matching the report's own "94.0% grid independence."
-const GRID_W: (number | null)[] = [
-  50, 40, 40, 40, 40, 40, 50, 50, -20, -50, -50, -320, -480, -320, -50, -50, -20, 50, 100, 100, 100, 80, 70, 50,
-];
+// arrays.
+//
+// 2026-09-22 (Oscar's own audit, real live test): a visitor toggling
+// Today/7-day avg/30-day avg saw the exact same chart and the exact same
+// "Estimated savings" figure every time — the original version of this
+// file deliberately returned one fixed shape for all three ranges ("this
+// is a fixed demo dataset, not a live aggregation, so there's nothing for
+// the three ranges to genuinely differ on" — that reasoning undersold what
+// a first-time visitor actually expects: SOME visible response to a
+// control they can see and click reads as broken when there's none at
+// all). Three distinct shapes now — 7-day and 30-day averages scaled down
+// from "today"'s own clear-sky peak, the same direction more cloud cover/
+// Costa Rica's rainy season would actually pull a real average toward —
+// and grid import grows slightly as solar shrinks, the same real
+// trade-off the report's own AI narrative already describes elsewhere.
+// Savings amounts follow `SiteSavingsOut`'s own real semantics
+// (`compute_weekly_savings()`'s total across the requested window, not a
+// per-day rate — that's what `days_with_data` is for) rather than
+// repeating one number: today's total < the 7-day total < the 30-day
+// total, in the same rough per-day ratio a real September/October (rainy
+// season) month would show against one good day.
+function shapeFor(peakSolar: number, gridScale: number): SiteShapeOut {
+  const solarShape = [0, 0, 0, 0, 0, 0, 0.022, 0.12, 0.35, 0.63, 0.85, 0.96, 1, 0.96, 0.83, 0.63, 0.37, 0.14, 0.022, 0, 0, 0, 0, 0];
+  const solar = solarShape.map((f) => Math.round(f * peakSolar));
+  // Load stays close to flat across ranges — a household's own usage
+  // pattern doesn't shift with weather the way solar output does.
+  const load = [
+    750, 700, 680, 670, 690, 780, 1050, 1300, 1200, 1100, 1050, 1080, 1120, 1080, 1050, 1100, 1350, 1900, 2200, 2050, 1650, 1300, 1000, 850,
+  ];
+  const battery: number[] = [];
+  const grid: number[] = [];
+  for (let i = 0; i < 24; i++) {
+    const net = solar[i] - load[i]; // >0 = surplus (charges battery), <0 = deficit (battery/grid cover it)
+    // A fixed small grid draw/export, scaled up as solar shrinks (less
+    // self-sufficiency the cloudier the averaging window gets) — mirrors
+    // GRID_W's own original small-all-day shape, not a new curve.
+    const gridBase = [50, 40, 40, 40, 40, 40, 50, 50, -20, -50, -50, -320, -480, -320, -50, -50, -20, 50, 100, 100, 100, 80, 70, 50][i];
+    const g = Math.round(gridBase * gridScale);
+    grid.push(g);
+    battery.push(Math.round(-(net - g)));
+  }
+  return { solar, load, battery, grid };
+}
 
-export const MARKETING_SAMPLE_SHAPE: SiteShapeOut = {
-  solar: SOLAR_W,
-  load: LOAD_W,
-  battery: BATTERY_W,
-  grid: GRID_W,
+const SHAPES: Record<SiteShapeRange, SiteShapeOut> = {
+  today: shapeFor(4600, 1),
+  week: shapeFor(3800, 1.25),
+  month: shapeFor(3000, 1.6),
 };
 
-export const MARKETING_SAMPLE_SAVINGS: SiteSavingsOut = {
-  amount: 18.75,
-  currency: 'USD',
-  basis_count: 6,
-  days_with_data: 7,
+const SAVINGS: Record<SiteShapeRange, SiteSavingsOut> = {
+  today: { amount: 2.9, currency: 'USD', basis_count: 1, days_with_data: 1 },
+  week: { amount: 18.75, currency: 'USD', basis_count: 6, days_with_data: 7 },
+  month: { amount: 65.4, currency: 'USD', basis_count: 26, days_with_data: 30 },
 };
+
+export function marketingSampleShape(range: SiteShapeRange): SiteShapeOut {
+  return SHAPES[range];
+}
+
+export function marketingSampleSavings(range: SiteShapeRange): SiteSavingsOut {
+  return SAVINGS[range];
+}
