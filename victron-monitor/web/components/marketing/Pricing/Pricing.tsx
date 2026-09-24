@@ -1,10 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Button, ModeToggle, Panel, SectionHead } from '@/components/ui';
+import { Button, Panel, SectionHead } from '@/components/ui';
 import styles from './Pricing.module.css';
-
-type Mode = 'subscription' | 'single';
 
 export type PricingProps = {
   /** Real `vrm.plans.id` rows for the MONTHLY Starter/Growth tiers, in the
@@ -23,27 +20,39 @@ function signupHref(planId: string | null): string {
   return planId ? `/signup?plan=${planId}` : '/signup';
 }
 
-// Client component for the same reason ModuleGrid is: which whole block
-// renders (the three-tier grid vs. the one-time single-report card) depends
-// on `mode`, not just the toggle widget. This is also the toggle whose
-// template equivalent (landing_template.html L887-896) went inert because
-// of document-order-dependent querySelectorAll — see ModeToggle's own
-// comment for why a useState component can't reproduce that bug class.
+// Still a client component even with the mode toggle below hidden
+// (2026-09-23) — nothing else here needs client state, but re-adding the
+// toggle later (see this file's own commented-out block further down)
+// shouldn't also require re-adding 'use client' at the same time.
 export function Pricing({ starterPlanId, growthPlanId }: PricingProps) {
-  const [mode, setMode] = useState<Mode>('subscription');
-
   return (
     <section id="pricing">
       <div className="wrap">
         <SectionHead
           eyebrow="Pricing"
-          lede="One flat rate per tier — no per-site math, no surprise bill as you add sites. Reports for every tier; live monitoring from Growth up. Or skip the commitment and try one report first."
+          lede="One flat rate per tier — no per-site math, no surprise bill as you add sites. Reports for every tier; live monitoring from Growth up."
         >
           Subscribe one system,
           <br />
           or a whole fleet.
         </SectionHead>
 
+        {/* Subscription-vs-Single-Report toggle, hidden 2026-09-23 (Oscar's
+            own call) — every solar-monitoring competitor (Fronius Solar.web,
+            Enphase Enlighten, SolarEdge monitoring) is subscription-only,
+            with a free trial doing all the "try before you commit" work;
+            a $9.99 one-off SKU next to two real subscriptions added a
+            choice most visitors didn't need, and its own fulfillment was a
+            manual mailto exchange that couldn't back up its "delivered
+            within minutes" copy. Commented out, not deleted — the
+            underlying capability (a one-off CSV-only report, no ongoing
+            relationship, no live connection required) is still real
+            product architecture, just not surfaced as its own priced
+            marketing card until there's an actual customer segment asking
+            for it that the free trial genuinely can't serve. To restore:
+            uncomment this block, the `single`-mode JSX further down, the
+            `Mode` type, and re-add `useState`/`ModeToggle` to the imports
+            above.
         <div className={styles.toggleRow}>
           <ModeToggle
             aria-label="Pricing model"
@@ -58,9 +67,9 @@ export function Pricing({ starterPlanId, growthPlanId }: PricingProps) {
             Start with a single report, upgrade to a subscription whenever — nothing to migrate.
           </span>
         </div>
+        */}
 
-        {mode === 'subscription' ? (
-          <>
+        <>
             <div className={styles.trialBanner}>
               <span className={styles.trialBannerDot} aria-hidden="true" />
               Every plan starts with a 7-day free trial — cancel before it ends and you won&apos;t be charged.
@@ -189,58 +198,51 @@ export function Pricing({ starterPlanId, growthPlanId }: PricingProps) {
               </Button>
             </Panel>
             </div>
-          </>
-        ) : (
-          <div className={styles.single}>
-            <div>
-              <span className={styles.singleTag}>One-time · no subscription</span>
-              <h3 className={styles.singleH3}>Single Report</h3>
-              <p className={styles.singleP}>
-                Already have a CSV export, or just want to see one system&apos;s story before committing to a
-                subscription? Upload it once — get back the exact same report a subscriber gets every week, nothing
-                held back.
-              </p>
-              <ul className={styles.features} style={{ marginTop: 20 }}>
-                <li>
-                  <span className={styles.dot} aria-hidden="true" />
-                  One site, any range up to 6 months of history
-                </li>
-                <li>
-                  <span className={styles.dot} aria-hidden="true" />
-                  All 12 report sections, full health scoring + AI narrative
-                </li>
-                <li>
-                  <span className={styles.dot} aria-hidden="true" />
-                  Delivered within minutes of upload
-                </li>
-              </ul>
-            </div>
-            <div className={styles.singleRight}>
-              <div className={styles.num}>
-                $9.99<span className={styles.per}>/ report</span>
-              </div>
-              {/* Single Report deliberately has no `vrm.plans` row and is
-                  not purchasable from /signup in v1 — PLAN_PHASE16.md §9 /
-                  §0.6 Q1: "not a vrm.plans/subscription row — a one-off
-                  purchase ... unchanged flow." The plan's original text
-                  routed this CTA to the now-deleted `AccessForm`; with that
-                  gone (Oscar's explicit decision, §8 Step 5.5), a direct
-                  mailto — the same pattern Fleet's own "Talk to us" button
-                  already uses — replaces the dangling `#cta` anchor rather
-                  than leaving a dead in-page link. */}
-              <Button
-                href="mailto:proyectos@paulyco.com?subject=VRM%20Monitor%20-%20Single%20report"
-                style={{ justifyContent: 'center', width: '100%' }}
-              >
-                Get a report
-              </Button>
-              <span className={styles.singleNote}>
-                One PDF, delivered once — no automatic re-delivery. Want it weekly instead? Switch to a subscription
-                above, anytime.
-              </span>
-            </div>
+        </>
+
+        {/* The "Single report" mode's own card — hidden alongside the
+            toggle above, restore both together.
+        <div className={styles.single}>
+          <div>
+            <span className={styles.singleTag}>One-time · no subscription</span>
+            <h3 className={styles.singleH3}>Single Report</h3>
+            <p className={styles.singleP}>
+              Already have a CSV export, or just want to see one system's story before committing to a
+              subscription? Upload it once — get back the exact same report a subscriber gets every week, nothing
+              held back.
+            </p>
+            <ul className={styles.features} style={{ marginTop: 20 }}>
+              <li>
+                <span className={styles.dot} aria-hidden="true" />
+                One site, any range up to 6 months of history
+              </li>
+              <li>
+                <span className={styles.dot} aria-hidden="true" />
+                All 12 report sections, full health scoring + AI narrative
+              </li>
+              <li>
+                <span className={styles.dot} aria-hidden="true" />
+                Delivered within minutes of upload
+              </li>
+            </ul>
           </div>
-        )}
+          <div className={styles.singleRight}>
+            <div className={styles.num}>
+              $9.99<span className={styles.per}>/ report</span>
+            </div>
+            <Button
+              href="mailto:proyectos@paulyco.com?subject=VRM%20Monitor%20-%20Single%20report"
+              style={{ justifyContent: 'center', width: '100%' }}
+            >
+              Get a report
+            </Button>
+            <span className={styles.singleNote}>
+              One PDF, delivered once — no automatic re-delivery. Want it weekly instead? Switch to a subscription
+              above, anytime.
+            </span>
+          </div>
+        </div>
+        */}
 
         <p className={styles.note}>
           Early-access pricing — subscription rates locked in for 12 months for owners and installers who join

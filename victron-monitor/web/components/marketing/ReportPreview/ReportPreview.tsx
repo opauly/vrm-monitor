@@ -74,11 +74,11 @@ export function ReportPreview() {
                 self-serve /signup + a 7-day free trial exists, asking
                 someone to email in for a sample is the obsolete path —
                 they can see their own real report faster by signing up
-                directly. Fleet's own "Talk to us" and Single Report's own
-                "Get a report" stay mailto — neither has a self-serve
-                checkout to send them to (Fleet is hand-negotiated;
-                single_report has no seeded vrm.plans price at all, see
-                tools/seed_onvo_plans.py's own docstring). */}
+                directly. Fleet's own "Talk to us" stays mailto (hand-
+                negotiated, no self-serve checkout to send it to) —
+                Single Report's own "Get a report" mailto button no
+                longer exists to compare against at all; that whole tier
+                is hidden as of 2026-09-23, see Pricing.tsx's own comment. */}
             <Button href="/signup" variant="ghost" style={{ padding: '9px 16px' }}>
               Start free trial
             </Button>
