@@ -112,6 +112,34 @@
 .account {
   display: flex;
   align-items: center;
+  gap: 14px;
+}
+
+.langSwitcher {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.langOption,
+.langActive {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 5px 8px;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: var(--paper-dim);
+}
+.langOption:hover {
+  color: var(--paper);
+}
+.langActive {
+  background: var(--panel);
+  color: var(--paper);
+  cursor: default;
 }
 
 .main {
@@ -125,14 +153,25 @@
     padding: 14px 20px;
     gap: 14px;
   }
+  /* Found live, 2026-09-24 — `.nav`'s own base rule is `flex: 1`, which
+     sets `flex-basis: 0%`; `width: 100%` alone never overrides that for a
+     flex item's main-axis size, so `.nav` never actually broke onto its
+     own line here despite `order: 3` — it just grew very tall in place
+     (each of its own children wrapping internally) while `.header`'s
+     `align-items: center` centered the brand row and account button
+     partway down inside that tall block, reading as the nav and the logo
+     overlapping. `flex-basis: 100%` (equivalently, `flex: 1 1 100%`) is
+     what actually forces the new line `width: 100%` was supposed to. */
   .nav {
     order: 3;
     width: 100%;
+    flex-basis: 100%;
     flex-wrap: wrap;
   }
   .navPersonal {
     order: 4;
     width: 100%;
+    flex-basis: 100%;
     flex-wrap: wrap;
   }
   .navPersonal .divider {

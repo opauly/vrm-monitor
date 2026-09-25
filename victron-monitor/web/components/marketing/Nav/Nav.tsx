@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { NavAuthArea } from './NavAuthArea';
+import { MobileMenu } from './MobileMenu';
 import styles from './Nav.module.css';
 
 // public/pauly_logo.png is 567x156 (landing-page/assets/pauly_logo.png,
@@ -92,6 +93,7 @@ export function Nav() {
           <Link href="/#pricing">Pricing</Link>
           <NavAuthArea />
         </div>
+        <MobileMenu />
       </div>
     </nav>
   );

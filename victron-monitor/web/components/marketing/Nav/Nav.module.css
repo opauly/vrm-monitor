@@ -128,8 +128,96 @@
   background: var(--panel-2);
 }
 
+/* Hamburger + slide-down panel: the mobile replacement for `.links` below
+   (2026-09-24). Hidden on desktop by default; the media query at the
+   bottom of this file is what turns it on and turns `.links` off, so the
+   two states can never both be visible at once. */
+.mobileMenu {
+  display: none;
+}
+.hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.hamburgerBar {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: #fff;
+}
+/* `position: fixed` (not `absolute`) deliberately — `.mobileMenu`, the
+   panel's DOM parent, is only as wide as the hamburger button itself, not
+   the full nav bar, so an `absolute` panel would inherit THAT narrow box
+   as its positioning context and render as a clipped sliver pinned to the
+   button rather than spanning the screen. Anchoring to the viewport with
+   `top` matching `.inner`'s own height sidesteps the parent's width
+   entirely. */
+.mobilePanel {
+  position: fixed;
+  top: 72px;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 20px 20px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 24px 48px -24px rgba(0, 0, 0, 0.7);
+  max-height: calc(100vh - 72px);
+  overflow-y: auto;
+}
+.mobileGroupLabel {
+  padding: 14px 4px 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+}
+.mobilePanel a {
+  padding: 12px 4px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: 0.03em;
+  color: var(--paper-dim);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+}
+.mobilePanel a:hover,
+.mobilePanel a:focus-visible {
+  color: var(--victron-glow);
+}
+.mobileTopLink {
+  font-weight: 700;
+  color: #fff !important;
+}
+.mobileAuth {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: 16px;
+}
+
 @media (max-width: 920px) {
   .links {
     display: none;
+  }
+  .mobileMenu {
+    display: block;
+    position: relative;
+  }
+  .hamburger {
+    display: flex;
   }
 }
