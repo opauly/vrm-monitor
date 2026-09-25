@@ -189,6 +189,19 @@
   margin-top: 2px;
 }
 
+/* Modifier for the table's own per-row caption lines specifically (Live
+   PV/load/battery/SOC, the health-score date, "Report data: ...") — never
+   applied to a page-level paragraph (.sub alone still wraps normally
+   there). Table.tsx's own wrapper already scrolls horizontally
+   (overflow-x: auto), but only if a cell's content refuses to shrink
+   below its own width first; without this, `table { width: 100% }`
+   happily squeezes these down into wrapped, multi-line cells instead of
+   growing the table past 100% and letting it scroll (found live,
+   2026-09-25, on a narrow phone). */
+.nowrap {
+  white-space: nowrap;
+}
+
 .dot {
   display: inline-block;
   width: 8px;
@@ -257,6 +270,7 @@
   font-family: var(--font-mono);
   font-size: 12.5px;
   color: var(--paper);
+  white-space: nowrap;
 }
 
 .viewLive {

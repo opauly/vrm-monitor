@@ -315,12 +315,15 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
                 </span>
                 {site.system_status && <span className={styles.healthStatus}>{site.system_status}</span>}
               </div>
-              {site.system_score !== null && (
-                <ul className={styles.healthNotes}>
-                  {healthNotesList(site.system_notes).map((note, i) => (
-                    <li key={i}>{note}</li>
-                  ))}
-                </ul>
+              {site.system_score !== null && healthNotesList(site.system_notes).length > 0 && (
+                <details className={styles.notesDetails}>
+                  <summary className={styles.notesToggle}>{t(lang, 'score_notes_toggle')}</summary>
+                  <ul className={styles.healthNotes}>
+                    {healthNotesList(site.system_notes).map((note, i) => (
+                      <li key={i}>{note}</li>
+                    ))}
+                  </ul>
+                </details>
               )}
             </div>
 
@@ -339,11 +342,16 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
                     </span>
                     {site.grid_status && <span className={styles.healthStatus}>{site.grid_status}</span>}
                   </div>
-                  <ul className={styles.healthNotes}>
-                    {healthNotesList(site.grid_notes).map((note, i) => (
-                      <li key={i}>{note}</li>
-                    ))}
-                  </ul>
+                  {healthNotesList(site.grid_notes).length > 0 && (
+                    <details className={styles.notesDetails}>
+                      <summary className={styles.notesToggle}>{t(lang, 'score_notes_toggle')}</summary>
+                      <ul className={styles.healthNotes}>
+                        {healthNotesList(site.grid_notes).map((note, i) => (
+                          <li key={i}>{note}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
                 </>
               )}
             </div>

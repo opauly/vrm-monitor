@@ -91,44 +91,50 @@ function row(site: FleetOverviewRow, lang: Lang) {
     <tr key={site.site_id}>
       <td>
         <div>{site.display_name}</div>
-        <div className={styles.sub}>{site.customer_name}</div>
+        <div className={`${styles.sub} ${styles.nowrap}`}>{site.customer_name}</div>
       </td>
       <td>
         <span className={`${styles.dot} ${connectionClass(site.connection_status)}`} aria-hidden="true" />
         {connectionLabel(site.connection_status, lang)}
-        <div className={styles.sub}>
+        <div className={`${styles.sub} ${styles.nowrap}`}>
           {t(lang, 'admin_fleet_report_data')} {site.vrm_last_synced_at ? formatDateTime(site.vrm_last_synced_at, 'en-US') : t(lang, 'admin_fleet_never')}
         </div>
       </td>
       <td>
         <div className={styles.scorePair}>
           <span
-            className={`${styles.healthBadge} ${healthClass(site.system_score)}`}
+            className={`${styles.healthBadge} ${styles.nowrap} ${healthClass(site.system_score)}`}
             title={site.system_notes ? site.system_notes.split(';').map((n) => n.trim()).filter(Boolean).join('\n') : undefined}
           >
             {t(lang, 'admin_fleet_badge_sys')} {site.system_score === null ? '—' : `${site.system_score}/100`}
           </span>
           <span
-            className={`${styles.healthBadge} ${healthClass(site.grid_score)}`}
+            className={`${styles.healthBadge} ${styles.nowrap} ${healthClass(site.grid_score)}`}
             title={site.grid_notes ? site.grid_notes.split(';').map((n) => n.trim()).filter(Boolean).join('\n') : undefined}
           >
             {t(lang, 'admin_fleet_badge_grid')} {site.grid_score === null ? '—' : `${site.grid_score}/100`}
           </span>
         </div>
-        {site.health_date && <div className={styles.sub}>{t(lang, 'admin_fleet_as_of').replace('{date}', site.health_date)}</div>}
+        {site.health_date && (
+          <div className={`${styles.sub} ${styles.nowrap}`}>{t(lang, 'admin_fleet_as_of').replace('{date}', site.health_date)}</div>
+        )}
       </td>
       <td>{site.active_alarms > 0 ? <span className={styles.alarmCount}>{site.active_alarms}</span> : '0'}</td>
       <td>{site.active_critical_alerts > 0 ? <span className={styles.alarmCount}>{site.active_critical_alerts}</span> : '0'}</td>
       <td>
         {site.live_captured_at ? (
           <>
-            <div>{t(lang, 'admin_fleet_pv_load').replace('{pv}', formatWatts(site.live_pv_power_w)).replace('{load}', formatWatts(site.live_load_power_w))}</div>
-            <div className={styles.sub}>
+            <div className={styles.nowrap}>
+              {t(lang, 'admin_fleet_pv_load').replace('{pv}', formatWatts(site.live_pv_power_w)).replace('{load}', formatWatts(site.live_load_power_w))}
+            </div>
+            <div className={`${styles.sub} ${styles.nowrap}`}>
               {t(lang, 'admin_fleet_batt_soc')
                 .replace('{batt}', formatWatts(site.live_battery_power_w))
                 .replace('{soc}', site.live_soc_pct === null ? '—' : `${site.live_soc_pct}%`)}
             </div>
-            <div className={styles.sub}>{t(lang, 'admin_fleet_as_of').replace('{date}', formatDateTimeInZone(site.live_captured_at, site.timezone, 'en-US'))}</div>
+            <div className={`${styles.sub} ${styles.nowrap}`}>
+              {t(lang, 'admin_fleet_as_of').replace('{date}', formatDateTimeInZone(site.live_captured_at, site.timezone, 'en-US'))}
+            </div>
           </>
         ) : (
           <span className={styles.sub}>{t(lang, 'admin_fleet_no_live_reading')}</span>
@@ -141,7 +147,7 @@ function row(site: FleetOverviewRow, lang: Lang) {
           <span className={styles.yield}>{site.specific_yield_kwh_per_kwp} kWh/kWp</span>
         )}
       </td>
-      <td className={styles.sub}>{site.system_type}</td>
+      <td className={`${styles.sub} ${styles.nowrap}`}>{site.system_type}</td>
       <td>
         <Link href={`/admin/fleet/${encodeURIComponent(site.site_id)}`} className={styles.viewLive}>
           {t(lang, 'admin_fleet_view_live')} →

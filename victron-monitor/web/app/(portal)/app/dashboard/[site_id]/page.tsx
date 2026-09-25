@@ -262,9 +262,14 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
         </div>
 
         <div className={styles.gaugeCard}>
-          <h2>{site.health_metrics_date ? `As of ${site.health_metrics_date}` : 'Today, at a glance'}</h2>
+          <h2>
+            {site.health_metrics_date
+              ? t(lang, 'admin_fleetsite_as_of_date').replace('{date}', site.health_metrics_date)
+              : t(lang, 'admin_fleetsite_today_glance')}
+          </h2>
           <div className={styles.cardSub}>
-            System and grid scores, self-sufficiency, self-consumption, and depth of discharge.
+            {t(lang, 'admin_fleetsite_gauge_sub_1')} <code>vrm.energy_daily</code> / <code>vrm.daily_health</code>{' '}
+            {t(lang, 'admin_fleetsite_gauge_sub_2')}
           </div>
 
           {/* Split into System (equipment: alarms, SOC, cycling, temperature,
@@ -275,7 +280,7 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
           <div className={styles.scoreBlockRow}>
             <div className={styles.scoreBlock}>
               <div className={styles.scoreBlockLabel}>
-                System
+                {t(lang, 'admin_fleetsite_score_system_label')}
                 <InfoTooltip label={t(lang, 'score_info_system_tooltip_label')}>{systemScoreInfo(lang)}</InfoTooltip>
               </div>
               <div className={styles.healthRow}>
@@ -284,22 +289,25 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
                 </span>
                 {site.system_status && <span className={styles.healthStatus}>{site.system_status}</span>}
               </div>
-              {site.system_score !== null && (
-                <ul className={styles.healthNotes}>
-                  {healthNotesList(site.system_notes).map((note, i) => (
-                    <li key={i}>{note}</li>
-                  ))}
-                </ul>
+              {site.system_score !== null && healthNotesList(site.system_notes).length > 0 && (
+                <details className={styles.notesDetails}>
+                  <summary className={styles.notesToggle}>{t(lang, 'score_notes_toggle')}</summary>
+                  <ul className={styles.healthNotes}>
+                    {healthNotesList(site.system_notes).map((note, i) => (
+                      <li key={i}>{note}</li>
+                    ))}
+                  </ul>
+                </details>
               )}
             </div>
 
             <div className={styles.scoreBlock}>
               <div className={styles.scoreBlockLabel}>
-                Grid
+                {t(lang, 'admin_fleetsite_kpi_grid')}
                 <InfoTooltip label={t(lang, 'score_info_grid_tooltip_label')}>{gridScoreInfo(lang)}</InfoTooltip>
               </div>
               {site.grid_score === null ? (
-                <div className={styles.sub}>No grid connection on this system</div>
+                <div className={styles.sub}>{t(lang, 'admin_fleetsite_no_grid_connection')}</div>
               ) : (
                 <>
                   <div className={styles.healthRow}>
@@ -308,11 +316,16 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
                     </span>
                     {site.grid_status && <span className={styles.healthStatus}>{site.grid_status}</span>}
                   </div>
-                  <ul className={styles.healthNotes}>
-                    {healthNotesList(site.grid_notes).map((note, i) => (
-                      <li key={i}>{note}</li>
-                    ))}
-                  </ul>
+                  {healthNotesList(site.grid_notes).length > 0 && (
+                    <details className={styles.notesDetails}>
+                      <summary className={styles.notesToggle}>{t(lang, 'score_notes_toggle')}</summary>
+                      <ul className={styles.healthNotes}>
+                        {healthNotesList(site.grid_notes).map((note, i) => (
+                          <li key={i}>{note}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
                 </>
               )}
             </div>
@@ -321,20 +334,32 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
           <Gauge
             pct={site.self_sufficiency_pct}
             color="var(--good)"
-            label="Self-sufficiency"
-            desc={site.self_sufficiency_pct === null ? 'Not enough data yet' : `${site.self_sufficiency_pct}% of load came from solar + battery`}
+            label={t(lang, 'admin_fleet_card_self_sufficiency_label')}
+            desc={
+              site.self_sufficiency_pct === null
+                ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
+                : t(lang, 'admin_fleetsite_gauge_self_suff_desc').replace('{pct}', String(site.self_sufficiency_pct))
+            }
           />
           <Gauge
             pct={site.self_consumption_pct}
             color="var(--victron-glow)"
-            label="Self-consumption"
-            desc={site.self_consumption_pct === null ? 'Not enough data yet' : `${site.self_consumption_pct}% of solar generated was used on-site`}
+            label={t(lang, 'admin_fleet_card_self_consumption_label')}
+            desc={
+              site.self_consumption_pct === null
+                ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
+                : t(lang, 'admin_fleetsite_gauge_self_cons_desc').replace('{pct}', String(site.self_consumption_pct))
+            }
           />
           <Gauge
             pct={site.dod_pct}
             color="var(--signal)"
-            label="Depth of discharge"
-            desc={site.dod_pct === null ? 'Not enough data yet' : `Battery cycled ${site.dod_pct}% overnight`}
+            label={t(lang, 'admin_fleetsite_gauge_dod_label')}
+            desc={
+              site.dod_pct === null
+                ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
+                : t(lang, 'admin_fleetsite_gauge_dod_desc').replace('{pct}', String(site.dod_pct))
+            }
           />
         </div>
       </div>

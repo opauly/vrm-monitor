@@ -256,6 +256,41 @@
   color: var(--mute);
 }
 
+/* Notes are collapsed by default (2026-09-25, Oscar's own request) — the
+   score badge/status is the at-a-glance number, this is "why," open on
+   demand rather than always taking up vertical space. */
+.notesDetails {
+  margin-bottom: 12px;
+}
+.notesToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--mute);
+  cursor: pointer;
+}
+.notesToggle::-webkit-details-marker {
+  display: none;
+}
+.notesToggle::before {
+  content: '\25B8';
+  font-size: 9px;
+  transition: transform 0.15s;
+}
+.notesDetails[open] > .notesToggle::before {
+  transform: rotate(90deg);
+}
+.notesToggle:hover {
+  color: var(--paper-dim);
+}
+.notesDetails .healthNotes {
+  margin-top: 8px;
+}
+
 .metaRow {
   display: flex;
   flex-wrap: wrap;

@@ -390,6 +390,7 @@ export const STRINGS = {
       'Starts at 100 and deducts for grid reliability that day: how long and how often the grid was out, and how much of the load came from the grid instead of solar/battery.',
     score_info_grid_p2:
       "Not shown (—) for an off-grid system with no grid connection at all — there's nothing to score, which is different from a perfect grid.",
+    score_notes_toggle: 'See how this was calculated',
     admin_fleet_title: 'VRM Fleet',
     admin_fleet_link_new: '+ Link a new installation',
     admin_fleet_desc_1: 'Every',
@@ -427,6 +428,8 @@ export const STRINGS = {
     admin_fleet_card_outages_desc: 'Sites with a grid outage in the last 7 days',
     admin_fleet_card_avg_soc_label: 'Avg SOC',
     admin_fleet_card_avg_soc_desc: 'Average state of charge across the fleet, right now',
+    dashboard_card_avg_soc_desc: 'Average state of charge across your sites, right now',
+    dashboard_flow_load_label: 'All sites',
     admin_fleet_card_self_sufficiency_label: 'Self-sufficiency',
     admin_fleet_card_self_sufficiency_desc: "Share of today's load covered by solar + battery",
     admin_fleet_card_self_consumption_label: 'Self-consumption',
@@ -1807,6 +1810,7 @@ export const STRINGS = {
       'Empieza en 100 y descuenta por la confiabilidad de la red ese día: cuánto tiempo y con qué frecuencia se cortó la red, y qué parte de la carga vino de la red en vez de solar/batería.',
     score_info_grid_p2:
       'No se muestra (—) para un sistema off-grid sin ninguna conexión a la red — no hay nada que puntuar, lo cual es distinto de una red perfecta.',
+    score_notes_toggle: 'Ver cómo se calculó esto',
     admin_fleet_title: 'Flota VRM',
     admin_fleet_link_new: '+ Vincular una nueva instalación',
     admin_fleet_desc_1: 'El estado actual de cada sitio',
@@ -1844,6 +1848,8 @@ export const STRINGS = {
     admin_fleet_card_outages_desc: 'Sitios con un corte de red en los últimos 7 días',
     admin_fleet_card_avg_soc_label: 'SOC promedio',
     admin_fleet_card_avg_soc_desc: 'Estado de carga promedio de la flota, ahora mismo',
+    dashboard_card_avg_soc_desc: 'Estado de carga promedio de tus sitios, ahora mismo',
+    dashboard_flow_load_label: 'Todos los sitios',
     admin_fleet_card_self_sufficiency_label: 'Autosuficiencia',
     admin_fleet_card_self_sufficiency_desc: 'Proporción de la carga de hoy cubierta por solar + batería',
     admin_fleet_card_self_consumption_label: 'Autoconsumo',

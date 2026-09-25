@@ -195,6 +195,15 @@
   margin-top: 2px;
 }
 
+/* Modifier for the table's own per-row caption lines specifically (Live
+   PV/load/battery/SOC, the health-score date, "Report data: ...") — see
+   fleet.module.css's own identical rule for why: Table.tsx's wrapper only
+   scrolls horizontally if a cell refuses to shrink below its content
+   width first. */
+.nowrap {
+  white-space: nowrap;
+}
+
 .dot {
   display: inline-block;
   width: 8px;
@@ -257,6 +266,7 @@
   font-family: var(--font-mono);
   font-size: 12.5px;
   color: var(--paper);
+  white-space: nowrap;
 }
 
 .viewLive {
