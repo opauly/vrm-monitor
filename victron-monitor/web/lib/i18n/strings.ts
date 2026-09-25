@@ -426,6 +426,11 @@ export const STRINGS = {
     admin_fleet_card_critical_alerts_desc: 'DC ripple, cell imbalance, temp fault — live, right now',
     admin_fleet_card_outages_label: 'Outages (7d)',
     admin_fleet_card_outages_desc: 'Sites with a grid outage in the last 7 days',
+    admin_fleet_card_alarms_combined_label: 'Alarms & critical alerts',
+    admin_fleet_card_alarms_combined_desc:
+      'Alarms (low battery/overload) and critical alerts (DC ripple, cell imbalance, temp fault) — both live, right now',
+    admin_fleet_alarms_breakdown: '{alarms} alarm(s) · {critical} critical',
+
     admin_fleet_card_avg_soc_label: 'Avg SOC',
     admin_fleet_card_avg_soc_desc: 'Average state of charge across the fleet, right now',
     dashboard_card_avg_soc_desc: 'Average state of charge across your sites, right now',
@@ -1846,6 +1851,11 @@ export const STRINGS = {
     admin_fleet_card_critical_alerts_desc: 'Rizado de CD, desbalance de celdas, falla de temperatura — en vivo, ahora mismo',
     admin_fleet_card_outages_label: 'Cortes (7d)',
     admin_fleet_card_outages_desc: 'Sitios con un corte de red en los últimos 7 días',
+    admin_fleet_card_alarms_combined_label: 'Alarmas y alertas críticas',
+    admin_fleet_card_alarms_combined_desc:
+      'Alarmas (batería baja/sobrecarga) y alertas críticas (rizado de CD, desbalance de celdas, falla de temperatura) — ambas en vivo, ahora mismo',
+    admin_fleet_alarms_breakdown: '{alarms} alarma(s) · {critical} crítica(s)',
+
     admin_fleet_card_avg_soc_label: 'SOC promedio',
     admin_fleet_card_avg_soc_desc: 'Estado de carga promedio de la flota, ahora mismo',
     dashboard_card_avg_soc_desc: 'Estado de carga promedio de tus sitios, ahora mismo',

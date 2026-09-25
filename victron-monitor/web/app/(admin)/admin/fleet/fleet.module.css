@@ -220,10 +220,17 @@
   background: var(--mute);
 }
 
+/* Always stacked, never side-by-side (2026-09-25, Oscar's own request) —
+   `flex-wrap: wrap` used to let the two badges sit on one line when they
+   fit and drop to two lines when they didn't, so the same column read
+   differently row to row depending on each site's own score digits
+   ("—" vs "100/100"). A fixed column direction removes that ambiguity:
+   every row looks the same regardless of content width. */
 .scorePair {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 .healthBadge {
   display: inline-block;

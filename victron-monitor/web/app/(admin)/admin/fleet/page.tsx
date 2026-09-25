@@ -378,31 +378,21 @@ export default async function AdminFleetPage() {
 
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_active_alarms_label')}</span>
-            <span className={styles.rollupValue}>{overview.rollup.total_active_alarms}</span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_active_alarms_desc')}</span>
+            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_alarms_combined_label')}</span>
+            <span className={styles.rollupValue}>
+              {overview.rollup.total_active_alarms} / {overview.rollup.total_active_critical_alerts}
+            </span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_alarms_combined_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
-            {sortedByValue(sites, (s) => s.active_alarms).map((s) => (
+            {sortedByValue(sites, (s) => s.active_alarms + s.active_critical_alerts).map((s) => (
               <div key={s.site_id} className={styles.rollupBreakdownRow}>
                 <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{s.active_alarms}</span>
-              </div>
-            ))}
-          </div>
-        </details>
-
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_critical_alerts_label')}</span>
-            <span className={styles.rollupValue}>{overview.rollup.total_active_critical_alerts}</span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_critical_alerts_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {sortedByValue(sites, (s) => s.active_critical_alerts).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{s.active_critical_alerts}</span>
+                <span>
+                  {t(lang, 'admin_fleet_alarms_breakdown')
+                    .replace('{alarms}', String(s.active_alarms))
+                    .replace('{critical}', String(s.active_critical_alerts))}
+                </span>
               </div>
             ))}
           </div>

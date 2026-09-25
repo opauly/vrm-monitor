@@ -222,10 +222,15 @@
   background: var(--mute);
 }
 
+/* Always stacked, never side-by-side (2026-09-25, Oscar's own request) —
+   see fleet.module.css's own identical rule for why: `flex-wrap: wrap`
+   let the two badges sit on one line or two depending on each site's own
+   score digits, reading inconsistently row to row. */
 .scorePair {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 .healthBadge {
   display: inline-block;
