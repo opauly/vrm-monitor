@@ -237,8 +237,9 @@ export type SiteRecord = {
   /** 0-23, in the site's own `timezone` column above. */
   report_schedule_hour: number;
   /** `NULL`/empty falls back to the customer's own `contact_email` at send
-   * time (Step 8, not built yet) — third-party recipients are §0.6 Q5,
-   * still open. */
+   * time — implemented in `vrm_api/report_delivery.py` (see that file's
+   * own `is_third_party`/explicit-recipients handling), not this comment's
+   * former "Step 8, not built yet." */
   report_recipients: string[] | null;
   /** PLAN_PHASE18.md §1. `NULL` (every pre-Phase-18 row) means every one
    * of the 9 selectable modules renders — today's exact behavior,
