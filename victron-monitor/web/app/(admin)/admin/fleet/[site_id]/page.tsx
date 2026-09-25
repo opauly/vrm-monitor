@@ -5,7 +5,8 @@ import { requireAdmin } from '@/lib/server/auth';
 import { getFleetSiteDetail, type SiteAnomalyRow } from '@/lib/server/db/admin';
 import { formatDateTimeInZone } from '@/lib/dates';
 import { InfoTooltip } from '@/components/ui';
-import { SYSTEM_SCORE_INFO, GRID_SCORE_INFO } from '@/lib/healthScoreInfo';
+import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { FlowDiagram } from '../FlowDiagram';
 import { Gauge } from '../Gauge';
 import { PeriodStatsPanel } from '../PeriodStatsPanel';
@@ -68,11 +69,11 @@ function tzLabel(tz: string | null): string {
 // through to the raw `type` string (`"incomplete_charging"`, unreadable)
 // instead of a real label. Fixed here and added fresh in the customer
 // version at the same time.
-function anomalyTypeLabel(type: string): string {
-  if (type === 'unexpected_silence') return 'Unexpected silence';
-  if (type === 'quiet_drift') return 'Quiet drift';
-  if (type === 'underperformance') return 'Underperformance';
-  if (type === 'incomplete_charging') return 'Incomplete charging';
+function anomalyTypeLabel(type: string, lang: Lang): string {
+  if (type === 'unexpected_silence') return t(lang, 'admin_fleet_card_silence_label');
+  if (type === 'quiet_drift') return t(lang, 'admin_fleet_card_drift_label');
+  if (type === 'underperformance') return t(lang, 'admin_fleet_card_underperf_label');
+  if (type === 'incomplete_charging') return t(lang, 'admin_fleet_card_incomplete_label');
   return type;
 }
 
@@ -100,7 +101,7 @@ function formatPlainDate(isoDate: string): string {
 // `detail` shape from an older row, or a partial update, must not crash
 // this page, same "one bad field can't break the render" posture the rest
 // of this pipeline's live-data code already takes.
-function anomalyDetailSummary(a: SiteAnomalyRow): string {
+function anomalyDetailSummary(a: SiteAnomalyRow, lang: Lang): string {
   const detail = a.detail ?? {};
   if (a.anomaly_type === 'unexpected_silence') {
     const minutes = typeof detail.minutes_silent === 'number' ? Math.round(detail.minutes_silent) : null;
@@ -108,12 +109,14 @@ function anomalyDetailSummary(a: SiteAnomalyRow): string {
     const validDays = typeof detail.window_basis_valid_days === 'number' ? detail.window_basis_valid_days : null;
     const productiveDays = typeof detail.window_basis_productive_days === 'number' ? detail.window_basis_productive_days : null;
     const parts: string[] = [];
-    if (minutes !== null) parts.push(`Reporting zero solar output for ${minutes} min`);
-    if (window) parts.push(`during its normal ${window} local productive hours`);
+    if (minutes !== null) parts.push(t(lang, 'admin_fleetsite_anomaly_silence_minutes').replace('{minutes}', String(minutes)));
+    if (window) parts.push(t(lang, 'admin_fleetsite_anomaly_silence_window').replace('{window}', window));
     if (validDays !== null && productiveDays !== null) {
-      parts.push(`(based on ${productiveDays} productive of the last ${validDays} days with data)`);
+      parts.push(
+        t(lang, 'admin_fleetsite_anomaly_silence_basis').replace('{productive}', String(productiveDays)).replace('{valid}', String(validDays)),
+      );
     }
-    return parts.length > 0 ? parts.join(' ') : 'No detail recorded';
+    return parts.length > 0 ? parts.join(' ') : t(lang, 'admin_fleetsite_anomaly_no_detail');
   }
   if (a.anomaly_type === 'quiet_drift') {
     const recent = typeof detail.recent_mean_kwh_adj === 'number' ? detail.recent_mean_kwh_adj : null;
@@ -123,11 +126,15 @@ function anomalyDetailSummary(a: SiteAnomalyRow): string {
     const window = typeof detail.recent_window_days === 'number' ? detail.recent_window_days : null;
     const parts: string[] = [];
     if (recent !== null && baseline !== null) {
-      parts.push(`Generating ~${recent.toFixed(1)} kWh/day recently vs. ~${baseline.toFixed(1)} kWh/day normally`);
+      parts.push(
+        t(lang, 'admin_fleetsite_anomaly_drift_rate').replace('{recent}', recent.toFixed(1)).replace('{baseline}', baseline.toFixed(1)),
+      );
     }
-    if (ratio !== null) parts.push(`(${Math.round(ratio * 100)}% of its own recent baseline)`);
-    if (days !== null && window !== null) parts.push(`— ${days} of the last ${window} days below threshold`);
-    return parts.length > 0 ? parts.join(' ') : 'No detail recorded';
+    if (ratio !== null) parts.push(t(lang, 'admin_fleetsite_anomaly_drift_ratio').replace('{ratio}', String(Math.round(ratio * 100))));
+    if (days !== null && window !== null) {
+      parts.push(t(lang, 'admin_fleetsite_anomaly_drift_days').replace('{days}', String(days)).replace('{window}', String(window)));
+    }
+    return parts.length > 0 ? parts.join(' ') : t(lang, 'admin_fleetsite_anomaly_no_detail');
   }
   if (a.anomaly_type === 'underperformance') {
     const pvKwh = typeof detail.best_recent_pv_kwh === 'number' ? detail.best_recent_pv_kwh : null;
@@ -137,12 +144,14 @@ function anomalyDetailSummary(a: SiteAnomalyRow): string {
     const date = typeof detail.best_recent_date === 'string' ? formatPlainDate(detail.best_recent_date) : null;
     const parts: string[] = [];
     if (pvKwh !== null && expectedKwh !== null) {
-      parts.push(`Best day recently produced ${pvKwh.toFixed(1)} kWh vs. an expected ${expectedKwh.toFixed(1)} kWh`);
+      parts.push(
+        t(lang, 'admin_fleetsite_anomaly_underperf_rate').replace('{pv}', pvKwh.toFixed(1)).replace('{expected}', expectedKwh.toFixed(1)),
+      );
     }
-    if (pvKwp !== null) parts.push(`for this ${pvKwp} kWp system`);
-    if (pr !== null) parts.push(`(${Math.round(pr * 100)}% of design)`);
-    if (date) parts.push(`— best day was ${date}`);
-    return parts.length > 0 ? parts.join(' ') : 'No detail recorded';
+    if (pvKwp !== null) parts.push(t(lang, 'admin_fleetsite_anomaly_underperf_system').replace('{kwp}', String(pvKwp)));
+    if (pr !== null) parts.push(t(lang, 'admin_fleetsite_anomaly_underperf_pr').replace('{pr}', String(Math.round(pr * 100))));
+    if (date) parts.push(t(lang, 'admin_fleetsite_anomaly_underperf_date').replace('{date}', date));
+    return parts.length > 0 ? parts.join(' ') : t(lang, 'admin_fleetsite_anomaly_no_detail');
   }
   if (a.anomaly_type === 'incomplete_charging') {
     const incompleteDays = typeof detail.incomplete_days === 'number' ? detail.incomplete_days : null;
@@ -150,16 +159,19 @@ function anomalyDetailSummary(a: SiteAnomalyRow): string {
     const windowDays = typeof detail.window_days === 'number' ? detail.window_days : null;
     const parts: string[] = [];
     if (incompleteDays !== null && validDays !== null) {
-      parts.push(`Battery didn't reach full charge on ${incompleteDays} of the last ${validDays} days checked`);
+      parts.push(
+        t(lang, 'admin_fleetsite_anomaly_incomplete_days').replace('{incomplete}', String(incompleteDays)).replace('{valid}', String(validDays)),
+      );
     }
-    if (windowDays !== null) parts.push(`(${windowDays}-day window)`);
-    return parts.length > 0 ? parts.join(' ') : 'No detail recorded';
+    if (windowDays !== null) parts.push(t(lang, 'admin_fleetsite_anomaly_incomplete_window').replace('{window}', String(windowDays)));
+    return parts.length > 0 ? parts.join(' ') : t(lang, 'admin_fleetsite_anomaly_no_detail');
   }
   return JSON.stringify(detail);
 }
 
 export default async function AdminFleetSitePage({ params }: { params: Promise<{ site_id: string }> }) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const lang = session.uiLanguage;
   const { site_id } = await params;
   const site = await getFleetSiteDetail(site_id);
   if (!site) notFound();
@@ -167,19 +179,21 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
   return (
     <div>
       <div className={styles.crumb}>
-        <Link href="/admin/fleet">VRM Fleet</Link> / <span>{site.display_name}</span>
+        <Link href="/admin/fleet">{t(lang, 'admin_fleet_title')}</Link> / <span>{site.display_name}</span>
       </div>
       <div className={styles.pagehead}>
         <div>
           <h1>{site.display_name}</h1>
           <div className={styles.sub}>
-            {site.customer_name} · {site.system_type} system
+            {site.customer_name} · {site.system_type} {t(lang, 'admin_fleetsite_system_label')}
           </div>
         </div>
         {site.live_captured_at && (
           <div className={styles.live}>
             <span className={styles.pulse} />
-            LIVE — as of {formatDateTimeInZone(site.live_captured_at, site.timezone, 'en-US')} ({tzLabel(site.timezone)})
+            {t(lang, 'admin_fleetsite_live_prefix')
+              .replace('{date}', formatDateTimeInZone(site.live_captured_at, site.timezone, 'en-US'))
+              .replace('{tz}', tzLabel(site.timezone))}
           </div>
         )}
       </div>
@@ -188,16 +202,16 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
         <div className={styles.kpi}>
           <div className={styles.kpiLabel}>
             <span className={styles.swatch} style={{ background: 'var(--signal)' }} />
-            Solar (PV)
+            {t(lang, 'admin_fleetsite_kpi_solar')}
           </div>
           <div className={styles.kpiValue}>{formatWatts(site.live_pv_power_w)}</div>
           {site.live_pv_chargers && site.live_pv_chargers.length > 1 && (
             <details className={styles.chargerBreakdown}>
-              <summary>{site.live_pv_chargers.length} chargers</summary>
+              <summary>{t(lang, 'admin_fleetsite_chargers_count').replace('{count}', String(site.live_pv_chargers.length))}</summary>
               <ul>
                 {site.live_pv_chargers.map((c) => (
                   <li key={c.instance}>
-                    Charger {c.instance + 1}: {formatWatts(c.power_w)}
+                    {t(lang, 'admin_fleetsite_charger_label').replace('{n}', String(c.instance + 1)).replace('{watts}', formatWatts(c.power_w))}
                   </li>
                 ))}
               </ul>
@@ -207,12 +221,12 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
         <div className={styles.kpi}>
           <div className={styles.kpiLabel}>
             <span className={styles.swatch} style={{ background: 'var(--paper-dim)' }} />
-            Load
+            {t(lang, 'admin_fleetsite_kpi_load')}
           </div>
           <div className={styles.kpiValue}>{formatWatts(site.live_load_power_w)}</div>
           {site.live_load_phases && site.live_load_phases.length > 1 && (
             <details className={styles.chargerBreakdown}>
-              <summary>{site.live_load_phases.length} phases</summary>
+              <summary>{t(lang, 'admin_fleetsite_phases_count').replace('{count}', String(site.live_load_phases.length))}</summary>
               <ul>
                 {site.live_load_phases.map((p) => (
                   <li key={p.phase}>
@@ -226,7 +240,7 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
         <div className={styles.kpi}>
           <div className={styles.kpiLabel}>
             <span className={styles.swatch} style={{ background: 'var(--good)' }} />
-            Battery
+            {t(lang, 'admin_fleetsite_kpi_battery')}
           </div>
           <div className={styles.kpiValue}>
             {site.live_battery_power_w === null
@@ -234,24 +248,26 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
               : `${site.live_battery_power_w >= 0 ? '+' : ''}${formatWatts(site.live_battery_power_w)}`}
           </div>
           {site.live_battery_power_w !== null && (
-            <div className={styles.kpiDelta}>{site.live_battery_power_w >= 0 ? 'charging' : 'discharging'}</div>
+            <div className={styles.kpiDelta}>
+              {site.live_battery_power_w >= 0 ? t(lang, 'admin_fleetsite_charging') : t(lang, 'admin_fleetsite_discharging')}
+            </div>
           )}
         </div>
         <div className={styles.kpi}>
           <div className={styles.kpiLabel}>
             <span className={styles.swatch} style={{ background: 'var(--mute)' }} />
-            Grid
+            {t(lang, 'admin_fleetsite_kpi_grid')}
           </div>
           <div className={styles.kpiValue}>{site.has_grid_meter ? formatWatts(site.live_grid_power_w) : '—'}</div>
           {site.live_grid_source === 'inverter' && (
-            <div className={styles.kpiDelta}>Via inverter (no dedicated meter)</div>
+            <div className={styles.kpiDelta}>{t(lang, 'admin_fleetsite_via_inverter_note')}</div>
           )}
-          {site.live_grid_source === null && <div className={styles.kpiDelta}>No grid reading available</div>}
+          {site.live_grid_source === null && <div className={styles.kpiDelta}>{t(lang, 'admin_fleetsite_no_grid_reading')}</div>}
         </div>
         <div className={styles.kpi}>
           <div className={styles.kpiLabel}>
             <span className={styles.swatch} style={{ background: 'var(--victron-glow)' }} />
-            State of charge
+            {t(lang, 'admin_fleetsite_kpi_soc')}
           </div>
           <div className={styles.kpiValue}>{site.live_soc_pct === null ? '—' : `${site.live_soc_pct}%`}</div>
         </div>
@@ -259,8 +275,8 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
 
       <div className={styles.split}>
         <div className={styles.flowCard}>
-          <h2>Energy flow — right now</h2>
-          <div className={styles.cardSub}>From this site&apos;s most recent snapshot, refreshed every ~15 minutes.</div>
+          <h2>{t(lang, 'admin_fleetsite_flow_title')}</h2>
+          <div className={styles.cardSub}>{t(lang, 'admin_fleetsite_flow_sub')}</div>
           <FlowDiagram
             solarW={site.live_pv_power_w}
             loadW={site.live_load_power_w}
@@ -272,10 +288,14 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
         </div>
 
         <div className={styles.gaugeCard}>
-          <h2>{site.health_metrics_date ? `As of ${site.health_metrics_date}` : 'Today, at a glance'}</h2>
+          <h2>
+            {site.health_metrics_date
+              ? t(lang, 'admin_fleetsite_as_of_date').replace('{date}', site.health_metrics_date)
+              : t(lang, 'admin_fleetsite_today_glance')}
+          </h2>
           <div className={styles.cardSub}>
-            From <code>vrm.energy_daily</code> / <code>vrm.daily_health</code> — already computed, no new capture
-            needed.
+            {t(lang, 'admin_fleetsite_gauge_sub_1')} <code>vrm.energy_daily</code> / <code>vrm.daily_health</code>{' '}
+            {t(lang, 'admin_fleetsite_gauge_sub_2')}
           </div>
 
           {/* Split into System (equipment: alarms, SOC, cycling, temperature,
@@ -286,8 +306,8 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
           <div className={styles.scoreBlockRow}>
             <div className={styles.scoreBlock}>
               <div className={styles.scoreBlockLabel}>
-                System
-                <InfoTooltip label="How the system score is calculated">{SYSTEM_SCORE_INFO}</InfoTooltip>
+                {t(lang, 'admin_fleetsite_score_system_label')}
+                <InfoTooltip label={t(lang, 'score_info_system_tooltip_label')}>{systemScoreInfo(lang)}</InfoTooltip>
               </div>
               <div className={styles.healthRow}>
                 <span className={`${styles.healthBadge} ${healthClass(site.system_score)}`}>
@@ -306,11 +326,11 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
 
             <div className={styles.scoreBlock}>
               <div className={styles.scoreBlockLabel}>
-                Grid
-                <InfoTooltip label="How the grid score is calculated">{GRID_SCORE_INFO}</InfoTooltip>
+                {t(lang, 'admin_fleetsite_kpi_grid')}
+                <InfoTooltip label={t(lang, 'score_info_grid_tooltip_label')}>{gridScoreInfo(lang)}</InfoTooltip>
               </div>
               {site.grid_score === null ? (
-                <div className={styles.sub}>No grid connection on this system</div>
+                <div className={styles.sub}>{t(lang, 'admin_fleetsite_no_grid_connection')}</div>
               ) : (
                 <>
                   <div className={styles.healthRow}>
@@ -332,58 +352,73 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
           <Gauge
             pct={site.self_sufficiency_pct}
             color="var(--good)"
-            label="Self-sufficiency"
-            desc={site.self_sufficiency_pct === null ? 'Not enough data yet' : `${site.self_sufficiency_pct}% of load came from solar + battery`}
+            label={t(lang, 'admin_fleet_card_self_sufficiency_label')}
+            desc={
+              site.self_sufficiency_pct === null
+                ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
+                : t(lang, 'admin_fleetsite_gauge_self_suff_desc').replace('{pct}', String(site.self_sufficiency_pct))
+            }
           />
           <Gauge
             pct={site.self_consumption_pct}
             color="var(--victron-glow)"
-            label="Self-consumption"
-            desc={site.self_consumption_pct === null ? 'Not enough data yet' : `${site.self_consumption_pct}% of solar generated was used on-site`}
+            label={t(lang, 'admin_fleet_card_self_consumption_label')}
+            desc={
+              site.self_consumption_pct === null
+                ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
+                : t(lang, 'admin_fleetsite_gauge_self_cons_desc').replace('{pct}', String(site.self_consumption_pct))
+            }
           />
           <Gauge
             pct={site.dod_pct}
             color="var(--signal)"
-            label="Depth of discharge"
-            desc={site.dod_pct === null ? 'Not enough data yet' : `Battery cycled ${site.dod_pct}% overnight`}
+            label={t(lang, 'admin_fleetsite_gauge_dod_label')}
+            desc={
+              site.dod_pct === null
+                ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
+                : t(lang, 'admin_fleetsite_gauge_dod_desc').replace('{pct}', String(site.dod_pct))
+            }
           />
         </div>
       </div>
 
       <div className={styles.gaugeCard} style={{ marginBottom: 24 }}>
-        <h2>Anomalies</h2>
-        <div className={styles.cardSub}>
-          Deterministic checks against this site&apos;s own history (Fleet Dashboard Phase 3) — not folded into the
-          health score above. Unexpected silence is checked every ~15 minutes, same sweep as the live reading; quiet
-          drift and underperformance vs. design are checked daily.
-        </div>
+        <h2>{t(lang, 'admin_fleetsite_anomalies_title')}</h2>
+        <div className={styles.cardSub}>{t(lang, 'admin_fleetsite_anomalies_sub')}</div>
         {site.active_anomalies.length === 0 ? (
-          <p className={styles.sub}>No active anomalies.</p>
+          <p className={styles.sub}>{t(lang, 'admin_fleetsite_no_anomalies')}</p>
         ) : (
           <ul className={styles.healthNotes}>
             {site.active_anomalies.map((a) => (
               <li key={a.id}>
-                <strong>{anomalyTypeLabel(a.anomaly_type)}</strong> — {anomalyDetailSummary(a)} (since{' '}
-                {formatDateTimeInZone(a.detected_at, site.timezone, 'en-US')})
+                <strong>{anomalyTypeLabel(a.anomaly_type, lang)}</strong> — {anomalyDetailSummary(a, lang)}{' '}
+                {t(lang, 'admin_fleetsite_anomaly_since').replace('{date}', formatDateTimeInZone(a.detected_at, site.timezone, 'en-US'))}
               </li>
             ))}
           </ul>
         )}
       </div>
 
-      <PeriodStatsPanel week={site.week} month={site.month} />
+      <PeriodStatsPanel week={site.week} month={site.month} lang={lang} />
 
       <ShapeChart
         siteIds={[site.site_id]}
-        title="Site shape"
-        cardSub="This site's real 15-min VRM data, fetched on demand — nothing here is stored."
+        title={t(lang, 'admin_fleetsite_shape_title')}
+        cardSub={t(lang, 'admin_fleetsite_shape_sub')}
+        lang={lang}
       />
 
       <div className={styles.metaRow}>
-        {site.specific_yield_kwh_per_kwp !== null && <span>Specific yield: {site.specific_yield_kwh_per_kwp} kWh/kWp</span>}
-        {site.grid_dependency_pct !== null && <span>Grid dependency: {site.grid_dependency_pct}%</span>}
-        {site.pv_kwp !== null && <span>Installed: {site.pv_kwp} kWp</span>}
-        {site.battery_usable_kwh !== null && <span>Usable battery: {site.battery_usable_kwh} kWh</span>}
+        {site.specific_yield_kwh_per_kwp !== null && (
+          <span>{t(lang, 'admin_fleetsite_meta_yield').replace('{value}', String(site.specific_yield_kwh_per_kwp))}</span>
+        )}
+        {site.grid_dependency_pct !== null && (
+          <span>{t(lang, 'admin_fleetsite_meta_grid_dep').replace('{value}', String(site.grid_dependency_pct))}</span>
+        )}
+        {site.pv_kwp !== null && <span>{t(lang, 'admin_fleetsite_meta_installed').replace('{value}', String(site.pv_kwp))}</span>}
+        {site.battery_usable_kwh !== null && (
+          <span>{t(lang, 'admin_fleetsite_meta_usable_batt').replace('{value}', String(site.battery_usable_kwh))}</span>
+        )}
       </div>
     </div>
   );

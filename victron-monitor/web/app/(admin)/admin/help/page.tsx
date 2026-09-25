@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { requireAdmin } from '@/lib/server/auth';
+import { t } from '@/lib/i18n/strings';
 import { AdminHelpManager } from './AdminHelpManager';
 import styles from './help.module.css';
 
@@ -7,19 +8,20 @@ export const metadata: Metadata = {
   title: 'Help — Admin',
 };
 
-// `/admin/help` — admin-side reference, plain English literals throughout
-// (no `lib/i18n/strings.ts` keys), matching every other `/admin/**` page's
-// convention. Rebuilt 2026-09-19 into a topic switcher (`AdminHelpManager`,
-// the only client-side piece — mirrors the customer side's own
-// `HelpManager`) covering every admin nav item, not just VRM Fleet.
+// `/admin/help` — topic switcher (`AdminHelpManager`, the only client-side
+// piece — mirrors the customer side's own `HelpManager`) covering every
+// admin nav item, not just VRM Fleet. Rebuilt 2026-09-19 from three static
+// Panels into this shape; made bilingual 2026-09-24 along with the rest of
+// the admin panel.
 export default async function AdminHelpPage() {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const lang = session.uiLanguage;
 
   return (
     <div>
-      <h1>Help</h1>
-      <p className={styles.intro}>Reference for every admin workflow — customers, sites, uploads, reports, activity, analytics, and VRM Fleet.</p>
-      <AdminHelpManager />
+      <h1>{t(lang, 'admin_help_title')}</h1>
+      <p className={styles.intro}>{t(lang, 'admin_help_intro')}</p>
+      <AdminHelpManager lang={lang} />
     </div>
   );
 }

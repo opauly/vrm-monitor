@@ -148,8 +148,8 @@ export function HelpManager({ lang }: { lang: Lang }) {
             ))}
           </ol>
         )}
-        {active.diagram === 'dataSource' && <DataSourceDiagram />}
-        {active.diagram === 'scoreLegend' && <ScoreLegend />}
+        {active.diagram === 'dataSource' && <DataSourceDiagram lang={lang} />}
+        {active.diagram === 'scoreLegend' && <ScoreLegend lang={lang} />}
         {active.bullets && (
           <ul className={styles.bulletList}>
             {active.bullets.map((key) => (

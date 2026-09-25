@@ -19,6 +19,7 @@ import { uploadFileToSignedUrl } from '@/lib/uploadClient';
 import { formatDateTime } from '@/lib/dates';
 import type { AdminCustomerRow } from '@/lib/server/db/admin';
 import type { SiteRecord } from '@/lib/server/db';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { getCustomerUploadContextAction, type AdminUploadContext } from './actions';
 import styles from './upload.module.css';
 
@@ -129,7 +130,7 @@ type CommitResult = { site_id: string; rows_written: number; alarm_events_writte
 const TIMEZONES = listTimezones();
 const COUNTRY_CODES = Object.keys(COUNTRIES);
 
-export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[] }) {
+export function AdminUploadManager({ customers, lang }: { customers: AdminCustomerRow[]; lang: Lang }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -253,7 +254,7 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
   async function handleProcessClick() {
     setErrorMessage(null);
     if (!customerId || !file || !fields.displayName.trim()) {
-      setErrorMessage('Choose a customer, a site (or name a new one), and a file first.');
+      setErrorMessage(t(lang, 'admin_upload_err_choose_all'));
       return;
     }
 
@@ -265,12 +266,12 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
         body: JSON.stringify({ customerId, filename: file.name, sizeBytes: file.size }),
       });
       if (signRes.status === 413) {
-        setErrorMessage(`That file exceeds the ${formatBytes(MAX_UPLOAD_BYTES)} limit.`);
+        setErrorMessage(t(lang, 'admin_upload_err_file_too_large').replace('{limit}', formatBytes(MAX_UPLOAD_BYTES)));
         setPhase('form');
         return;
       }
       if (!signRes.ok) {
-        setErrorMessage('Could not process that file. Please try again.');
+        setErrorMessage(t(lang, 'admin_upload_err_process_generic'));
         setPhase('form');
         return;
       }
@@ -291,14 +292,14 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
         ),
       });
       if (!previewRes.ok) {
-        setErrorMessage('Could not process that file. Please try again.');
+        setErrorMessage(t(lang, 'admin_upload_err_process_generic'));
         setPhase('error');
         return;
       }
       const { job_id } = (await previewRes.json()) as { job_id: string };
       setPreviewJobId(job_id);
     } catch {
-      setErrorMessage('Could not reach the processing service. Please try again in a moment.');
+      setErrorMessage(t(lang, 'admin_upload_err_unreachable_moment'));
       setPhase('error');
     }
   }
@@ -324,14 +325,14 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
         body: JSON.stringify({ jobId: previewJobId }),
       });
       if (!res.ok) {
-        setErrorMessage('Could not import. Please try again.');
+        setErrorMessage(t(lang, 'admin_upload_err_import_generic'));
         setPhase('error');
         return;
       }
       const { job_id } = (await res.json()) as { job_id: string };
       setCommitJobId(job_id);
     } catch {
-      setErrorMessage('Could not reach the processing service. Please try again in a moment.');
+      setErrorMessage(t(lang, 'admin_upload_err_unreachable_moment'));
       setPhase('error');
     }
   }
@@ -359,14 +360,14 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
     <div>
       <div className={styles.panel}>
         <div className={styles.fieldRow}>
-          <Field label="Origin" htmlFor="admin-upload-origin">
+          <Field label={t(lang, 'admin_customers_filter_origin')} htmlFor="admin-upload-origin">
             <Select id="admin-upload-origin" value={originFilter} onChange={(e) => setOriginFilter(e.target.value as OriginFilter)} disabled={formDisabled}>
-              <option value="all">All</option>
-              <option value="admin">Admin (Oscar&apos;s own sites)</option>
-              <option value="self_serve">Self-serve (subscribers)</option>
+              <option value="all">{t(lang, 'admin_common_all')}</option>
+              <option value="admin">{t(lang, 'admin_upload_origin_admin_note')}</option>
+              <option value="self_serve">{t(lang, 'admin_upload_origin_self_serve_note')}</option>
             </Select>
           </Field>
-          <Field label="Customer" htmlFor="admin-upload-customer">
+          <Field label={t(lang, 'admin_upload_field_customer')} htmlFor="admin-upload-customer">
             <Select id="admin-upload-customer" value={customerId} onChange={(e) => setCustomerId(e.target.value)} disabled={formDisabled}>
               {visibleCustomers.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -378,22 +379,26 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
         </div>
       </div>
 
-      {loadingContext && <p className={styles.status}>Loading…</p>}
+      {loadingContext && <p className={styles.status}>{t(lang, 'admin_upload_loading')}</p>}
 
       {context && phase !== 'done' && (
         <div className={styles.panel}>
           <div className={styles.fieldRow}>
-            <Field label="Site" htmlFor="admin-upload-site">
+            <Field label={t(lang, 'admin_upload_field_site')} htmlFor="admin-upload-site">
               <Select id="admin-upload-site" value={siteSelection} onChange={(e) => handleSiteSelectionChange(e.target.value)} disabled={formDisabled}>
                 {context.sites.map((s) => (
                   <option key={s.site_id} value={s.site_id}>
                     {s.display_name}
                   </option>
                 ))}
-                {context.canAdd.ok && <option value={NEW_SITE_VALUE}>New site…</option>}
+                {context.canAdd.ok && <option value={NEW_SITE_VALUE}>{t(lang, 'admin_upload_new_site_option')}</option>}
               </Select>
             </Field>
-            <Field label={siteSelection === NEW_SITE_VALUE ? 'New site name' : 'Site name'} htmlFor="admin-upload-site-name" required>
+            <Field
+              label={siteSelection === NEW_SITE_VALUE ? t(lang, 'admin_upload_field_new_site_name') : t(lang, 'admin_upload_field_site_name')}
+              htmlFor="admin-upload-site-name"
+              required
+            >
               <Input
                 id="admin-upload-site-name"
                 value={fields.displayName}
@@ -404,10 +409,10 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
             </Field>
           </div>
 
-          {!context.canAdd.ok && context.sites.length === 0 && <p className={styles.error}>This customer reached their site limit.</p>}
+          {!context.canAdd.ok && context.sites.length === 0 && <p className={styles.error}>{t(lang, 'admin_upload_err_site_limit')}</p>}
 
           <div className={styles.fieldRow}>
-            <Field label="PV power (kWp)" htmlFor="admin-upload-kwp">
+            <Field label={t(lang, 'sites_field_pv_kwp')} htmlFor="admin-upload-kwp">
               <Input
                 id="admin-upload-kwp"
                 type="number"
@@ -418,33 +423,33 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
                 disabled={formDisabled}
               />
             </Field>
-            <Field label="System type" htmlFor="admin-upload-type">
+            <Field label={t(lang, 'sites_field_system_type')} htmlFor="admin-upload-type">
               <Select
                 id="admin-upload-type"
                 value={fields.systemType}
                 onChange={(e) => setFields((f) => ({ ...f, systemType: e.target.value as SiteFieldsState['systemType'] }))}
                 disabled={formDisabled}
               >
-                <option value="hybrid">Hybrid</option>
-                <option value="off_grid">Off-grid</option>
-                <option value="grid_zero">Grid-tied, no battery</option>
+                <option value="hybrid">{t(lang, 'system_type_hybrid')}</option>
+                <option value="off_grid">{t(lang, 'system_type_off_grid')}</option>
+                <option value="grid_zero">{t(lang, 'system_type_grid_zero')}</option>
               </Select>
             </Field>
-            <Field label="Report language" htmlFor="admin-upload-lang">
+            <Field label={t(lang, 'sites_field_report_language')} htmlFor="admin-upload-lang">
               <Select
                 id="admin-upload-lang"
                 value={fields.reportLanguage}
                 onChange={(e) => setFields((f) => ({ ...f, reportLanguage: e.target.value as 'en' | 'es' }))}
                 disabled={formDisabled}
               >
-                <option value="en">English</option>
-                <option value="es">Español</option>
+                <option value="en">{t(lang, 'lang_en')}</option>
+                <option value="es">{t(lang, 'lang_es')}</option>
               </Select>
             </Field>
           </div>
 
           <div className={styles.fieldRow}>
-            <Field label="Nominal battery (kWh)" htmlFor="admin-upload-batt-nominal">
+            <Field label={t(lang, 'admin_sites_field_battery_nominal')} htmlFor="admin-upload-batt-nominal">
               <Input
                 id="admin-upload-batt-nominal"
                 type="number"
@@ -455,7 +460,7 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
                 disabled={formDisabled}
               />
             </Field>
-            <Field label="DoD (%)" htmlFor="admin-upload-batt-dod">
+            <Field label={t(lang, 'sites_field_battery_dod')} htmlFor="admin-upload-batt-dod">
               <Input
                 id="admin-upload-batt-dod"
                 type="number"
@@ -468,10 +473,12 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
               />
             </Field>
           </div>
-          {usableKwh !== null && <p className={styles.caption}>Usable battery = nominal × DoD/100 = {usableKwh.toFixed(2)} kWh</p>}
+          {usableKwh !== null && (
+            <p className={styles.caption}>{t(lang, 'sites_field_battery_usable_caption').replace('{value}', usableKwh.toFixed(2))}</p>
+          )}
 
           <div className={styles.fieldRow}>
-            <Field label="Latitude" htmlFor="admin-upload-lat">
+            <Field label={t(lang, 'sites_field_latitude')} htmlFor="admin-upload-lat">
               <Input
                 id="admin-upload-lat"
                 type="number"
@@ -481,7 +488,7 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
                 disabled={formDisabled}
               />
             </Field>
-            <Field label="Longitude" htmlFor="admin-upload-lng">
+            <Field label={t(lang, 'sites_field_longitude')} htmlFor="admin-upload-lng">
               <Input
                 id="admin-upload-lng"
                 type="number"
@@ -491,7 +498,7 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
                 disabled={formDisabled}
               />
             </Field>
-            <Field label="Location" htmlFor="admin-upload-loc">
+            <Field label={t(lang, 'sites_field_location')} htmlFor="admin-upload-loc">
               <Input
                 id="admin-upload-loc"
                 value={fields.location}
@@ -502,7 +509,7 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
           </div>
 
           <div className={styles.fieldRow}>
-            <Field label="Timezone" htmlFor="admin-upload-tz">
+            <Field label={t(lang, 'sites_field_timezone')} htmlFor="admin-upload-tz">
               <Select id="admin-upload-tz" value={fields.timezone} onChange={(e) => setFields((f) => ({ ...f, timezone: e.target.value }))} disabled={formDisabled}>
                 {TIMEZONES.map((tz) => (
                   <option key={tz} value={tz}>
@@ -511,7 +518,7 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
                 ))}
               </Select>
             </Field>
-            <Field label="Country" htmlFor="admin-upload-country">
+            <Field label={t(lang, 'sites_field_country')} htmlFor="admin-upload-country">
               <Select id="admin-upload-country" value={fields.country} onChange={(e) => setFields((f) => ({ ...f, country: e.target.value }))} disabled={formDisabled}>
                 {COUNTRY_CODES.map((code) => (
                   <option key={code} value={code}>
@@ -523,7 +530,7 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
           </div>
 
           <div className={styles.fieldRow}>
-            <Field label="Rate (per kWh)" htmlFor="admin-upload-rate">
+            <Field label={t(lang, 'admin_upload_field_rate')} htmlFor="admin-upload-rate">
               <Input
                 id="admin-upload-rate"
                 type="number"
@@ -534,7 +541,7 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
                 disabled={formDisabled}
               />
             </Field>
-            <Field label="Currency" htmlFor="admin-upload-currency">
+            <Field label={t(lang, 'sites_field_savings_currency')} htmlFor="admin-upload-currency">
               <Select
                 id="admin-upload-currency"
                 value={fields.savingsCurrency}
@@ -557,11 +564,11 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
               onChange={(e) => setFields((f) => ({ ...f, exportsToGrid: e.target.checked }))}
               disabled={formDisabled}
             />
-            This system exports energy to the grid
+            {t(lang, 'sites_field_exports_to_grid')}
           </label>
 
           <div className={styles.fileRow}>
-            <Field label="VRM CSV file" htmlFor="admin-upload-file">
+            <Field label={t(lang, 'admin_upload_field_file')} htmlFor="admin-upload-file">
               <input
                 ref={fileInputRef}
                 id="admin-upload-file"
@@ -573,25 +580,25 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
               />
             </Field>
           </div>
-          <p className={styles.caption}>Upload limit: {formatBytes(MAX_UPLOAD_BYTES)}.</p>
+          <p className={styles.caption}>{t(lang, 'admin_upload_limit_caption').replace('{limit}', formatBytes(MAX_UPLOAD_BYTES))}</p>
 
           {errorMessage && phase !== 'preview_ready' && <p className={styles.error}>{errorMessage}</p>}
 
           {phase === 'form' || phase === 'error' ? (
             <Button type="button" onClick={handleProcessClick} disabled={!file || !siteSelection}>
-              Process and preview
+              {t(lang, 'admin_upload_process_button')}
             </Button>
           ) : null}
 
-          {phase === 'signing' && <p className={styles.status}>Preparing upload…</p>}
-          {phase === 'uploading' && <p className={styles.status}>Uploading {uploadPct}%…</p>}
+          {phase === 'signing' && <p className={styles.status}>{t(lang, 'admin_upload_preparing')}</p>}
+          {phase === 'uploading' && <p className={styles.status}>{t(lang, 'admin_upload_uploading').replace('{pct}', String(uploadPct))}</p>}
           {phase === 'previewing' && previewJobId && (
             <JobProgress
               jobId={previewJobId}
               endpoint="/api/admin/pipeline/jobs"
-              runningLabel="Processing the CSV…"
-              genericFailedLabel="Something went wrong. Please try again."
-              unreachableLabel="Could not reach the processing service."
+              runningLabel={t(lang, 'admin_upload_processing_label')}
+              genericFailedLabel={t(lang, 'admin_upload_generic_failed')}
+              unreachableLabel={t(lang, 'admin_upload_unreachable')}
               onDone={handlePreviewJobDone}
               onFailed={handlePreviewJobFailed}
             />
@@ -601,33 +608,36 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
 
       {preview && (phase === 'preview_ready' || phase === 'committing') && (
         <div className={styles.panel}>
-          <h3>What will be imported</h3>
+          <h3>{t(lang, 'admin_upload_preview_title')}</h3>
           <div className={styles.summaryGrid}>
             <div className={styles.summaryStat}>
-              <div className={styles.summaryLbl}>Days</div>
+              <div className={styles.summaryLbl}>{t(lang, 'admin_upload_stat_days')}</div>
               <div className={styles.summaryVal}>{preview.parsed.rows.length}</div>
             </div>
             <div className={styles.summaryStat}>
-              <div className={styles.summaryLbl}>Samples</div>
+              <div className={styles.summaryLbl}>{t(lang, 'admin_upload_stat_samples')}</div>
               <div className={styles.summaryVal}>{preview.parsed.sample_count.toLocaleString()}</div>
             </div>
             <div className={styles.summaryStat}>
-              <div className={styles.summaryLbl}>Alarm events</div>
+              <div className={styles.summaryLbl}>{t(lang, 'admin_upload_stat_alarms')}</div>
               <div className={styles.summaryVal}>{preview.parsed.alarm_events.length}</div>
             </div>
             <div className={styles.summaryStat}>
-              <div className={styles.summaryLbl}>Grid outages</div>
+              <div className={styles.summaryLbl}>{t(lang, 'admin_upload_stat_outages')}</div>
               <div className={styles.summaryVal}>{preview.parsed.outages.length}</div>
             </div>
           </div>
           <p className={styles.caption}>
-            VRM installation {preview.parsed.installation_id ?? '—'} · period {preview.parsed.period_start.slice(0, 10)} →{' '}
-            {preview.parsed.period_end.slice(0, 10)} · file timezone: {preview.parsed.timezone_label}
+            {t(lang, 'admin_upload_preview_caption')
+              .replace('{id}', String(preview.parsed.installation_id ?? '—'))
+              .replace('{start}', preview.parsed.period_start.slice(0, 10))
+              .replace('{end}', preview.parsed.period_end.slice(0, 10))
+              .replace('{tz}', preview.parsed.timezone_label)}
           </p>
 
           {preview.parsed.warnings.length > 0 && (
             <div className={styles.warnings}>
-              <strong>Warnings</strong>
+              <strong>{t(lang, 'admin_upload_warnings_label')}</strong>
               <ul>
                 {preview.parsed.warnings.map((w, i) => (
                   <li key={i}>{w}</li>
@@ -640,17 +650,17 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
             <Table>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>PV (kWh)</th>
-                  <th>Load (kWh)</th>
-                  <th>Grid (kWh)</th>
-                  <th>Charge (kWh)</th>
-                  <th>Discharge (kWh)</th>
-                  <th>Min SOC</th>
-                  <th>Max SOC</th>
-                  <th>Outages</th>
-                  <th>Outage min.</th>
-                  <th>Complete</th>
+                  <th>{t(lang, 'admin_upload_col_date')}</th>
+                  <th>{t(lang, 'admin_upload_col_pv')}</th>
+                  <th>{t(lang, 'admin_upload_col_load')}</th>
+                  <th>{t(lang, 'admin_upload_col_grid')}</th>
+                  <th>{t(lang, 'admin_upload_col_charge')}</th>
+                  <th>{t(lang, 'admin_upload_col_discharge')}</th>
+                  <th>{t(lang, 'admin_upload_col_min_soc')}</th>
+                  <th>{t(lang, 'admin_upload_col_max_soc')}</th>
+                  <th>{t(lang, 'admin_upload_col_outages')}</th>
+                  <th>{t(lang, 'admin_upload_col_outage_min')}</th>
+                  <th>{t(lang, 'admin_upload_col_complete')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -677,16 +687,16 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
 
           {phase === 'preview_ready' && (
             <Button type="button" onClick={handleConfirmClick}>
-              Import
+              {t(lang, 'admin_upload_import_button')}
             </Button>
           )}
           {phase === 'committing' && commitJobId && (
             <JobProgress
               jobId={commitJobId}
               endpoint="/api/admin/pipeline/jobs"
-              runningLabel="Writing…"
-              genericFailedLabel="Something went wrong. Please try again."
-              unreachableLabel="Could not reach the processing service."
+              runningLabel={t(lang, 'admin_upload_writing_label')}
+              genericFailedLabel={t(lang, 'admin_upload_generic_failed')}
+              unreachableLabel={t(lang, 'admin_upload_unreachable')}
               onDone={handleCommitJobDone}
               onFailed={handleCommitJobFailed}
             />
@@ -697,11 +707,14 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
       {phase === 'done' && commitResult && (
         <div className={styles.panel}>
           <p className={styles.success}>
-            Imported {commitResult.rows_written} day(s) and {commitResult.alarm_events_written} alarm event(s) into {commitResult.site_id}.
+            {t(lang, 'admin_upload_success')
+              .replace('{days}', String(commitResult.rows_written))
+              .replace('{alarms}', String(commitResult.alarm_events_written))
+              .replace('{site}', commitResult.site_id)}
           </p>
           <div className={styles.formActions}>
             <Button type="button" onClick={resetUploadState}>
-              Upload another file
+              {t(lang, 'admin_upload_another_button')}
             </Button>
           </div>
         </div>
@@ -709,19 +722,19 @@ export function AdminUploadManager({ customers }: { customers: AdminCustomerRow[
 
       {context && (
         <>
-          <h2 className={styles.historyTitle}>Upload history</h2>
+          <h2 className={styles.historyTitle}>{t(lang, 'admin_upload_history_title')}</h2>
           {context.ingestions.length === 0 ? (
-            <p className={styles.intro}>No uploads yet.</p>
+            <p className={styles.intro}>{t(lang, 'admin_upload_no_uploads')}</p>
           ) : (
             <Table>
               <thead>
                 <tr>
-                  <th>Site</th>
-                  <th>File</th>
-                  <th>Period</th>
-                  <th>Days imported</th>
-                  <th>Alarms</th>
-                  <th>Uploaded</th>
+                  <th>{t(lang, 'admin_upload_col_hist_site')}</th>
+                  <th>{t(lang, 'admin_upload_col_hist_file')}</th>
+                  <th>{t(lang, 'admin_upload_col_hist_period')}</th>
+                  <th>{t(lang, 'admin_upload_col_hist_days')}</th>
+                  <th>{t(lang, 'admin_upload_col_hist_alarms')}</th>
+                  <th>{t(lang, 'admin_upload_col_hist_uploaded')}</th>
                 </tr>
               </thead>
               <tbody>

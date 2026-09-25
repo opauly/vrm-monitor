@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { requireAdmin } from '@/lib/server/auth';
 import { listCustomers } from '@/lib/server/db/admin';
+import { t } from '@/lib/i18n/strings';
 import { AdminUploadManager } from './AdminUploadManager';
 
 export const metadata: Metadata = {
@@ -12,7 +13,8 @@ export const metadata: Metadata = {
 // admin-session path to "upload on behalf of a chosen customer," reachable
 // only from `requireAdmin()`.
 export default async function AdminUploadPage() {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const lang = session.uiLanguage;
   // Deactivated customers (QA fixtures, cancelled trials) never belong in a
   // live picker regardless of origin — `/admin/customers` is where Oscar
   // still manages/reactivates them. The admin-vs-self-serve distinction
@@ -23,12 +25,9 @@ export default async function AdminUploadPage() {
 
   return (
     <div>
-      <h1>Upload VRM CSV export</h1>
-      <p className="mono page-desc">
-        Upload a file on behalf of a customer. The file is processed and a summary is shown before anything is written to the
-        database.
-      </p>
-      <AdminUploadManager customers={customers} />
+      <h1>{t(lang, 'admin_upload_title')}</h1>
+      <p className="mono page-desc">{t(lang, 'admin_upload_desc')}</p>
+      <AdminUploadManager customers={customers} lang={lang} />
     </div>
   );
 }

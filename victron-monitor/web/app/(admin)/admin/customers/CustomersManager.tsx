@@ -13,6 +13,7 @@ import { formatDate as formatDateShared } from '@/lib/dates';
 import type { AdminCustomerRow } from '@/lib/server/db/admin';
 import { planLabel } from '@/lib/plans';
 import { countryLabel } from '@/lib/countries';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { CreateCustomerForm } from './CreateCustomerForm';
 import { EditCustomerForm } from './EditCustomerForm';
 import { CustomerBillingPanel } from './CustomerBillingPanel';
@@ -37,10 +38,18 @@ function billingStatusBadgeClass(status: string | null): string {
   return styles.statusNone;
 }
 
-function authStatusLabel(c: AdminCustomerRow): { text: string; className: string } {
-  if (!c.auth_user_id) return { text: 'Not invited', className: styles.statusNone };
-  if (!c.activated_at) return { text: `Invited ${formatDate(c.invited_at)}`, className: styles.statusInvited };
-  return { text: `Active ${formatDate(c.activated_at)}`, className: styles.statusActive };
+function authStatusLabel(c: AdminCustomerRow, lang: Lang): { text: string; className: string } {
+  if (!c.auth_user_id) return { text: t(lang, 'admin_customers_status_not_invited'), className: styles.statusNone };
+  if (!c.activated_at) {
+    return {
+      text: t(lang, 'admin_customers_status_invited').replace('{date}', formatDate(c.invited_at)),
+      className: styles.statusInvited,
+    };
+  }
+  return {
+    text: t(lang, 'admin_customers_status_active_since').replace('{date}', formatDate(c.activated_at)),
+    className: styles.statusActive,
+  };
 }
 
 // The VRM link column (PLAN_PHASE15.md §8 Step 6) — three states, same
@@ -52,18 +61,24 @@ function authStatusLabel(c: AdminCustomerRow): { text: string; className: string
 // `vrm_token_last_error` (surfaced instead on the customer's own
 // `/app`/`/app/sites` banner, not repeated here) is what distinguishes WHY
 // for anyone who needs to know.
-function vrmLinkStatusLabel(c: AdminCustomerRow): { text: string; className: string; connected: boolean } {
+function vrmLinkStatusLabel(c: AdminCustomerRow, lang: Lang): { text: string; className: string; connected: boolean } {
   if (c.vrm_token_revoked_at) {
-    return { text: `Token revoked ${formatDate(c.vrm_token_revoked_at)}`, className: styles.statusRevoked, connected: false };
+    return {
+      text: t(lang, 'admin_customers_vrm_token_revoked').replace('{date}', formatDate(c.vrm_token_revoked_at)),
+      className: styles.statusRevoked,
+      connected: false,
+    };
   }
   if (c.vrm_token_added_at) {
     return {
-      text: `Connected ${c.vrm_account_email ?? '—'} since ${formatDate(c.vrm_token_added_at)}`,
+      text: t(lang, 'admin_customers_vrm_connected')
+        .replace('{email}', c.vrm_account_email ?? '—')
+        .replace('{date}', formatDate(c.vrm_token_added_at)),
       className: styles.statusActive,
       connected: true,
     };
   }
-  return { text: 'Not connected', className: styles.statusNone, connected: false };
+  return { text: t(lang, 'admin_customers_vrm_not_connected'), className: styles.statusNone, connected: false };
 }
 
 function formatDate(iso: string | null): string {
@@ -75,7 +90,7 @@ function formatDate(iso: string | null): string {
   return formatDateShared(iso);
 }
 
-export function CustomersManager({ customers }: { customers: AdminCustomerRow[] }) {
+export function CustomersManager({ customers, lang }: { customers: AdminCustomerRow[]; lang: Lang }) {
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [billingOpenId, setBillingOpenId] = useState<string | null>(null);
@@ -121,7 +136,8 @@ export function CustomersManager({ customers }: { customers: AdminCustomerRow[] 
   }
 
   function renderCustomerRow(c: AdminCustomerRow) {
-    const vrmLink = vrmLinkStatusLabel(c);
+    const vrmLink = vrmLinkStatusLabel(c, lang);
+    const auth = authStatusLabel(c, lang);
     return (
       <Fragment key={c.id}>
         <tr>
@@ -131,7 +147,7 @@ export function CustomersManager({ customers }: { customers: AdminCustomerRow[] 
               {c.slug} · {countryLabel(c.country)}
             </div>
           </td>
-          <td>{c.account_type === 'installer' ? 'Installer' : 'Owner'}</td>
+          <td>{c.account_type === 'installer' ? t(lang, 'admin_customers_type_installer') : t(lang, 'admin_customers_type_owner')}</td>
           <td>{planLabel(c.plan)}</td>
           <td>
             {c.siteCount}
@@ -139,38 +155,44 @@ export function CustomersManager({ customers }: { customers: AdminCustomerRow[] 
           </td>
           <td>{c.lastUploadAt ? formatDate(c.lastUploadAt) : '—'}</td>
           <td>
-            <span className={authStatusLabel(c).className}>{authStatusLabel(c).text}</span>
+            <span className={auth.className}>{auth.text}</span>
             {rowError[c.id] && <div className={styles.rowError}>{rowError[c.id]}</div>}
           </td>
           <td>
             <span className={vrmLink.className}>{vrmLink.text}</span>
           </td>
           <td>
-            <span className={c.active ? styles.statusActive : styles.statusNone}>{c.active ? 'Yes' : 'No'}</span>
+            <span className={c.active ? styles.statusActive : styles.statusNone}>
+              {c.active ? t(lang, 'admin_common_yes') : t(lang, 'admin_common_no')}
+            </span>
           </td>
           <td>
             <span className={billingStatusBadgeClass(c.billing_status)}>{c.billing_status ?? 'none'}</span>
             <div className={styles.subtle}>
-              {c.nextRenewalAt ? `Renews ${formatDate(c.nextRenewalAt)}` : 'No renewal scheduled'}
-              {c.cancelPending ? ' · Cancel pending' : ''}
+              {c.nextRenewalAt
+                ? t(lang, 'admin_customers_renews').replace('{date}', formatDate(c.nextRenewalAt))
+                : t(lang, 'admin_customers_no_renewal')}
+              {c.cancelPending ? ` · ${t(lang, 'admin_customers_cancel_pending')}` : ''}
             </div>
           </td>
           <td>
-            <span className={styles.subtle}>{c.origin === 'self_serve' ? 'Self-serve' : 'Admin'}</span>
+            <span className={styles.subtle}>
+              {c.origin === 'self_serve' ? t(lang, 'admin_customers_origin_self_serve') : t(lang, 'admin_customers_origin_admin')}
+            </span>
             {c.provisioning_state === 'pending_subscription' && (
-              <div className={styles.statusInvited}>Pending signup</div>
+              <div className={styles.statusInvited}>{t(lang, 'admin_customers_pending_signup')}</div>
             )}
           </td>
           <td className={styles.actionsCell}>
             <Button type="button" variant="ghost" onClick={() => setEditingId(editingId === c.id ? null : c.id)}>
-              Edit
+              {t(lang, 'admin_customers_edit_button')}
             </Button>
             <Button
               type="button"
               variant="ghost"
               onClick={() => setBillingOpenId(billingOpenId === c.id ? null : c.id)}
             >
-              Billing
+              {t(lang, 'admin_customers_billing_button')}
             </Button>
             {c.auth_user_id ? (
               <Button
@@ -179,7 +201,7 @@ export function CustomersManager({ customers }: { customers: AdminCustomerRow[] 
                 disabled={rowBusy[c.id]}
                 onClick={() => runRowAction(c.id, () => resendInviteAction(c.id))}
               >
-                Resend invite
+                {t(lang, 'admin_customers_resend_invite')}
               </Button>
             ) : (
               <Button
@@ -188,7 +210,7 @@ export function CustomersManager({ customers }: { customers: AdminCustomerRow[] 
                 disabled={rowBusy[c.id]}
                 onClick={() => runRowAction(c.id, () => sendInviteAction(c.id))}
               >
-                Send invite
+                {t(lang, 'admin_customers_send_invite')}
               </Button>
             )}
             <Button
@@ -197,7 +219,7 @@ export function CustomersManager({ customers }: { customers: AdminCustomerRow[] 
               disabled={rowBusy[c.id]}
               onClick={() => runRowAction(c.id, () => setActiveAction(c.id, !c.active))}
             >
-              {c.active ? 'Deactivate' : 'Activate'}
+              {c.active ? t(lang, 'admin_customers_deactivate') : t(lang, 'admin_customers_activate')}
             </Button>
             {vrmLink.connected && (
               <Button
@@ -205,11 +227,11 @@ export function CustomersManager({ customers }: { customers: AdminCustomerRow[] 
                 variant="ghost"
                 disabled={rowBusy[c.id]}
                 onClick={() => {
-                  if (!window.confirm(`Disconnect ${c.name}'s VRM account? Data already imported will not be deleted.`)) return;
+                  if (!window.confirm(t(lang, 'admin_customers_confirm_disconnect_vrm').replace('{name}', c.name))) return;
                   runRowAction(c.id, () => disconnectVrmLinkAction(c.id));
                 }}
               >
-                Disconnect VRM
+                {t(lang, 'admin_customers_disconnect_vrm')}
               </Button>
             )}
           </td>
@@ -217,14 +239,14 @@ export function CustomersManager({ customers }: { customers: AdminCustomerRow[] 
         {editingId === c.id && (
           <tr>
             <td colSpan={TABLE_COLUMN_COUNT} className={styles.editRow}>
-              <EditCustomerForm customer={c} onDone={() => setEditingId(null)} />
+              <EditCustomerForm customer={c} lang={lang} onDone={() => setEditingId(null)} />
             </td>
           </tr>
         )}
         {billingOpenId === c.id && (
           <tr>
             <td colSpan={TABLE_COLUMN_COUNT} className={styles.editRow}>
-              <CustomerBillingPanel customer={c} />
+              <CustomerBillingPanel customer={c} lang={lang} />
             </td>
           </tr>
         )}
@@ -235,16 +257,16 @@ export function CustomersManager({ customers }: { customers: AdminCustomerRow[] 
   const tableHead = (
     <thead>
       <tr>
-        <th>Name</th>
-        <th>Type</th>
-        <th>Plan</th>
-        <th>Sites</th>
-        <th>Last upload</th>
-        <th>Access</th>
-        <th>VRM</th>
-        <th>Active</th>
-        <th>Billing</th>
-        <th>Origin</th>
+        <th>{t(lang, 'admin_customers_col_name')}</th>
+        <th>{t(lang, 'admin_customers_col_type')}</th>
+        <th>{t(lang, 'admin_customers_col_plan')}</th>
+        <th>{t(lang, 'admin_customers_col_sites')}</th>
+        <th>{t(lang, 'admin_customers_col_last_upload')}</th>
+        <th>{t(lang, 'admin_customers_col_access')}</th>
+        <th>{t(lang, 'admin_customers_col_vrm')}</th>
+        <th>{t(lang, 'admin_customers_col_active')}</th>
+        <th>{t(lang, 'admin_customers_col_billing')}</th>
+        <th>{t(lang, 'admin_customers_col_origin')}</th>
         <th />
       </tr>
     </thead>
@@ -254,23 +276,23 @@ export function CustomersManager({ customers }: { customers: AdminCustomerRow[] 
     <div>
       <div className={styles.filtersRow}>
         <label className={styles.filterLabel}>
-          Origin
+          {t(lang, 'admin_customers_filter_origin')}
           <Select value={originFilter} onChange={(e) => setOriginFilter(e.target.value as OriginFilter)}>
-            <option value="all">All</option>
-            <option value="admin">Admin</option>
-            <option value="self_serve">Self-serve</option>
+            <option value="all">{t(lang, 'admin_common_all')}</option>
+            <option value="admin">{t(lang, 'admin_customers_origin_admin')}</option>
+            <option value="self_serve">{t(lang, 'admin_customers_origin_self_serve')}</option>
           </Select>
         </label>
         <label className={styles.filterLabel}>
-          Provisioning
+          {t(lang, 'admin_customers_filter_provisioning')}
           <Select value={provisioningFilter} onChange={(e) => setProvisioningFilter(e.target.value as ProvisioningFilter)}>
-            <option value="all">All</option>
-            <option value="active">Active</option>
-            <option value="pending_subscription">Pending signup</option>
+            <option value="all">{t(lang, 'admin_common_all')}</option>
+            <option value="active">{t(lang, 'admin_customers_provisioning_active')}</option>
+            <option value="pending_subscription">{t(lang, 'admin_customers_pending_signup')}</option>
           </Select>
         </label>
         <span className={styles.filterCount}>
-          {filteredCustomers.length} of {customers.length} customer(s)
+          {t(lang, 'admin_customers_filter_count').replace('{n}', String(filteredCustomers.length)).replace('{m}', String(customers.length))}
         </span>
       </div>
 
@@ -281,7 +303,9 @@ export function CustomersManager({ customers }: { customers: AdminCustomerRow[] 
 
       {deactivatedCustomers.length > 0 && (
         <>
-          <h2 className={styles.deactivatedHeading}>Deactivated ({deactivatedCustomers.length})</h2>
+          <h2 className={styles.deactivatedHeading}>
+            {t(lang, 'admin_customers_deactivated_heading').replace('{n}', String(deactivatedCustomers.length))}
+          </h2>
           <Table>
             {tableHead}
             <tbody>{deactivatedCustomers.map(renderCustomerRow)}</tbody>
@@ -292,15 +316,15 @@ export function CustomersManager({ customers }: { customers: AdminCustomerRow[] 
       <div className={styles.actionsRow}>
         {!creating && (
           <Button type="button" onClick={() => setCreating(true)}>
-            New customer
+            {t(lang, 'admin_customers_new_button')}
           </Button>
         )}
       </div>
 
       {creating && (
         <div className={styles.panel}>
-          <h3>New customer</h3>
-          <CreateCustomerForm onDone={() => setCreating(false)} />
+          <h3>{t(lang, 'admin_customers_new_button')}</h3>
+          <CreateCustomerForm lang={lang} onDone={() => setCreating(false)} />
         </div>
       )}
     </div>

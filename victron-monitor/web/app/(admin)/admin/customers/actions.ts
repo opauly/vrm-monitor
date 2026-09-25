@@ -11,6 +11,7 @@ import { requireAdmin } from '@/lib/server/auth';
 import { createCustomer, updateCustomer, setActive, type AdminCustomerUpdateFields, type CreateCustomerFields } from '@/lib/server/db/admin';
 import { sendInvite, resendInvite } from '@/lib/server/invites';
 import { billingCancel, billingRefresh, vrmLinkDisconnect, PipelineError } from '@/lib/server/pipeline';
+import { t } from '@/lib/i18n/strings';
 
 const stringOrNull = z.preprocess((v) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null), z.string().nullable());
 const numberOrNull = z.preprocess((v) => {
@@ -44,7 +45,7 @@ export type CreateCustomerState = {
 };
 
 export async function createCustomerAction(_prevState: CreateCustomerState, formData: FormData): Promise<CreateCustomerState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const parsed = createSchema.safeParse({
     name: formData.get('name'),
@@ -58,7 +59,7 @@ export async function createCustomerAction(_prevState: CreateCustomerState, form
     uiLanguage: formData.get('uiLanguage'),
   });
   if (!parsed.success) {
-    return { error: 'Please check the form fields.' };
+    return { error: t(admin.uiLanguage, 'admin_customers_err_check_fields') };
   }
 
   let customerId: string;
@@ -73,9 +74,9 @@ export async function createCustomerAction(_prevState: CreateCustomerState, form
     // `/admin/*` too, not just customer-facing pages).
     const message = err instanceof Error ? err.message : '';
     if (/duplicate key|unique/i.test(message)) {
-      return { error: 'A customer with that login email or name already exists.' };
+      return { error: t(admin.uiLanguage, 'admin_customers_err_duplicate') };
     }
-    return { error: 'Could not create the customer. Please try again.' };
+    return { error: t(admin.uiLanguage, 'admin_customers_err_create_generic') };
   }
 
   revalidatePath('/admin/customers');
@@ -86,10 +87,13 @@ export async function createCustomerAction(_prevState: CreateCustomerState, form
   }
   const inviteWarning =
     inviteResult.reason === 'already_linked_elsewhere'
-      ? `Customer created, but that email is already linked to "${inviteResult.otherCustomerName ?? 'another customer'}" — use a different login email or reassign the existing one.`
+      ? t(admin.uiLanguage, 'admin_customers_warn_invite_linked_elsewhere').replace(
+          '{other}',
+          inviteResult.otherCustomerName ?? t(admin.uiLanguage, 'admin_customers_other_customer_fallback'),
+        )
       : inviteResult.reason === 'no_login_email'
-        ? 'Customer created, but no login email is configured.'
-        : 'Customer created, but the invite could not be sent. Try "Resend invite" from the table.';
+        ? t(admin.uiLanguage, 'admin_customers_warn_invite_no_email')
+        : t(admin.uiLanguage, 'admin_customers_warn_invite_send_failed');
   return { success: true, inviteWarning };
 }
 
@@ -111,7 +115,7 @@ const updateSchema = z.object({
 export type UpdateCustomerState = { error?: string; success?: boolean };
 
 export async function updateCustomerAction(customerId: string, _prevState: UpdateCustomerState, formData: FormData): Promise<UpdateCustomerState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const parsed = updateSchema.safeParse({
     name: formData.get('name'),
@@ -124,7 +128,7 @@ export async function updateCustomerAction(customerId: string, _prevState: Updat
     uiLanguage: formData.get('uiLanguage'),
     notes: formData.get('notes'),
   });
-  if (!parsed.success) return { error: 'Please check the form fields.' };
+  if (!parsed.success) return { error: t(admin.uiLanguage, 'admin_customers_err_check_fields') };
 
   try {
     await updateCustomer(customerId, {
@@ -139,7 +143,7 @@ export async function updateCustomerAction(customerId: string, _prevState: Updat
       notes: parsed.data.notes,
     } as AdminCustomerUpdateFields);
   } catch {
-    return { error: 'Could not save. Please try again.' };
+    return { error: t(admin.uiLanguage, 'admin_customers_err_save_generic') };
   }
   revalidatePath('/admin/customers');
   return { success: true };
@@ -154,32 +158,33 @@ export async function setActiveAction(customerId: string, active: boolean): Prom
 export type ResendState = { ok?: boolean; error?: string };
 
 export async function resendInviteAction(customerId: string): Promise<ResendState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const result = await resendInvite(customerId);
   revalidatePath('/admin/customers');
   if (!result.ok) {
     return {
       error:
         result.reason === 'no_login_email'
-          ? 'This customer has no login email configured — edit it first.'
-          : 'Could not resend the invite. Please try again.',
+          ? t(admin.uiLanguage, 'admin_customers_err_no_login_email')
+          : t(admin.uiLanguage, 'admin_customers_err_resend_generic'),
     };
   }
   return { ok: true };
 }
 
 export async function sendInviteAction(customerId: string): Promise<ResendState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const result = await sendInvite(customerId);
   revalidatePath('/admin/customers');
   if (!result.ok) {
     if (result.reason === 'already_linked_elsewhere') {
-      return { error: `That email is already linked to "${result.otherCustomerName ?? 'another customer'}".` };
+      const otherName = result.otherCustomerName ?? t(admin.uiLanguage, 'admin_customers_other_customer_fallback');
+      return { error: t(admin.uiLanguage, 'admin_customers_err_send_linked_elsewhere').replace('{other}', otherName) };
     }
     if (result.reason === 'no_login_email') {
-      return { error: 'This customer has no login email configured — edit it first.' };
+      return { error: t(admin.uiLanguage, 'admin_customers_err_no_login_email') };
     }
-    return { error: 'Could not send the invite. Please try again.' };
+    return { error: t(admin.uiLanguage, 'admin_customers_err_send_generic') };
   }
   return { ok: true };
 }
@@ -198,11 +203,11 @@ export type VrmLinkDisconnectState = { ok?: boolean; error?: string };
  * ingested is never touched.
  */
 export async function disconnectVrmLinkAction(customerId: string): Promise<VrmLinkDisconnectState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
   try {
     await vrmLinkDisconnect(customerId);
   } catch {
-    return { error: "Could not disconnect this customer's VRM account. Please try again." };
+    return { error: t(admin.uiLanguage, 'admin_customers_err_disconnect_vrm') };
   }
   revalidatePath('/admin/customers');
   return { ok: true };
@@ -232,7 +237,7 @@ export async function billingRefreshAction(customerId: string): Promise<BillingA
   try {
     await billingRefresh(customerId);
   } catch {
-    return { error: "Could not refresh this customer's billing status. Please try again." };
+    return { error: t(admin.uiLanguage, 'admin_customers_err_refresh_billing') };
   }
   console.info(`admin.billing_refresh customer_id=${customerId} admin=${admin.email}`);
   revalidatePath('/admin/customers');
@@ -253,9 +258,9 @@ export async function billingCancelAction(customerId: string, mode: 'at_period_e
     await billingCancel({ customer_id: customerId, mode });
   } catch (err) {
     if (err instanceof PipelineError && err.code === 'no_active_subscription') {
-      return { error: 'This customer has no active subscription to cancel.' };
+      return { error: t(admin.uiLanguage, 'admin_customers_err_no_active_subscription') };
     }
-    return { error: 'Could not cancel the subscription. Please try again.' };
+    return { error: t(admin.uiLanguage, 'admin_customers_err_cancel_generic') };
   }
   console.info(`admin.billing_cancel customer_id=${customerId} mode=${mode} admin=${admin.email}`);
   revalidatePath('/admin/customers');
@@ -298,7 +303,7 @@ export async function promoteToActiveAction(customerId: string): Promise<Promote
   try {
     result = await billingRefresh(customerId);
   } catch {
-    return { error: "Could not refresh this customer's billing status. Please try again." };
+    return { error: t(admin.uiLanguage, 'admin_customers_err_refresh_billing') };
   }
   const promoted = result.provisioning_state === 'active';
   console.info(
@@ -311,8 +316,7 @@ export async function promoteToActiveAction(customerId: string): Promise<Promote
     return {
       ok: true,
       promoted: false,
-      message:
-        'No change — ONVO does not currently report an entitled subscription with a payment method on file for this customer. If they genuinely have not paid, this is correct, not a bug.',
+      message: t(admin.uiLanguage, 'admin_customers_msg_no_promote_change'),
     };
   }
   return { ok: true, promoted: true };

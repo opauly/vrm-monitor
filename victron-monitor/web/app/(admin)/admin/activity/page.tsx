@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { requireAdmin } from '@/lib/server/auth';
 import { listAllIngestions, listAllReportRuns, listAllSites, listBillingEvents, listCustomers, listRecentSignups } from '@/lib/server/db/admin';
+import { t } from '@/lib/i18n/strings';
 import { ActivityManager } from './ActivityManager';
 
 export const metadata: Metadata = {
@@ -18,7 +19,8 @@ export const metadata: Metadata = {
 // forgery and a signup spam wave visible to a human at all (§7's
 // failure-modes table, same two rows).
 export default async function AdminActivityPage() {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const lang = session.uiLanguage;
   const [ingestions, sites, customers, billingEvents, signups, reportRuns] = await Promise.all([
     listAllIngestions(200),
     listAllSites(),
@@ -39,9 +41,11 @@ export default async function AdminActivityPage() {
 
   return (
     <div>
-      <h1>Activity</h1>
+      <h1>{t(lang, 'admin_activity_title')}</h1>
       <p className="mono page-desc">
-        Upload log (<code>vrm.ingestion_log</code>) across all customers, most recent first.
+        {t(lang, 'admin_activity_desc_1')}
+        <code>vrm.ingestion_log</code>
+        {t(lang, 'admin_activity_desc_2')}
       </p>
       <ActivityManager
         customers={customers}
@@ -53,6 +57,7 @@ export default async function AdminActivityPage() {
         customerNameBySite={Object.fromEntries(customerNameBySite)}
         customerNameById={Object.fromEntries(customerNameById)}
         displayNameBySite={Object.fromEntries(displayNameBySite)}
+        lang={lang}
       />
     </div>
   );

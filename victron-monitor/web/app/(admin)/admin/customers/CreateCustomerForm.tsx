@@ -12,13 +12,14 @@ import { Button, Field, Input, Select } from '@/components/ui';
 import { slugify } from '@/lib/slug';
 import { PLANS, type PlanKey } from '@/lib/plans';
 import { COUNTRIES, DEFAULT_COUNTRY } from '@/lib/countries';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { createCustomerAction, type CreateCustomerState } from './actions';
 import styles from './customers.module.css';
 
 const PLAN_KEYS = Object.keys(PLANS) as PlanKey[];
 const COUNTRY_CODES = Object.keys(COUNTRIES);
 
-export function CreateCustomerForm({ onDone }: { onDone: () => void }) {
+export function CreateCustomerForm({ lang, onDone }: { lang: Lang; onDone: () => void }) {
   const [state, formAction, pending] = useActionState<CreateCustomerState, FormData>(createCustomerAction, {});
   const [name, setName] = useState('');
   const [plan, setPlan] = useState<PlanKey>('trial');
@@ -58,11 +59,11 @@ export function CreateCustomerForm({ onDone }: { onDone: () => void }) {
   if (state.success) {
     return (
       <div className={styles.form}>
-        <p className={styles.success}>Customer created.</p>
+        <p className={styles.success}>{t(lang, 'admin_customers_created_success')}</p>
         {state.inviteWarning && <p className={styles.warning}>{state.inviteWarning}</p>}
         <div className={styles.formActions}>
           <Button type="button" onClick={onDone}>
-            Close
+            {t(lang, 'admin_common_close')}
           </Button>
         </div>
       </div>
@@ -72,31 +73,31 @@ export function CreateCustomerForm({ onDone }: { onDone: () => void }) {
   return (
     <form action={formAction} className={styles.form}>
       <div className={styles.fieldRow}>
-        <Field label="Name" htmlFor="cc-name" required>
+        <Field label={t(lang, 'admin_customers_field_name')} htmlFor="cc-name" required>
           <Input id="cc-name" name="name" required disabled={pending} value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <Field label="Slug (site_id)" htmlFor="cc-slug-preview">
+        <Field label={t(lang, 'admin_customers_field_slug_preview')} htmlFor="cc-slug-preview">
           <Input id="cc-slug-preview" value={slugPreview} disabled readOnly />
         </Field>
       </div>
 
       <div className={styles.fieldRow}>
-        <Field label="Account type" htmlFor="cc-account-type">
+        <Field label={t(lang, 'admin_customers_field_account_type')} htmlFor="cc-account-type">
           <Select id="cc-account-type" name="accountType" defaultValue="owner" disabled={pending}>
-            <option value="owner">Owner (site owner)</option>
-            <option value="installer">Installer</option>
+            <option value="owner">{t(lang, 'admin_customers_account_type_owner')}</option>
+            <option value="installer">{t(lang, 'admin_customers_account_type_installer')}</option>
           </Select>
         </Field>
-        <Field label="Dashboard language" htmlFor="cc-ui-language">
+        <Field label={t(lang, 'admin_customers_field_dashboard_language')} htmlFor="cc-ui-language">
           <Select id="cc-ui-language" name="uiLanguage" defaultValue="en" disabled={pending}>
-            <option value="en">English</option>
-            <option value="es">Español</option>
+            <option value="en">{t(lang, 'lang_en')}</option>
+            <option value="es">{t(lang, 'lang_es')}</option>
           </Select>
         </Field>
       </div>
 
       <div className={styles.fieldRow}>
-        <Field label="Plan" htmlFor="cc-plan">
+        <Field label={t(lang, 'admin_customers_field_plan')} htmlFor="cc-plan">
           <Select id="cc-plan" name="plan" value={plan} onChange={(e) => handlePlanChange(e.target.value)} disabled={pending}>
             {PLAN_KEYS.map((key) => (
               <option key={key} value={key}>
@@ -105,7 +106,12 @@ export function CreateCustomerForm({ onDone }: { onDone: () => void }) {
             ))}
           </Select>
         </Field>
-        <Field label="Site limit" htmlFor="cc-site-limit" optional optionalLabel=" (empty = unlimited)">
+        <Field
+          label={t(lang, 'admin_customers_field_site_limit')}
+          htmlFor="cc-site-limit"
+          optional
+          optionalLabel={t(lang, 'admin_customers_site_limit_optional')}
+        >
           <Input
             id="cc-site-limit"
             name="siteLimit"
@@ -120,10 +126,10 @@ export function CreateCustomerForm({ onDone }: { onDone: () => void }) {
       </div>
 
       <div className={styles.fieldRow}>
-        <Field label="Login email" htmlFor="cc-auth-email" required>
+        <Field label={t(lang, 'admin_customers_field_login_email')} htmlFor="cc-auth-email" required>
           <Input id="cc-auth-email" name="authEmail" type="email" required disabled={pending} />
         </Field>
-        <Field label="Country" htmlFor="cc-country">
+        <Field label={t(lang, 'admin_customers_field_country')} htmlFor="cc-country">
           <Select id="cc-country" name="country" defaultValue={DEFAULT_COUNTRY} disabled={pending}>
             {COUNTRY_CODES.map((code) => (
               <option key={code} value={code}>
@@ -135,10 +141,10 @@ export function CreateCustomerForm({ onDone }: { onDone: () => void }) {
       </div>
 
       <div className={styles.fieldRow}>
-        <Field label="Contact name" htmlFor="cc-contact-name" optional>
+        <Field label={t(lang, 'admin_customers_field_contact_name')} htmlFor="cc-contact-name" optional>
           <Input id="cc-contact-name" name="contactName" disabled={pending} />
         </Field>
-        <Field label="Contact email" htmlFor="cc-contact-email" optional>
+        <Field label={t(lang, 'admin_customers_field_contact_email')} htmlFor="cc-contact-email" optional>
           <Input id="cc-contact-email" name="contactEmail" type="email" disabled={pending} />
         </Field>
       </div>
@@ -147,10 +153,10 @@ export function CreateCustomerForm({ onDone }: { onDone: () => void }) {
 
       <div className={styles.formActions}>
         <Button type="submit" disabled={pending}>
-          {pending ? 'Creating…' : 'Create and send invite'}
+          {pending ? t(lang, 'admin_common_creating') : t(lang, 'admin_customers_create_and_invite_button')}
         </Button>
         <Button type="button" variant="ghost" onClick={onDone} disabled={pending}>
-          Cancel
+          {t(lang, 'admin_common_cancel')}
         </Button>
       </div>
     </form>

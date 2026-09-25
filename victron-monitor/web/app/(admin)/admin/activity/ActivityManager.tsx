@@ -18,6 +18,7 @@ import { Select } from '@/components/ui';
 import type { IngestionLogRecord, ReportRunRecord } from '@/lib/server/db';
 import type { BillingEventRecord } from '@/lib/server/db/types';
 import type { AdminCustomerRow, AdminSignupRow } from '@/lib/server/db/admin';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { ActivityTable } from './ActivityTable';
 import { BillingEventsTable } from './BillingEventsTable';
 import { RecentSignupsPanel } from './RecentSignupsPanel';
@@ -36,6 +37,7 @@ export function ActivityManager({
   customerNameBySite,
   customerNameById,
   displayNameBySite,
+  lang,
 }: {
   customers: AdminCustomerRow[];
   customerIdBySite: Record<string, string>;
@@ -46,6 +48,7 @@ export function ActivityManager({
   customerNameBySite: Record<string, string>;
   customerNameById: Record<string, string>;
   displayNameBySite: Record<string, string>;
+  lang: Lang;
 }) {
   const [originFilter, setOriginFilter] = useState<OriginFilter>('all');
   const originById = useMemo(() => new Map(customers.map((c) => [c.id, c.origin])), [customers]);
@@ -80,39 +83,39 @@ export function ActivityManager({
     <div>
       <div className={styles.filtersRow}>
         <label className={styles.filterLabel}>
-          Origin
+          {t(lang, 'admin_customers_filter_origin')}
           <Select value={originFilter} onChange={(e) => setOriginFilter(e.target.value as OriginFilter)}>
-            <option value="all">All</option>
-            <option value="admin">Admin</option>
-            <option value="self_serve">Self-serve</option>
+            <option value="all">{t(lang, 'admin_common_all')}</option>
+            <option value="admin">{t(lang, 'admin_customers_origin_admin')}</option>
+            <option value="self_serve">{t(lang, 'admin_customers_origin_self_serve')}</option>
           </Select>
         </label>
       </div>
 
-      <ActivityTable ingestions={filteredIngestions} customerNameBySite={customerNameBySite} displayNameBySite={displayNameBySite} />
+      <ActivityTable ingestions={filteredIngestions} customerNameBySite={customerNameBySite} displayNameBySite={displayNameBySite} lang={lang} />
 
-      <h2 style={{ marginTop: 36 }}>Billing events</h2>
+      <h2 style={{ marginTop: 36 }}>{t(lang, 'admin_activity_section_billing_title')}</h2>
       <p className="mono page-desc">
-        ONVO webhook deliveries (<code>vrm.billing_events</code>), most recent first — including rejected-secret
-        deliveries, the only visible evidence an attempted forgery happened.
+        {t(lang, 'admin_activity_billing_desc_1')}
+        <code>vrm.billing_events</code>
+        {t(lang, 'admin_activity_billing_desc_2')}
       </p>
-      <BillingEventsTable events={filteredBillingEvents} customerNameById={customerNameById} />
+      <BillingEventsTable events={filteredBillingEvents} customerNameById={customerNameById} lang={lang} />
 
-      <h2 style={{ marginTop: 36 }}>Recent signups</h2>
+      <h2 style={{ marginTop: 36 }}>{t(lang, 'admin_activity_section_signups_title')}</h2>
       <p className="mono page-desc">
-        Public <code>/signup</code> requests (<code>vrm.signup_requests</code>), most recent first — the only place a
-        spam wave is visible before it shows up in the Resend bill.
+        {t(lang, 'admin_activity_signups_desc_1')} <code>/signup</code> {t(lang, 'admin_activity_signups_desc_2')}
+        <code>vrm.signup_requests</code>
+        {t(lang, 'admin_activity_signups_desc_3')}
       </p>
-      <RecentSignupsPanel signups={filteredSignups} customerNameById={customerNameById} />
+      <RecentSignupsPanel signups={filteredSignups} customerNameById={customerNameById} lang={lang} />
 
-      <h2 style={{ marginTop: 36 }}>Scheduled reports</h2>
+      <h2 style={{ marginTop: 36 }}>{t(lang, 'admin_activity_section_reports_title')}</h2>
       <p className="mono page-desc">
-        <code>vrm.report_runs</code>, most recent first — the detection surface for &quot;the scheduled-reports
-        cron silently stopped&quot; (a GitHub Actions workflow with no commits for 60 days gets disabled
-        automatically). &quot;Run due reports now&quot; is the same manual spot-check a <code>workflow_dispatch</code>{' '}
-        trigger gives the GitHub Actions side.
+        <code>vrm.report_runs</code>
+        {t(lang, 'admin_activity_reports_desc_1')} <code>workflow_dispatch</code> {t(lang, 'admin_activity_reports_desc_2')}
       </p>
-      <ReportRunsTable runs={filteredReportRuns} customerNameById={customerNameById} displayNameBySite={displayNameBySite} />
+      <ReportRunsTable runs={filteredReportRuns} customerNameById={customerNameById} displayNameBySite={displayNameBySite} lang={lang} />
     </div>
   );
 }

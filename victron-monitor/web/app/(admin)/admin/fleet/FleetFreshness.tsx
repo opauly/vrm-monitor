@@ -19,8 +19,9 @@
 // placeholder), and only a state update AFTER hydration swaps in the real,
 // browser-local string.
 import { useEffect, useState } from 'react';
+import { t, type Lang } from '@/lib/i18n/strings';
 
-export function FleetFreshness({ mostRecentCapturedAt }: { mostRecentCapturedAt: string | null }) {
+export function FleetFreshness({ mostRecentCapturedAt, lang }: { mostRecentCapturedAt: string | null; lang: Lang }) {
   const [text, setText] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,5 +43,5 @@ export function FleetFreshness({ mostRecentCapturedAt }: { mostRecentCapturedAt:
 
   if (!mostRecentCapturedAt) return null;
 
-  return <span>LIVE — refreshed {text ?? '—'} (your local time), every ~15 min</span>;
+  return <span>{t(lang, 'admin_fleet_freshness_label').replace('{time}', text ?? '—')}</span>;
 }

@@ -16,6 +16,7 @@ import { useRouter } from 'next/navigation';
 import { Button, Table } from '@/components/ui';
 import { formatDateTime } from '@/lib/dates';
 import type { ReportRunRecord } from '@/lib/server/db';
+import { t, type Lang } from '@/lib/i18n/strings';
 import styles from './activity.module.css';
 
 function statusClassName(status: string): string {
@@ -30,10 +31,12 @@ export function ReportRunsTable({
   runs,
   customerNameById,
   displayNameBySite,
+  lang,
 }: {
   runs: ReportRunRecord[];
   customerNameById: Record<string, string>;
   displayNameBySite: Record<string, string>;
+  lang: Lang;
 }) {
   const router = useRouter();
   const [running, setRunning] = useState(false);
@@ -51,16 +54,16 @@ export function ReportRunsTable({
         body: JSON.stringify({}),
       });
       if (!res.ok) {
-        setError('Could not run the scheduled-reports check.');
+        setError(t(lang, 'admin_activity_err_run_due'));
         return;
       }
       const data = (await res.json()) as { sites_checked: number; processed: number; remaining: number };
-      setResult(
-        `Checked: ${data.sites_checked} · processed: ${data.processed}${data.remaining > 0 ? ` · remaining: ${data.remaining} (run again)` : ''}`,
-      );
+      const base = t(lang, 'admin_activity_run_result').replace('{checked}', String(data.sites_checked)).replace('{processed}', String(data.processed));
+      const suffix = data.remaining > 0 ? t(lang, 'admin_activity_run_remaining_suffix').replace('{remaining}', String(data.remaining)) : '';
+      setResult(base + suffix);
       router.refresh();
     } catch {
-      setError('Could not reach the report service.');
+      setError(t(lang, 'admin_activity_err_reach_report_service'));
     } finally {
       setRunning(false);
     }
@@ -70,25 +73,25 @@ export function ReportRunsTable({
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
         <Button type="button" variant="ghost" onClick={handleRunDue} disabled={running}>
-          {running ? 'Running…' : 'Run due reports now'}
+          {running ? t(lang, 'admin_activity_running_label') : t(lang, 'admin_activity_run_due_button')}
         </Button>
         {result && <span className={styles.subtle}>{result}</span>}
       </div>
       {error && <p className={styles.forgedBadge}>{error}</p>}
 
       {runs.length === 0 ? (
-        <p className={styles.empty}>No report runs recorded yet.</p>
+        <p className={styles.empty}>{t(lang, 'admin_activity_no_report_runs')}</p>
       ) : (
         <Table>
           <thead>
             <tr>
-              <th>Run at</th>
-              <th>Customer</th>
-              <th>Site</th>
-              <th>Trigger</th>
-              <th>Period</th>
-              <th>Status</th>
-              <th>Error</th>
+              <th>{t(lang, 'admin_activity_col_run_at')}</th>
+              <th>{t(lang, 'admin_activity_col_customer')}</th>
+              <th>{t(lang, 'admin_sites_col_site')}</th>
+              <th>{t(lang, 'admin_activity_col_trigger')}</th>
+              <th>{t(lang, 'admin_activity_col_period')}</th>
+              <th>{t(lang, 'admin_activity_col_status')}</th>
+              <th>{t(lang, 'admin_activity_col_error')}</th>
             </tr>
           </thead>
           <tbody>

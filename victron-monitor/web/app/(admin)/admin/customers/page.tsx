@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { requireAdmin } from '@/lib/server/auth';
 import { listCustomers } from '@/lib/server/db/admin';
+import { t } from '@/lib/i18n/strings';
 import { CustomersManager } from './CustomersManager';
 
 export const metadata: Metadata = {
@@ -13,17 +14,18 @@ export const metadata: Metadata = {
 // `/admin/*` (that file's own header comment). `requireAdmin()` first, per
 // §3, even though `AdminLayout` already called it.
 export default async function AdminCustomersPage() {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const lang = session.uiLanguage;
   const customers = await listCustomers();
 
   return (
     <div>
-      <h1>Customers</h1>
+      <h1>{t(lang, 'admin_customers_title')}</h1>
       <p className="mono page-desc">
-        External customers of the VRM Monitor product — a schema separate from <code>clients</code> (Pauly &amp; Co&apos;s CRM)
-        and from the <code>monitoring</code> schema of Oscar&apos;s own sites.
+        {t(lang, 'admin_customers_desc_1')} <code>clients</code> {t(lang, 'admin_customers_desc_2')} <code>monitoring</code>{' '}
+        {t(lang, 'admin_customers_desc_3')}
       </p>
-      <CustomersManager customers={customers} />
+      <CustomersManager customers={customers} lang={lang} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { requireAdmin } from '@/lib/server/auth';
 import { listAllSites, listCustomers } from '@/lib/server/db/admin';
+import { t } from '@/lib/i18n/strings';
 import { AdminSitesManager } from './AdminSitesManager';
 
 export const metadata: Metadata = {
@@ -13,16 +14,17 @@ export const metadata: Metadata = {
 // needed (the Streamlit tool only ever wrote sites through
 // `ingest.upsert_site()`, never moved one between customers).
 export default async function AdminSitesPage() {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const lang = session.uiLanguage;
   const [sites, customers] = await Promise.all([listAllSites(), listCustomers()]);
 
   return (
     <div>
-      <h1>Sites</h1>
+      <h1>{t(lang, 'admin_sites_title')}</h1>
       <p className="mono page-desc">
-        All sites in the <code>vrm</code> schema, across every customer.
+        {t(lang, 'admin_sites_desc_1')} <code>vrm</code> {t(lang, 'admin_sites_desc_2')}
       </p>
-      <AdminSitesManager sites={sites} customers={customers} />
+      <AdminSitesManager sites={sites} customers={customers} lang={lang} />
     </div>
   );
 }

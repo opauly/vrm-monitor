@@ -5,20 +5,23 @@ import { Button, Select, Table } from '@/components/ui';
 import { formatDateTime as formatDateTimeShared } from '@/lib/dates';
 import type { SiteRecord } from '@/lib/server/db';
 import type { AdminCustomerRow } from '@/lib/server/db/admin';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { AdminSiteEditForm } from './AdminSiteEditForm';
 import { reassignSiteAction } from './actions';
 import styles from './sites.module.css';
 
-const SYSTEM_TYPE_LABEL: Record<string, string> = {
-  hybrid: 'Hybrid',
-  off_grid: 'Off-grid',
-  grid_zero: 'Grid-zero',
-};
+function systemTypeLabel(type: string, lang: Lang): string {
+  if (type === 'hybrid') return t(lang, 'system_type_hybrid');
+  if (type === 'off_grid') return t(lang, 'system_type_off_grid');
+  if (type === 'grid_zero') return t(lang, 'admin_sites_table_type_grid_zero');
+  return type;
+}
 
-const SOURCE_LABEL: Record<string, string> = {
-  vrm_api: 'VRM API',
-  csv_upload: 'CSV',
-};
+function sourceLabel(source: string, lang: Lang): string {
+  if (source === 'vrm_api') return t(lang, 'sites_source_vrm_api');
+  if (source === 'csv_upload') return t(lang, 'admin_sites_table_source_csv');
+  return source;
+}
 
 // Same admin/self-serve distinction `/admin/customers` filters by (its own
 // `origin` column) — Oscar's own admin-linked installations vs. real
@@ -34,7 +37,15 @@ function formatDateTime(iso: string | null): string {
   return formatDateTimeShared(iso);
 }
 
-export function AdminSitesManager({ sites, customers }: { sites: SiteRecord[]; customers: AdminCustomerRow[] }) {
+export function AdminSitesManager({
+  sites,
+  customers,
+  lang,
+}: {
+  sites: SiteRecord[];
+  customers: AdminCustomerRow[];
+  lang: Lang;
+}) {
   const [editingSiteId, setEditingSiteId] = useState<string | null>(null);
   const [reassignTarget, setReassignTarget] = useState<Record<string, string>>({});
   const [reassignBusy, setReassignBusy] = useState<Record<string, boolean>>({});
@@ -66,30 +77,30 @@ export function AdminSitesManager({ sites, customers }: { sites: SiteRecord[]; c
     <div>
       <div className={styles.filtersRow}>
         <label className={styles.filterLabel}>
-          Origin
+          {t(lang, 'admin_customers_filter_origin')}
           <Select value={originFilter} onChange={(e) => setOriginFilter(e.target.value as OriginFilter)}>
-            <option value="all">All</option>
-            <option value="admin">Admin</option>
-            <option value="self_serve">Self-serve</option>
+            <option value="all">{t(lang, 'admin_common_all')}</option>
+            <option value="admin">{t(lang, 'admin_customers_origin_admin')}</option>
+            <option value="self_serve">{t(lang, 'admin_customers_origin_self_serve')}</option>
           </Select>
         </label>
         <span className={styles.filterCount}>
-          {filteredSites.length} of {sites.length} site(s)
+          {t(lang, 'admin_sites_filter_count').replace('{n}', String(filteredSites.length)).replace('{m}', String(sites.length))}
         </span>
       </div>
 
       <Table>
         <thead>
           <tr>
-            <th>Site</th>
-            <th>site_id</th>
-            <th>Customer</th>
-            <th>Type</th>
-            <th>kWp</th>
-            <th>Usable battery (kWh)</th>
-            <th>Source</th>
-            <th>Last VRM sync</th>
-            <th>Active</th>
+            <th>{t(lang, 'admin_sites_col_site')}</th>
+            <th>{t(lang, 'admin_sites_col_site_id')}</th>
+            <th>{t(lang, 'admin_sites_col_customer')}</th>
+            <th>{t(lang, 'admin_sites_col_type')}</th>
+            <th>{t(lang, 'admin_sites_col_kwp')}</th>
+            <th>{t(lang, 'admin_sites_col_battery')}</th>
+            <th>{t(lang, 'admin_sites_col_source')}</th>
+            <th>{t(lang, 'admin_sites_col_last_sync')}</th>
+            <th>{t(lang, 'admin_common_active')}</th>
             <th />
           </tr>
         </thead>
@@ -100,10 +111,10 @@ export function AdminSitesManager({ sites, customers }: { sites: SiteRecord[]; c
                 <td>{s.display_name}</td>
                 <td className="mono">{s.site_id}</td>
                 <td>{customerNameById.get(s.customer_id) ?? '—'}</td>
-                <td>{SYSTEM_TYPE_LABEL[s.system_type] ?? s.system_type}</td>
+                <td>{systemTypeLabel(s.system_type, lang)}</td>
                 <td>{s.pv_kwp ?? '—'}</td>
                 <td>{s.battery_usable_kwh ?? '—'}</td>
-                <td className="mono">{SOURCE_LABEL[s.source] ?? s.source}</td>
+                <td className="mono">{sourceLabel(s.source, lang)}</td>
                 <td>
                   {/* `vrm_sync_enabled === false` on an otherwise `vrm_api` site is
                      §9's "installation removed / no longer shared" row — the site
@@ -113,7 +124,7 @@ export function AdminSitesManager({ sites, customers }: { sites: SiteRecord[]; c
                   {s.source === 'vrm_api' ? (
                     <>
                       {formatDateTime(s.vrm_last_synced_at)}
-                      {!s.vrm_sync_enabled && <div className={styles.syncPaused}>Sync paused</div>}
+                      {!s.vrm_sync_enabled && <div className={styles.syncPaused}>{t(lang, 'admin_sites_sync_paused')}</div>}
                       {s.vrm_last_sync_error && <div className={styles.syncError}>{s.vrm_last_sync_error}</div>}
                     </>
                   ) : (
@@ -121,24 +132,26 @@ export function AdminSitesManager({ sites, customers }: { sites: SiteRecord[]; c
                   )}
                 </td>
                 <td>
-                  <span className={s.active ? styles.statusActive : styles.statusInactive}>{s.active ? 'Yes' : 'No'}</span>
+                  <span className={s.active ? styles.statusActive : styles.statusInactive}>
+                    {s.active ? t(lang, 'admin_common_yes') : t(lang, 'admin_common_no')}
+                  </span>
                 </td>
                 <td>
                   <Button type="button" variant="ghost" onClick={() => setEditingSiteId(editingSiteId === s.site_id ? null : s.site_id)}>
-                    Edit
+                    {t(lang, 'admin_customers_edit_button')}
                   </Button>
                 </td>
               </tr>
               {editingSiteId === s.site_id && (
                 <tr>
                   <td colSpan={10} className={styles.editRow}>
-                    <AdminSiteEditForm site={s} onDone={() => setEditingSiteId(null)} />
+                    <AdminSiteEditForm site={s} lang={lang} onDone={() => setEditingSiteId(null)} />
 
                     <div className={styles.reassignRow}>
-                      <span className={styles.reassignLabel}>Reassign to another customer:</span>
+                      <span className={styles.reassignLabel}>{t(lang, 'admin_sites_reassign_label')}</span>
                       <Select
                         value={reassignTarget[s.site_id] ?? s.customer_id}
-                        onChange={(e) => setReassignTarget((t) => ({ ...t, [s.site_id]: e.target.value }))}
+                        onChange={(e) => setReassignTarget((prev) => ({ ...prev, [s.site_id]: e.target.value }))}
                         disabled={reassignBusy[s.site_id]}
                       >
                         {customers.map((c) => (
@@ -153,7 +166,7 @@ export function AdminSitesManager({ sites, customers }: { sites: SiteRecord[]; c
                         disabled={reassignBusy[s.site_id] || (reassignTarget[s.site_id] ?? s.customer_id) === s.customer_id}
                         onClick={() => handleReassign(s.site_id)}
                       >
-                        Reassign
+                        {t(lang, 'admin_sites_reassign_button')}
                       </Button>
                       {reassignError[s.site_id] && <span className={styles.error}>{reassignError[s.site_id]}</span>}
                     </div>

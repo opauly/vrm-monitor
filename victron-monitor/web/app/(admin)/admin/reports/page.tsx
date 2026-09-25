@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { requireAdmin } from '@/lib/server/auth';
 import { listAllSites, listCustomers } from '@/lib/server/db/admin';
+import { t } from '@/lib/i18n/strings';
 import { AdminReportsManager } from './AdminReportsManager';
 
 export const metadata: Metadata = {
@@ -16,7 +17,8 @@ export const metadata: Metadata = {
 // `vrm.customers`-backed table to read here (see
 // `lib/server/pipeline.ts:listSitesForSchema()`'s own comment).
 export default async function AdminReportsPage() {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const lang = session.uiLanguage;
   const [vrmSites, allCustomers] = await Promise.all([listAllSites(), listCustomers()]);
   // Same active-only filter as `/admin/upload` — see that page's own
   // comment. The admin-vs-self-serve split is a togglable filter inside
@@ -26,12 +28,12 @@ export default async function AdminReportsPage() {
 
   return (
     <div>
-      <h1>Reports</h1>
+      <h1>{t(lang, 'admin_reports_title')}</h1>
       <p className="mono page-desc">
-        The same generator serves both schemas: <code>vrm</code> (external customers, from CSV) and{' '}
-        <code>monitoring</code> (Oscar&apos;s own sites with Cerbo GX and Node-RED).
+        {t(lang, 'admin_reports_desc_1')} <code>vrm</code> {t(lang, 'admin_reports_desc_2')} <code>monitoring</code>{' '}
+        {t(lang, 'admin_reports_desc_3')}
       </p>
-      <AdminReportsManager vrmSites={vrmSites} customers={customers} />
+      <AdminReportsManager vrmSites={vrmSites} customers={customers} lang={lang} />
     </div>
   );
 }

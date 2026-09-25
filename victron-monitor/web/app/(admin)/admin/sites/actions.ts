@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/server/auth';
 import { updateAnySite, reassignSite, AdminScheduleRequiresVrmApi, type AdminSiteUpdateFields } from '@/lib/server/db/admin';
+import { t } from '@/lib/i18n/strings';
 
 const numberOrNull = z.preprocess((v) => {
   if (v === null || v === undefined || v === '') return null;
@@ -76,7 +77,7 @@ const siteFormSchema = z.object({
 export type AdminSiteFormState = { error?: string; success?: boolean };
 
 export async function updateAnySiteAction(siteId: string, _prevState: AdminSiteFormState, formData: FormData): Promise<AdminSiteFormState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const parsed = siteFormSchema.safeParse({
     display_name: formData.get('display_name'),
@@ -101,13 +102,15 @@ export async function updateAnySiteAction(siteId: string, _prevState: AdminSiteF
     report_recipients: formData.get('report_recipients'),
     ...(formData.has('report_modules_present') ? { report_modules: formData.getAll('report_modules') } : {}),
   });
-  if (!parsed.success) return { error: 'Could not save the site.' };
+  if (!parsed.success) return { error: t(admin.uiLanguage, 'admin_sites_err_save') };
 
   try {
     await updateAnySite(siteId, parsed.data as AdminSiteUpdateFields);
   } catch (err) {
-    if (err instanceof AdminScheduleRequiresVrmApi) return { error: err.message };
-    return { error: 'Could not save the site. Please try again.' };
+    if (err instanceof AdminScheduleRequiresVrmApi) {
+      return { error: t(admin.uiLanguage, 'admin_sites_err_schedule_requires_vrm_api') };
+    }
+    return { error: t(admin.uiLanguage, 'admin_sites_err_save') };
   }
   revalidatePath('/admin/sites');
   return { success: true };
@@ -116,12 +119,12 @@ export async function updateAnySiteAction(siteId: string, _prevState: AdminSiteF
 export type ReassignState = { error?: string; success?: boolean };
 
 export async function reassignSiteAction(siteId: string, newCustomerId: string): Promise<ReassignState> {
-  await requireAdmin();
-  if (!newCustomerId) return { error: 'Choose a customer.' };
+  const admin = await requireAdmin();
+  if (!newCustomerId) return { error: t(admin.uiLanguage, 'admin_sites_err_choose_customer') };
   try {
     await reassignSite(siteId, newCustomerId);
   } catch {
-    return { error: 'Could not reassign the site.' };
+    return { error: t(admin.uiLanguage, 'admin_sites_err_reassign_generic') };
   }
   revalidatePath('/admin/sites');
   return { success: true };

@@ -13,6 +13,7 @@
 // is how many site_ids get summed, which this component already has to do
 // generically (a single-element array sums to itself).
 import { useEffect, useMemo, useState } from 'react';
+import { t, type Lang } from '@/lib/i18n/strings';
 import styles from './shape-chart.module.css';
 
 // Every site's site-shape/site-savings call gets its own fresh
@@ -61,18 +62,22 @@ type ShapeData = {
 // degrades to "contributes nothing" rather than failing the whole chart.
 const _EMPTY_SHAPE: ShapeData = { solar: Array(24).fill(null), load: Array(24).fill(null), battery: Array(24).fill(null), grid: Array(24).fill(null) };
 
-const RANGES: { key: Range; label: string }[] = [
-  { key: 'today', label: 'Today' },
-  { key: 'week', label: '7-day avg' },
-  { key: 'month', label: '30-day avg' },
-];
+function getRanges(lang: Lang): { key: Range; label: string }[] {
+  return [
+    { key: 'today', label: t(lang, 'shape_chart_range_today') },
+    { key: 'week', label: t(lang, 'shape_chart_range_week') },
+    { key: 'month', label: t(lang, 'shape_chart_range_month') },
+  ];
+}
 
-const SERIES: { key: SeriesKey; label: string; color: string; fill?: string }[] = [
-  { key: 'solar', label: 'Solar', color: 'var(--signal)', fill: 'rgba(var(--signal-rgb), 0.16)' },
-  { key: 'load', label: 'Load', color: 'var(--paper-dim)' },
-  { key: 'grid', label: 'Grid', color: 'var(--victron-glow)' },
-  { key: 'battery', label: 'Battery', color: 'var(--good)', fill: 'rgba(var(--good-rgb), 0.14)' },
-];
+function getSeries(lang: Lang): { key: SeriesKey; label: string; color: string; fill?: string }[] {
+  return [
+    { key: 'solar', label: t(lang, 'shape_chart_series_solar'), color: 'var(--signal)', fill: 'rgba(var(--signal-rgb), 0.16)' },
+    { key: 'load', label: t(lang, 'shape_chart_series_load'), color: 'var(--paper-dim)' },
+    { key: 'grid', label: t(lang, 'shape_chart_series_grid'), color: 'var(--victron-glow)' },
+    { key: 'battery', label: t(lang, 'shape_chart_series_battery'), color: 'var(--good)', fill: 'rgba(var(--good-rgb), 0.14)' },
+  ];
+}
 
 const W = 960;
 // Calibration target, not a hard cap — the height/density a chart with
@@ -249,12 +254,16 @@ export function ShapeChart({
   // the two dashboards' shape chart is which backend endpoint is allowed to
   // answer for a given siteId, which is exactly what this prop parameterizes.
   apiBasePath = '/api/admin/pipeline/vrm-fleet',
+  lang = 'en',
 }: {
   siteIds: string[];
   title: string;
   cardSub: string;
   apiBasePath?: string;
+  lang?: Lang;
 }) {
+  const RANGES = useMemo(() => getRanges(lang), [lang]);
+  const SERIES = useMemo(() => getSeries(lang), [lang]);
   const [range, setRange] = useState<Range>('today');
   const [checked, setChecked] = useState<Record<SeriesKey, boolean>>({ solar: true, load: true, grid: false, battery: false });
   // `ready` is the last successfully loaded data — kept on screen across a
@@ -383,13 +392,20 @@ export function ShapeChart({
 
   const gridAvailableCount = ready?.gridAvailableCount ?? null;
   const gridDisabled = gridAvailableCount === 0;
+  const gridSeriesLabel = t(lang, 'shape_chart_series_grid');
   const gridLabel = gridAvailableCount === null
-    ? 'Grid'
-    : `Grid ${siteIds.length > 1 ? `(${gridAvailableCount} of ${siteIds.length} reporting)` : gridAvailableCount === 0 ? '(no reading)' : ''}`;
+    ? gridSeriesLabel
+    : `${gridSeriesLabel} ${
+        siteIds.length > 1
+          ? t(lang, 'shape_chart_grid_reporting').replace('{count}', String(gridAvailableCount)).replace('{total}', String(siteIds.length))
+          : gridAvailableCount === 0
+            ? t(lang, 'shape_chart_grid_no_reading')
+            : ''
+      }`;
 
   const visibleSeries = useMemo(
     () => (ready ? SERIES.filter((s) => checked[s.key] && !(s.key === 'grid' && gridDisabled)) : []),
-    [ready, checked, gridDisabled]
+    [ready, checked, gridDisabled, SERIES]
   );
 
   // Density is keyed only to `ready` (the fetched dataset), never to which
@@ -397,7 +413,7 @@ export function ShapeChart({
   // series must not restretch one that's already drawn.
   const density = useMemo(
     () => (ready ? computeDensity(SERIES.map((s) => ready.data[s.key])) : null),
-    [ready]
+    [ready, SERIES]
   );
 
   const layout = useMemo(
@@ -452,13 +468,13 @@ export function ShapeChart({
       </div>
 
       <div className={styles.chartWrap}>
-        {status === 'loading' && !ready && <div className={styles.status}>Loading real VRM data…</div>}
-        {status === 'error' && !ready && <div className={styles.status}>Could not load this chart right now.</div>}
+        {status === 'loading' && !ready && <div className={styles.status}>{t(lang, 'shape_chart_loading')}</div>}
+        {status === 'error' && !ready && <div className={styles.status}>{t(lang, 'shape_chart_load_error')}</div>}
         {ready && layout && (
           <>
-            {status === 'loading' && <div className={styles.updating}>Updating…</div>}
-            {status === 'partial' && <div className={styles.updating}>Some sites couldn&apos;t be reached — totals may be undercounted.</div>}
-            {status === 'error' && <div className={styles.updating}>Couldn&apos;t refresh — showing the last loaded data.</div>}
+            {status === 'loading' && <div className={styles.updating}>{t(lang, 'shape_chart_updating')}</div>}
+            {status === 'partial' && <div className={styles.updating}>{t(lang, 'shape_chart_partial')}</div>}
+            {status === 'error' && <div className={styles.updating}>{t(lang, 'shape_chart_refresh_error')}</div>}
             <svg viewBox={`0 0 ${W} ${layout.height}`} preserveAspectRatio="none">
               <line x1="0" y1={layout.zeroY} x2={W} y2={layout.zeroY} stroke="var(--line)" strokeWidth={1.2} />
               {[6, 12, 18].map((h) => (
@@ -508,12 +524,12 @@ export function ShapeChart({
 
       <div className={styles.savings}>
         <div className={styles.savingsLabel}>
-          Estimated savings — {RANGES.find((r) => r.key === range)?.label}
+          {t(lang, 'shape_chart_savings_label').replace('{range}', RANGES.find((r) => r.key === range)?.label ?? '')}
         </div>
-        {savingsStatus === 'loading' && !savings && <div className={styles.status}>Loading…</div>}
-        {savingsStatus === 'error' && !savings && <div className={styles.status}>Could not load savings right now.</div>}
+        {savingsStatus === 'loading' && !savings && <div className={styles.status}>{t(lang, 'shape_chart_savings_loading')}</div>}
+        {savingsStatus === 'error' && !savings && <div className={styles.status}>{t(lang, 'shape_chart_savings_error')}</div>}
         {savings && savings.groups.length === 0 && (
-          <div className={styles.savingsNote}>Not enough data yet to estimate savings for this window.</div>
+          <div className={styles.savingsNote}>{t(lang, 'shape_chart_savings_not_enough')}</div>
         )}
         {savings && savings.groups.length > 0 && (
           <div className={styles.savingsAmounts}>
@@ -526,7 +542,7 @@ export function ShapeChart({
         )}
         {savings && siteIds.length > 1 && savings.sitesWithSavings > 0 && savings.sitesWithSavings < siteIds.length && (
           <div className={styles.savingsCaveat}>
-            {savings.sitesWithSavings} of {siteIds.length} sites included — the rest have no tariff basis to estimate from yet
+            {t(lang, 'shape_chart_savings_caveat').replace('{count}', String(savings.sitesWithSavings)).replace('{total}', String(siteIds.length))}
           </div>
         )}
       </div>

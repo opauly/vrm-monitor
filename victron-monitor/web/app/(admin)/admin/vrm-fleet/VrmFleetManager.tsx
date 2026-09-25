@@ -30,6 +30,7 @@ import { formatDateTime } from '@/lib/dates';
 import type { SiteRecord } from '@/lib/server/db';
 import type { AdminCustomerRow } from '@/lib/server/db/admin';
 import type { VrmFleetInstallation } from '@/lib/server/pipeline';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { listCustomerSitesAction, listVrmFleetInstallationsAction } from './actions';
 import styles from './vrm-fleet.module.css';
 
@@ -156,7 +157,7 @@ type SyncResult = { rows_written: number; alarm_events_written: number; days_rep
 const TIMEZONES = listTimezones();
 const COUNTRY_CODES = Object.keys(COUNTRIES);
 
-export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }) {
+export function VrmFleetManager({ customers, lang }: { customers: AdminCustomerRow[]; lang: Lang }) {
   const [installations, setInstallations] = useState<VrmFleetInstallation[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -196,7 +197,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
         // itself — this component ships to the browser (`'use client'`),
         // and there is no reason a browser-visible string needs to name a
         // server-only credential's env var at all.
-        setLoadError('Could not load the VRM fleet. Check the VRM token configuration on the server and try again.');
+        setLoadError(t(lang, 'admin_vrmfleet_err_load'));
       }
       setLoading(false);
     });
@@ -256,11 +257,11 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
       form.customerMode === 'existing' && form.siteSelection !== NEW_SITE_VALUE ? form.siteSelection : form.newSiteName.trim();
 
     if (form.customerMode === 'new' && !form.newCustomerName.trim()) {
-      setLinkError('Enter the new customer name.');
+      setLinkError(t(lang, 'admin_vrmfleet_err_new_customer_name'));
       return;
     }
     if (!siteNameOrId) {
-      setLinkError('Enter the site name.');
+      setLinkError(t(lang, 'admin_vrmfleet_err_site_name'));
       return;
     }
 
@@ -281,17 +282,17 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         setLinkError(
           body?.error === 'installation_already_linked_to_customer'
-            ? 'That installation is already linked to that customer.'
+            ? t(lang, 'admin_vrmfleet_err_already_linked')
             : body?.error === 'exactly_one_customer_field_required'
-              ? 'Choose an existing customer or type the name of a new one, not both.'
-              : 'Could not link. Please try again.',
+              ? t(lang, 'admin_vrmfleet_err_exactly_one_field')
+              : t(lang, 'admin_vrmfleet_err_link_generic'),
         );
         return;
       }
       setLinkFormFor(null);
       refresh();
     } catch {
-      setLinkError('Could not reach the linking service.');
+      setLinkError(t(lang, 'admin_vrmfleet_err_link_unreachable'));
     } finally {
       setLinkBusy(false);
     }
@@ -323,14 +324,14 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
         body: JSON.stringify({ siteId, start: win.start, end: win.end }),
       });
       if (!res.ok) {
-        setSyncError((e) => ({ ...e, [siteId]: 'Could not start the sync.' }));
+        setSyncError((e) => ({ ...e, [siteId]: t(lang, 'admin_vrmfleet_err_sync_start') }));
         setSyncBusy((b) => ({ ...b, [siteId]: false }));
         return;
       }
       const { job_id } = (await res.json()) as { job_id: string };
       setSyncJobBySite((j) => ({ ...j, [siteId]: job_id }));
     } catch {
-      setSyncError((e) => ({ ...e, [siteId]: 'Could not reach the sync service.' }));
+      setSyncError((e) => ({ ...e, [siteId]: t(lang, 'admin_vrmfleet_err_sync_unreachable') }));
       setSyncBusy((b) => ({ ...b, [siteId]: false }));
     }
   }
@@ -363,7 +364,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
     clearSyncJob(siteId);
   }
 
-  if (loading && !installations) return <p className={styles.status}>Loading fleet…</p>;
+  if (loading && !installations) return <p className={styles.status}>{t(lang, 'admin_vrmfleet_loading')}</p>;
   if (loadError) return <p className={styles.error}>{loadError}</p>;
   if (!installations) return null;
 
@@ -372,9 +373,9 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
       <Table>
         <thead>
           <tr>
-            <th>Installation</th>
-            <th>idSite</th>
-            <th>Linked to</th>
+            <th>{t(lang, 'admin_vrmfleet_col_installation')}</th>
+            <th>{t(lang, 'admin_vrmfleet_col_id_site')}</th>
+            <th>{t(lang, 'admin_vrmfleet_col_linked_to')}</th>
             <th />
           </tr>
         </thead>
@@ -391,7 +392,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                   <td className="mono">{inst.id_site}</td>
                   <td>
                     {inst.links.length === 0 ? (
-                      <span className={styles.statusUnlinked}>Not linked</span>
+                      <span className={styles.statusUnlinked}>{t(lang, 'admin_vrmfleet_not_linked')}</span>
                     ) : (
                       <div className={styles.linksList}>
                         {inst.links.map((link) => (
@@ -399,7 +400,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                             <span className={styles.statusLinked}>{link.customer_name ?? link.customer_id}</span>
                             <span>→ {link.site_display_name}</span>
                             <Button type="button" variant="ghost" onClick={() => toggleSyncForm(link.site_id)}>
-                              Sync
+                              {t(lang, 'admin_vrmfleet_sync_button')}
                             </Button>
                           </div>
                         ))}
@@ -410,9 +411,15 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                     <Button
                       type="button"
                       variant="ghost"
-                      onClick={() => toggleLinkForm(inst.id_site, inst.name ?? `Installation ${inst.id_site}`, inst.suggested_fields)}
+                      onClick={() =>
+                        toggleLinkForm(
+                          inst.id_site,
+                          inst.name ?? t(lang, 'admin_vrmfleet_installation_fallback').replace('{id}', String(inst.id_site)),
+                          inst.suggested_fields,
+                        )
+                      }
                     >
-                      {inst.links.length === 0 ? 'Link' : 'Link to another customer'}
+                      {inst.links.length === 0 ? t(lang, 'admin_vrmfleet_link_button') : t(lang, 'admin_vrmfleet_link_another_button')}
                     </Button>
                   </td>
                 </tr>
@@ -427,7 +434,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                             checked={form.customerMode === 'existing'}
                             onChange={() => updateLinkForm(inst.id_site, { customerMode: 'existing' })}
                           />
-                          Existing customer
+                          {t(lang, 'admin_vrmfleet_radio_existing')}
                         </label>
                         <label className={styles.radioLabel}>
                           <input
@@ -435,13 +442,13 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                             checked={form.customerMode === 'new'}
                             onChange={() => updateLinkForm(inst.id_site, { customerMode: 'new' })}
                           />
-                          New customer
+                          {t(lang, 'admin_vrmfleet_radio_new')}
                         </label>
                       </div>
 
                       {form.customerMode === 'existing' ? (
                         <div className={styles.fieldRow}>
-                          <Field label="Customer" htmlFor={`vrm-fleet-cust-${inst.id_site}`}>
+                          <Field label={t(lang, 'admin_upload_field_customer')} htmlFor={`vrm-fleet-cust-${inst.id_site}`}>
                             <Select
                               id={`vrm-fleet-cust-${inst.id_site}`}
                               value={form.customerId}
@@ -457,7 +464,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                               ))}
                             </Select>
                           </Field>
-                          <Field label="Site" htmlFor={`vrm-fleet-site-${inst.id_site}`}>
+                          <Field label={t(lang, 'admin_sites_col_site')} htmlFor={`vrm-fleet-site-${inst.id_site}`}>
                             <Select
                               id={`vrm-fleet-site-${inst.id_site}`}
                               value={form.siteSelection}
@@ -468,11 +475,11 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                                   {s.display_name}
                                 </option>
                               ))}
-                              <option value={NEW_SITE_VALUE}>New site…</option>
+                              <option value={NEW_SITE_VALUE}>{t(lang, 'admin_upload_new_site_option')}</option>
                             </Select>
                           </Field>
                           {form.siteSelection === NEW_SITE_VALUE && (
-                            <Field label="New site name" htmlFor={`vrm-fleet-newsite-${inst.id_site}`} required>
+                            <Field label={t(lang, 'admin_upload_field_new_site_name')} htmlFor={`vrm-fleet-newsite-${inst.id_site}`} required>
                               <Input
                                 id={`vrm-fleet-newsite-${inst.id_site}`}
                                 value={form.newSiteName}
@@ -483,14 +490,14 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                         </div>
                       ) : (
                         <div className={styles.fieldRow}>
-                          <Field label="New customer name" htmlFor={`vrm-fleet-newcust-${inst.id_site}`} required>
+                          <Field label={t(lang, 'admin_vrmfleet_field_new_customer_name')} htmlFor={`vrm-fleet-newcust-${inst.id_site}`} required>
                             <Input
                               id={`vrm-fleet-newcust-${inst.id_site}`}
                               value={form.newCustomerName}
                               onChange={(e) => updateLinkForm(inst.id_site, { newCustomerName: e.target.value })}
                             />
                           </Field>
-                          <Field label="Site name" htmlFor={`vrm-fleet-newcustsite-${inst.id_site}`} required>
+                          <Field label={t(lang, 'admin_upload_field_site_name')} htmlFor={`vrm-fleet-newcustsite-${inst.id_site}`} required>
                             <Input
                               id={`vrm-fleet-newcustsite-${inst.id_site}`}
                               value={form.newSiteName}
@@ -500,22 +507,17 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                         </div>
                       )}
 
-                      <h4 className={styles.sectionTitle}>Site data</h4>
+                      <h4 className={styles.sectionTitle}>{t(lang, 'admin_vrmfleet_section_site_data')}</h4>
                       {inst.suggested_fields ? (
                         <p className={styles.caption}>
-                          Some fields were pre-filled from an already-monitored site (<code>monitoring</code> schema) for this
-                          same physical installation — review and correct them if needed; nothing is saved until you click
-                          Link.
+                          {t(lang, 'admin_vrmfleet_suggested_note_1')} <code>monitoring</code> {t(lang, 'admin_vrmfleet_suggested_note_2')}
                         </p>
                       ) : (
-                        <p className={styles.caption}>
-                          No automatic suggestions for this installation — fill in the site data by hand (system type,
-                          location, power, battery) so the report comes out correct.
-                        </p>
+                        <p className={styles.caption}>{t(lang, 'admin_vrmfleet_no_suggestion_note')}</p>
                       )}
 
                       <div className={styles.fieldRow}>
-                        <Field label="PV power (kWp)" htmlFor={`vrm-fleet-kwp-${inst.id_site}`}>
+                        <Field label={t(lang, 'sites_field_pv_kwp')} htmlFor={`vrm-fleet-kwp-${inst.id_site}`}>
                           <Input
                             id={`vrm-fleet-kwp-${inst.id_site}`}
                             type="number"
@@ -525,31 +527,31 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                             onChange={(e) => updateSiteFields(inst.id_site, { pvKwp: e.target.value })}
                           />
                         </Field>
-                        <Field label="System type" htmlFor={`vrm-fleet-type-${inst.id_site}`}>
+                        <Field label={t(lang, 'sites_field_system_type')} htmlFor={`vrm-fleet-type-${inst.id_site}`}>
                           <Select
                             id={`vrm-fleet-type-${inst.id_site}`}
                             value={form.siteFields.systemType}
                             onChange={(e) => updateSiteFields(inst.id_site, { systemType: e.target.value as SiteFieldsState['systemType'] })}
                           >
-                            <option value="hybrid">Hybrid</option>
-                            <option value="off_grid">Off-grid</option>
-                            <option value="grid_zero">Grid-tied, no battery</option>
+                            <option value="hybrid">{t(lang, 'system_type_hybrid')}</option>
+                            <option value="off_grid">{t(lang, 'system_type_off_grid')}</option>
+                            <option value="grid_zero">{t(lang, 'system_type_grid_zero')}</option>
                           </Select>
                         </Field>
-                        <Field label="Report language" htmlFor={`vrm-fleet-lang-${inst.id_site}`}>
+                        <Field label={t(lang, 'sites_field_report_language')} htmlFor={`vrm-fleet-lang-${inst.id_site}`}>
                           <Select
                             id={`vrm-fleet-lang-${inst.id_site}`}
                             value={form.siteFields.reportLanguage}
                             onChange={(e) => updateSiteFields(inst.id_site, { reportLanguage: e.target.value as 'en' | 'es' })}
                           >
-                            <option value="en">English</option>
-                            <option value="es">Español</option>
+                            <option value="en">{t(lang, 'lang_en')}</option>
+                            <option value="es">{t(lang, 'lang_es')}</option>
                           </Select>
                         </Field>
                       </div>
 
                       <div className={styles.fieldRow}>
-                        <Field label="Nominal battery (kWh)" htmlFor={`vrm-fleet-battnom-${inst.id_site}`}>
+                        <Field label={t(lang, 'admin_sites_field_battery_nominal')} htmlFor={`vrm-fleet-battnom-${inst.id_site}`}>
                           <Input
                             id={`vrm-fleet-battnom-${inst.id_site}`}
                             type="number"
@@ -559,7 +561,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                             onChange={(e) => updateSiteFields(inst.id_site, { battNominal: e.target.value })}
                           />
                         </Field>
-                        <Field label="DoD (%)" htmlFor={`vrm-fleet-battdod-${inst.id_site}`}>
+                        <Field label={t(lang, 'sites_field_battery_dod')} htmlFor={`vrm-fleet-battdod-${inst.id_site}`}>
                           <Input
                             id={`vrm-fleet-battdod-${inst.id_site}`}
                             type="number"
@@ -573,7 +575,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                       </div>
 
                       <div className={styles.fieldRow}>
-                        <Field label="Latitude" htmlFor={`vrm-fleet-lat-${inst.id_site}`}>
+                        <Field label={t(lang, 'sites_field_latitude')} htmlFor={`vrm-fleet-lat-${inst.id_site}`}>
                           <Input
                             id={`vrm-fleet-lat-${inst.id_site}`}
                             type="number"
@@ -582,7 +584,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                             onChange={(e) => updateSiteFields(inst.id_site, { latitude: e.target.value })}
                           />
                         </Field>
-                        <Field label="Longitude" htmlFor={`vrm-fleet-lng-${inst.id_site}`}>
+                        <Field label={t(lang, 'sites_field_longitude')} htmlFor={`vrm-fleet-lng-${inst.id_site}`}>
                           <Input
                             id={`vrm-fleet-lng-${inst.id_site}`}
                             type="number"
@@ -591,7 +593,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                             onChange={(e) => updateSiteFields(inst.id_site, { longitude: e.target.value })}
                           />
                         </Field>
-                        <Field label="Location" htmlFor={`vrm-fleet-loc-${inst.id_site}`}>
+                        <Field label={t(lang, 'sites_field_location')} htmlFor={`vrm-fleet-loc-${inst.id_site}`}>
                           <Input
                             id={`vrm-fleet-loc-${inst.id_site}`}
                             value={form.siteFields.location}
@@ -601,7 +603,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                       </div>
 
                       <div className={styles.fieldRow}>
-                        <Field label="Timezone" htmlFor={`vrm-fleet-tz-${inst.id_site}`}>
+                        <Field label={t(lang, 'sites_field_timezone')} htmlFor={`vrm-fleet-tz-${inst.id_site}`}>
                           <Select
                             id={`vrm-fleet-tz-${inst.id_site}`}
                             value={form.siteFields.timezone}
@@ -614,7 +616,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                             ))}
                           </Select>
                         </Field>
-                        <Field label="Country" htmlFor={`vrm-fleet-country-${inst.id_site}`}>
+                        <Field label={t(lang, 'sites_field_country')} htmlFor={`vrm-fleet-country-${inst.id_site}`}>
                           <Select
                             id={`vrm-fleet-country-${inst.id_site}`}
                             value={form.siteFields.country}
@@ -630,7 +632,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                       </div>
 
                       <div className={styles.fieldRow}>
-                        <Field label="Rate (per kWh)" htmlFor={`vrm-fleet-rate-${inst.id_site}`}>
+                        <Field label={t(lang, 'admin_upload_field_rate')} htmlFor={`vrm-fleet-rate-${inst.id_site}`}>
                           <Input
                             id={`vrm-fleet-rate-${inst.id_site}`}
                             type="number"
@@ -640,7 +642,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                             onChange={(e) => updateSiteFields(inst.id_site, { savingsRate: e.target.value })}
                           />
                         </Field>
-                        <Field label="Currency" htmlFor={`vrm-fleet-currency-${inst.id_site}`}>
+                        <Field label={t(lang, 'sites_field_savings_currency')} htmlFor={`vrm-fleet-currency-${inst.id_site}`}>
                           <Select
                             id={`vrm-fleet-currency-${inst.id_site}`}
                             value={form.siteFields.savingsCurrency}
@@ -661,19 +663,16 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                           checked={form.siteFields.exportsToGrid}
                           onChange={(e) => updateSiteFields(inst.id_site, { exportsToGrid: e.target.checked })}
                         />
-                        This system exports energy to the grid
+                        {t(lang, 'sites_field_exports_to_grid')}
                       </label>
 
-                      <p className={styles.caption}>
-                        Days already imported by CSV for the chosen site will be replaced by data pulled from VRM the first
-                        time it syncs.
-                      </p>
+                      <p className={styles.caption}>{t(lang, 'admin_vrmfleet_csv_replace_note')}</p>
 
                       {linkError && <p className={styles.error}>{linkError}</p>}
 
                       <div className={styles.formActions}>
                         <Button type="button" onClick={() => handleLinkSubmit(inst.id_site)} disabled={linkBusy}>
-                          {linkBusy ? 'Linking…' : 'Link'}
+                          {linkBusy ? t(lang, 'admin_vrmfleet_linking_label') : t(lang, 'admin_vrmfleet_link_button')}
                         </Button>
                       </div>
                     </td>
@@ -686,7 +685,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                     <tr key={`sync-${link.site_id}`}>
                       <td colSpan={4} className={styles.editRow}>
                         <div className={styles.fieldRow}>
-                          <Field label="From" htmlFor={`vrm-fleet-start-${link.site_id}`}>
+                          <Field label={t(lang, 'admin_vrmfleet_field_from')} htmlFor={`vrm-fleet-start-${link.site_id}`}>
                             <Input
                               id={`vrm-fleet-start-${link.site_id}`}
                               type="date"
@@ -697,7 +696,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                               disabled={!!syncBusy[link.site_id]}
                             />
                           </Field>
-                          <Field label="To" htmlFor={`vrm-fleet-end-${link.site_id}`}>
+                          <Field label={t(lang, 'admin_vrmfleet_field_to')} htmlFor={`vrm-fleet-end-${link.site_id}`}>
                             <Input
                               id={`vrm-fleet-end-${link.site_id}`}
                               type="date"
@@ -711,17 +710,18 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                         </div>
                         <p className={styles.caption}>
                           {link.vrm_last_synced_at
-                            ? `Last sync: ${formatDateTime(link.vrm_last_synced_at)}.`
-                            : 'This site has not been synced from the API yet.'}
+                            ? t(lang, 'admin_vrmfleet_last_sync').replace('{date}', formatDateTime(link.vrm_last_synced_at))
+                            : t(lang, 'admin_vrmfleet_not_synced_yet')}
                         </p>
 
                         {syncError[link.site_id] && <p className={styles.error}>{syncError[link.site_id]}</p>}
                         {syncResult[link.site_id] && (
                           <p className={styles.success}>
-                            Imported {syncResult[link.site_id].rows_written} day(s) and {syncResult[link.site_id].alarm_events_written}{' '}
-                            alarm event(s)
+                            {t(lang, 'admin_vrmfleet_sync_success')
+                              .replace('{days}', String(syncResult[link.site_id].rows_written))
+                              .replace('{alarms}', String(syncResult[link.site_id].alarm_events_written))}
                             {syncResult[link.site_id].days_replacing_csv > 0
-                              ? ` (${syncResult[link.site_id].days_replacing_csv} day(s) replaced CSV data)`
+                              ? t(lang, 'admin_vrmfleet_sync_replaced_suffix').replace('{days}', String(syncResult[link.site_id].days_replacing_csv))
                               : ''}
                             .
                           </p>
@@ -730,7 +730,7 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                         {!syncJobBySite[link.site_id] && (
                           <div className={styles.formActions}>
                             <Button type="button" onClick={() => handleSync(link.site_id)} disabled={!!syncBusy[link.site_id]}>
-                              {syncBusy[link.site_id] ? 'Starting…' : 'Sync'}
+                              {syncBusy[link.site_id] ? t(lang, 'admin_vrmfleet_starting_label') : t(lang, 'admin_vrmfleet_sync_button')}
                             </Button>
                           </div>
                         )}
@@ -738,9 +738,9 @@ export function VrmFleetManager({ customers }: { customers: AdminCustomerRow[] }
                           <JobProgress
                             jobId={syncJobBySite[link.site_id]}
                             endpoint="/api/admin/pipeline/jobs"
-                            runningLabel="Syncing with VRM…"
-                            genericFailedLabel="Something went wrong. Please try again."
-                            unreachableLabel="Could not reach the sync service."
+                            runningLabel={t(lang, 'admin_vrmfleet_syncing_label')}
+                            genericFailedLabel={t(lang, 'admin_upload_generic_failed')}
+                            unreachableLabel={t(lang, 'admin_vrmfleet_err_sync_unreachable')}
                             onDone={(job) => handleSyncJobDone(link.site_id, job)}
                             onFailed={(message) => handleSyncJobFailed(link.site_id, message)}
                           />

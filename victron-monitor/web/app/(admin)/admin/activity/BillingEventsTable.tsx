@@ -18,6 +18,7 @@ import { Fragment, useState } from 'react';
 import { Table } from '@/components/ui';
 import { formatDateTime } from '@/lib/dates';
 import type { BillingEventRecord } from '@/lib/server/db/types';
+import { t, type Lang } from '@/lib/i18n/strings';
 import styles from './activity.module.css';
 
 function statusClassName(status: string, secretOk: boolean): string {
@@ -30,26 +31,28 @@ function statusClassName(status: string, secretOk: boolean): string {
 export function BillingEventsTable({
   events,
   customerNameById,
+  lang,
 }: {
   events: BillingEventRecord[];
   customerNameById: Record<string, string>;
+  lang: Lang;
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   if (events.length === 0) {
-    return <p className={styles.empty}>No billing webhook deliveries recorded yet.</p>;
+    return <p className={styles.empty}>{t(lang, 'admin_activity_no_billing_events')}</p>;
   }
 
   return (
     <Table>
       <thead>
         <tr>
-          <th>Received</th>
-          <th>Event type</th>
-          <th>Secret</th>
-          <th>Status</th>
-          <th>Customer</th>
-          <th>Error</th>
+          <th>{t(lang, 'admin_activity_col_received')}</th>
+          <th>{t(lang, 'admin_activity_col_event_type')}</th>
+          <th>{t(lang, 'admin_activity_col_secret')}</th>
+          <th>{t(lang, 'admin_activity_col_status')}</th>
+          <th>{t(lang, 'admin_activity_col_customer')}</th>
+          <th>{t(lang, 'admin_activity_col_error')}</th>
           <th />
         </tr>
       </thead>
@@ -61,9 +64,9 @@ export function BillingEventsTable({
               <td className="mono">{ev.event_type ?? '—'}</td>
               <td>
                 {ev.secret_ok ? (
-                  'OK'
+                  t(lang, 'admin_activity_secret_ok')
                 ) : (
-                  <span className={styles.forgedBadge}>REJECTED — bad/missing secret</span>
+                  <span className={styles.forgedBadge}>{t(lang, 'admin_activity_secret_rejected')}</span>
                 )}
               </td>
               <td>
@@ -77,7 +80,7 @@ export function BillingEventsTable({
                   className={styles.expandButton}
                   onClick={() => setExpanded((e) => ({ ...e, [ev.id]: !e[ev.id] }))}
                 >
-                  payload {expanded[ev.id] ? '▲' : '▼'}
+                  {t(lang, 'admin_activity_payload_button')} {expanded[ev.id] ? '▲' : '▼'}
                 </button>
               </td>
             </tr>

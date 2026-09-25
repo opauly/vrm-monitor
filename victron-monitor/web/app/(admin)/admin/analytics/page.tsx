@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { requireAdmin } from '@/lib/server/auth';
 import { Panel } from '@/components/ui';
+import { t } from '@/lib/i18n/strings';
 import styles from './analytics.module.css';
 
 export const metadata: Metadata = {
@@ -25,7 +26,8 @@ export const metadata: Metadata = {
 //      dashboard in PostHog and shares it — see the setup card below,
 //      which is what renders instead until then.
 export default async function AdminAnalyticsPage() {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const lang = session.uiLanguage;
 
   const dashboardUrl = process.env.POSTHOG_DASHBOARD_URL;
   const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
@@ -33,72 +35,63 @@ export default async function AdminAnalyticsPage() {
 
   return (
     <div>
-      <h1>Analytics</h1>
-      <p className="mono page-desc">Visits, referrers, clicks, and the signup/trial/cancellation funnel — via PostHog.</p>
+      <h1>{t(lang, 'admin_analytics_title')}</h1>
+      <p className="mono page-desc">{t(lang, 'admin_analytics_desc')}</p>
 
       <div className={styles.eventList}>
         <div className={styles.eventRow}>
           <span className={styles.eventName}>$pageview</span>
-          <span className={styles.eventDesc}>Every page view, with referrer and geography — automatic.</span>
+          <span className={styles.eventDesc}>{t(lang, 'admin_analytics_event_pageview_desc')}</span>
         </div>
         <div className={styles.eventRow}>
           <span className={styles.eventName}>$autocapture</span>
-          <span className={styles.eventDesc}>Every click, on every page — automatic, no extra code per button/link.</span>
+          <span className={styles.eventDesc}>{t(lang, 'admin_analytics_event_autocapture_desc')}</span>
         </div>
         <div className={styles.eventRow}>
           <span className={styles.eventName}>signup_request_submitted</span>
-          <span className={styles.eventDesc}>The /signup form was submitted (lib/server/signup.ts).</span>
+          <span className={styles.eventDesc}>{t(lang, 'admin_analytics_event_signup_desc')}</span>
         </div>
         <div className={styles.eventRow}>
           <span className={styles.eventName}>trial_started</span>
-          <span className={styles.eventDesc}>The verification link was clicked and a real account was created.</span>
+          <span className={styles.eventDesc}>{t(lang, 'admin_analytics_event_trial_desc')}</span>
         </div>
         <div className={styles.eventRow}>
           <span className={styles.eventName}>subscription_started</span>
-          <span className={styles.eventDesc}>
-            Promoted to a real paying subscription, captured from vrm_api&apos;s own billing reconciliation
-            (Python) — the one funnel step this app can&apos;t see happen.
-          </span>
+          <span className={styles.eventDesc}>{t(lang, 'admin_analytics_event_sub_started_desc')}</span>
         </div>
         <div className={styles.eventRow}>
           <span className={styles.eventName}>subscription_cancelled</span>
-          <span className={styles.eventDesc}>A customer cancelled from /app/billing (app/api/billing/cancel).</span>
+          <span className={styles.eventDesc}>{t(lang, 'admin_analytics_event_sub_cancelled_desc')}</span>
         </div>
       </div>
 
       {!projectConfigured ? (
         <Panel variant="card" className={styles.setupCard}>
-          <h2>Not connected yet</h2>
+          <h2>{t(lang, 'admin_analytics_not_connected_title')}</h2>
           <ol>
             <li>
-              Create a free project at <code>posthog.com</code> (US or EU region — either works, just note which).
+              {t(lang, 'admin_analytics_step1_a')} <code>posthog.com</code> {t(lang, 'admin_analytics_step1_b')}
             </li>
             <li>
-              Copy its <code>Project API key</code> and add it as <code>NEXT_PUBLIC_POSTHOG_KEY</code> in{' '}
-              <b>two</b> places: <code>victron-monitor/web/.env.local</code> (and Vercel&apos;s env vars, for
-              production) for this app, and vrm_api&apos;s own environment (Render) for the{' '}
-              <code>subscription_started</code> event below, which is captured from there, not from here. If you
-              picked the EU region, also set <code>NEXT_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com</code> in both
-              places.
+              {t(lang, 'admin_analytics_step2_a')} <code>Project API key</code> {t(lang, 'admin_analytics_step2_b')}{' '}
+              <code>NEXT_PUBLIC_POSTHOG_KEY</code> {t(lang, 'admin_analytics_step2_c')} <b>{t(lang, 'admin_analytics_step2_two')}</b>{' '}
+              {t(lang, 'admin_analytics_step2_d')} <code>victron-monitor/web/.env.local</code> {t(lang, 'admin_analytics_step2_e')}{' '}
+              <code>subscription_started</code> {t(lang, 'admin_analytics_step2_f')}{' '}
+              <code>NEXT_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com</code> {t(lang, 'admin_analytics_step2_g')}
             </li>
-            <li>Redeploy both — collection (pageviews, clicks, and every event below) starts immediately.</li>
-            <li>
-              Come back here once you&apos;ve set up a dashboard in PostHog (next step below) to see it rendered
-              inside this page instead of on posthog.com.
-            </li>
+            <li>{t(lang, 'admin_analytics_step3')}</li>
+            <li>{t(lang, 'admin_analytics_step4')}</li>
           </ol>
         </Panel>
       ) : !dashboardUrl ? (
         <Panel variant="card" className={styles.setupCard}>
-          <h2>Collecting data — no dashboard embedded yet</h2>
+          <h2>{t(lang, 'admin_analytics_collecting_title')}</h2>
           <p>
-            Tracking is live. To see it here instead of switching to posthog.com: in PostHog, build a dashboard with
-            the insights you want (visits over time, top referrers/countries, top-clicked elements, and the three
-            funnel events above), then use its <b>Share</b> button to create a public link, and set{' '}
-            <code>POSTHOG_DASHBOARD_URL</code> to that link&apos;s URL.
+            {t(lang, 'admin_analytics_collecting_body_1')} <b>Share</b> {t(lang, 'admin_analytics_collecting_body_2')}{' '}
+            <code>POSTHOG_DASHBOARD_URL</code> {t(lang, 'admin_analytics_collecting_body_3')}
           </p>
           <a className={styles.externalLink} href={posthogHost} target="_blank" rel="noopener noreferrer">
-            Open PostHog &rarr;
+            {t(lang, 'admin_analytics_open_posthog')} &rarr;
           </a>
         </Panel>
       ) : (

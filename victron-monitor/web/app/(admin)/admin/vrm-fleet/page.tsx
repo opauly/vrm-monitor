@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/server/auth';
 import { listCustomers } from '@/lib/server/db/admin';
+import { t } from '@/lib/i18n/strings';
 import { VrmFleetManager } from './VrmFleetManager';
 
 export const metadata: Metadata = {
@@ -25,21 +26,19 @@ export const metadata: Metadata = {
 // showing up in the live dashboard's ~15-minute snapshot sweep automatically,
 // no separate enrollment step.
 export default async function AdminVrmFleetPage() {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const lang = session.uiLanguage;
   const customers = await listCustomers();
 
   return (
     <div>
       <div className="mono" style={{ fontSize: 12, color: 'var(--mute)', marginBottom: 6 }}>
-        <Link href="/admin/fleet" style={{ color: 'var(--mute)' }}>VRM Fleet</Link> / <span style={{ color: 'var(--paper-dim)' }}>Link installations</span>
+        <Link href="/admin/fleet" style={{ color: 'var(--mute)' }}>{t(lang, 'admin_fleet_title')}</Link> /{' '}
+        <span style={{ color: 'var(--paper-dim)' }}>{t(lang, 'admin_vrmfleet_title')}</span>
       </div>
-      <h1>Link installations</h1>
-      <p className="mono page-desc">
-        Installations visible with Pauly&amp;Co&apos;s VRM token. Link any of them to a customer (existing or new) and sync
-        their data directly from the VRM API, without exporting or uploading a CSV. A linked, active site is picked up
-        automatically by the live dashboard&apos;s ~15-minute snapshot sync — no separate step.
-      </p>
-      <VrmFleetManager customers={customers} />
+      <h1>{t(lang, 'admin_vrmfleet_title')}</h1>
+      <p className="mono page-desc">{t(lang, 'admin_vrmfleet_desc')}</p>
+      <VrmFleetManager customers={customers} lang={lang} />
     </div>
   );
 }

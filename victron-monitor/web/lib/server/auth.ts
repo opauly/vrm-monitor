@@ -19,6 +19,7 @@ import 'server-only';
 // actually-enforced property instead of a stale cached one: if Oscar
 // deactivates a customer mid-session, the very next guarded request sees it.
 import { cache } from 'react';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { NextResponse } from 'next/server';
 import type { User } from '@supabase/supabase-js';
@@ -36,12 +37,16 @@ import type { Lang } from '@/lib/i18n/strings';
  */
 export class NotLinked extends Error {}
 
+/** Admin has no `vrm.customers` row to persist a language choice on, so
+ * this comes from the `admin_lang` cookie instead (`getSessionContext`
+ * below), read fresh every request like everything else here — never
+ * hardcoded, defaulting to `'en'` when the cookie is unset. */
 export type AdminSession = {
   role: 'admin';
   customerId: null;
   userId: string;
   email: string;
-  uiLanguage: 'es';
+  uiLanguage: Lang;
 };
 
 /** `'pending_subscription' | 'active'` — mirrors `vrm.customers.
@@ -159,7 +164,15 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
   try {
     const resolution = await resolveRole(user);
     if (resolution.role === 'admin') {
-      return { role: 'admin', customerId: null, userId: user.id, email: user.email ?? '', uiLanguage: 'es' };
+      const cookieStore = await cookies();
+      const rawLang = cookieStore.get('admin_lang')?.value;
+      return {
+        role: 'admin',
+        customerId: null,
+        userId: user.id,
+        email: user.email ?? '',
+        uiLanguage: rawLang === 'es' ? 'es' : 'en',
+      };
     }
     return {
       role: 'customer',

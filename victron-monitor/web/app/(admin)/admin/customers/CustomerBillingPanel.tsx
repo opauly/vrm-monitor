@@ -18,12 +18,13 @@
 import { startTransition, useState } from 'react';
 import { Button } from '@/components/ui';
 import type { AdminCustomerRow } from '@/lib/server/db/admin';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { billingCancelAction, billingRefreshAction, promoteToActiveAction } from './actions';
 import styles from './customers.module.css';
 
 type Message = { kind: 'success' | 'error' | 'info'; text: string };
 
-export function CustomerBillingPanel({ customer }: { customer: AdminCustomerRow }) {
+export function CustomerBillingPanel({ customer, lang }: { customer: AdminCustomerRow; lang: Lang }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
 
@@ -48,11 +49,15 @@ export function CustomerBillingPanel({ customer }: { customer: AdminCustomerRow 
 
   return (
     <div>
-      <h3>Billing — {customer.name}</h3>
+      <h3>{t(lang, 'admin_customers_billing_heading').replace('{name}', customer.name)}</h3>
       <p className={styles.subtle}>
-        Plan {customer.plan} · Billing status {customer.billing_status ?? 'none'} · Origin{' '}
-        {customer.origin === 'self_serve' ? 'Self-serve' : 'Admin'} · Provisioning{' '}
-        {customer.provisioning_state === 'pending_subscription' ? 'Pending signup' : 'Active'}
+        {t(lang, 'admin_customers_billing_label_plan')} {customer.plan} · {t(lang, 'admin_customers_billing_label_status')}{' '}
+        {customer.billing_status ?? 'none'} · {t(lang, 'admin_customers_billing_label_origin')}{' '}
+        {customer.origin === 'self_serve' ? t(lang, 'admin_customers_origin_self_serve') : t(lang, 'admin_customers_origin_admin')} ·{' '}
+        {t(lang, 'admin_customers_billing_label_provisioning')}{' '}
+        {customer.provisioning_state === 'pending_subscription'
+          ? t(lang, 'admin_customers_pending_signup')
+          : t(lang, 'admin_common_active')}
       </p>
 
       <div className={styles.actionsCell} style={{ marginTop: 10 }}>
@@ -60,37 +65,31 @@ export function CustomerBillingPanel({ customer }: { customer: AdminCustomerRow 
           type="button"
           variant="ghost"
           disabled={busy}
-          onClick={() => run('Refreshed.', () => billingRefreshAction(customer.id))}
+          onClick={() => run(t(lang, 'admin_customers_msg_refreshed'), () => billingRefreshAction(customer.id))}
         >
-          Refresh (reconcile)
+          {t(lang, 'admin_customers_billing_refresh_button')}
         </Button>
         <Button
           type="button"
           variant="ghost"
           disabled={busy}
           onClick={() => {
-            if (!window.confirm(`Cancel ${customer.name}'s subscription at the end of the current billing period?`)) return;
-            run('Cancellation scheduled for period end.', () => billingCancelAction(customer.id, 'at_period_end'));
+            if (!window.confirm(t(lang, 'admin_customers_confirm_cancel_period').replace('{name}', customer.name))) return;
+            run(t(lang, 'admin_customers_msg_cancel_scheduled'), () => billingCancelAction(customer.id, 'at_period_end'));
           }}
         >
-          Cancel (period end)
+          {t(lang, 'admin_customers_billing_cancel_period_button')}
         </Button>
         <Button
           type="button"
           variant="ghost"
           disabled={busy}
           onClick={() => {
-            if (
-              !window.confirm(
-                `Cancel ${customer.name}'s subscription IMMEDIATELY? They lose access right away — this is the admin-only ` +
-                  'escape hatch (not the graceful option customers can choose themselves). This cannot be undone from here.',
-              )
-            )
-              return;
-            run('Cancelled immediately.', () => billingCancelAction(customer.id, 'immediate'));
+            if (!window.confirm(t(lang, 'admin_customers_confirm_cancel_immediate').replace('{name}', customer.name))) return;
+            run(t(lang, 'admin_customers_msg_cancelled_immediately'), () => billingCancelAction(customer.id, 'immediate'));
           }}
         >
-          Cancel now (immediate)
+          {t(lang, 'admin_customers_billing_cancel_immediate_button')}
         </Button>
         {customer.provisioning_state === 'pending_subscription' && (
           <Button
@@ -98,18 +97,11 @@ export function CustomerBillingPanel({ customer }: { customer: AdminCustomerRow 
             variant="ghost"
             disabled={busy}
             onClick={() => {
-              if (
-                !window.confirm(
-                  `Promote ${customer.name} to active? Only do this if their card genuinely works and ONVO shows an ` +
-                    "entitled subscription, but the automatic promotion never fired. If they haven't actually paid, this " +
-                    'correctly does nothing.',
-                )
-              )
-                return;
-              run('Promoted to active.', () => promoteToActiveAction(customer.id));
+              if (!window.confirm(t(lang, 'admin_customers_confirm_promote').replace('{name}', customer.name))) return;
+              run(t(lang, 'admin_customers_msg_promoted'), () => promoteToActiveAction(customer.id));
             }}
           >
-            Promote to active
+            {t(lang, 'admin_customers_billing_promote_button')}
           </Button>
         )}
       </div>

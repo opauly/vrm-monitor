@@ -5,7 +5,7 @@ import { getCustomer, getDashboardAccess, getCustomerFleetOverview, type FleetCo
 import { Table, Panel, Button, InfoTooltip } from '@/components/ui';
 import { PendingSubscriptionUpsell } from '@/components/app';
 import { formatDateTime, formatDateTimeInZone } from '@/lib/dates';
-import { SYSTEM_SCORE_INFO, GRID_SCORE_INFO } from '@/lib/healthScoreInfo';
+import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
 import { t } from '@/lib/i18n/strings';
 import { FleetFreshness } from '../../../(admin)/admin/fleet/FleetFreshness';
 import { FlowDiagram } from '../../../(admin)/admin/fleet/FlowDiagram';
@@ -220,7 +220,7 @@ export default async function CustomerDashboardPage() {
         {mostRecentCapturedAt && (
           <div className={styles.liveBadge}>
             <span className={styles.pulse} />
-            <FleetFreshness mostRecentCapturedAt={mostRecentCapturedAt} />
+            <FleetFreshness mostRecentCapturedAt={mostRecentCapturedAt} lang={lang} />
           </div>
         )}
       </div>
@@ -311,7 +311,7 @@ export default async function CustomerDashboardPage() {
           <summary>
             <span className={styles.rollupLabel}>
               Avg system score
-              <InfoTooltip label="How the system score is calculated">{SYSTEM_SCORE_INFO}</InfoTooltip>
+              <InfoTooltip label={t(lang, 'score_info_system_tooltip_label')}>{systemScoreInfo(lang)}</InfoTooltip>
             </span>
             <span className={styles.rollupValue}>{overview.rollup.avg_system_score === null ? '—' : `${overview.rollup.avg_system_score}/100`}</span>
             <span className={styles.rollupDesc}>Equipment health — alarms, SOC, cycling, temperature, voltage</span>
@@ -330,7 +330,7 @@ export default async function CustomerDashboardPage() {
           <summary>
             <span className={styles.rollupLabel}>
               Avg grid score
-              <InfoTooltip label="How the grid score is calculated">{GRID_SCORE_INFO}</InfoTooltip>
+              <InfoTooltip label={t(lang, 'score_info_grid_tooltip_label')}>{gridScoreInfo(lang)}</InfoTooltip>
             </span>
             <span className={styles.rollupValue}>{overview.rollup.avg_grid_score === null ? '—' : `${overview.rollup.avg_grid_score}/100`}</span>
             <span className={styles.rollupDesc}>Grid reliability — outages and grid dependency</span>
@@ -551,9 +551,10 @@ export default async function CustomerDashboardPage() {
 
           <ShapeChart
             siteIds={sites.map((s) => s.site_id)}
-            title="Fleet shape"
-            cardSub="Aggregate of every connected site's real 15-min VRM data, fetched on demand and summed — nothing here is stored."
+            title={t(lang, 'admin_fleet_shape_title')}
+            cardSub={t(lang, 'admin_fleet_shape_sub')}
             apiBasePath="/api/pipeline/vrm-fleet"
+            lang={lang}
           />
 
           <Table>

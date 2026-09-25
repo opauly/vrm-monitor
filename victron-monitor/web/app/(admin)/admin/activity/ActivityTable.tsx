@@ -4,6 +4,7 @@ import { Fragment, useState } from 'react';
 import { Table } from '@/components/ui';
 import { formatDateTime } from '@/lib/dates';
 import type { IngestionLogRecord } from '@/lib/server/db';
+import { t, type Lang } from '@/lib/i18n/strings';
 import styles from './activity.module.css';
 
 function warningMessages(warnings: unknown): string[] {
@@ -29,31 +30,33 @@ export function ActivityTable({
   ingestions,
   customerNameBySite,
   displayNameBySite,
+  lang,
 }: {
   ingestions: IngestionLogRecord[];
   customerNameBySite: Record<string, string>;
   displayNameBySite: Record<string, string>;
+  lang: Lang;
 }) {
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
 
   if (ingestions.length === 0) {
-    return <p className={styles.empty}>No uploads recorded yet.</p>;
+    return <p className={styles.empty}>{t(lang, 'admin_activity_no_uploads')}</p>;
   }
 
   return (
     <Table>
       <thead>
         <tr>
-          <th>Customer</th>
-          <th>Site</th>
-          <th>File</th>
-          <th>Source</th>
-          <th>Period</th>
-          <th>Days</th>
-          <th>CSV replaced</th>
-          <th>Alarms</th>
-          <th>Warnings</th>
-          <th>Uploaded</th>
+          <th>{t(lang, 'admin_activity_col_customer')}</th>
+          <th>{t(lang, 'admin_sites_col_site')}</th>
+          <th>{t(lang, 'admin_upload_col_hist_file')}</th>
+          <th>{t(lang, 'admin_sites_col_source')}</th>
+          <th>{t(lang, 'admin_activity_col_period')}</th>
+          <th>{t(lang, 'admin_upload_stat_days')}</th>
+          <th>{t(lang, 'admin_activity_col_csv_replaced')}</th>
+          <th>{t(lang, 'admin_upload_col_hist_alarms')}</th>
+          <th>{t(lang, 'admin_upload_warnings_label')}</th>
+          <th>{t(lang, 'admin_upload_col_hist_uploaded')}</th>
         </tr>
       </thead>
       <tbody>

@@ -13,6 +13,7 @@ import { JobProgress, type JobProgressJob } from '@/components/app';
 import type { SiteRecord } from '@/lib/server/db';
 import type { AdminCustomerRow } from '@/lib/server/db/admin';
 import type { Schema, SiteSummary } from '@/lib/server/pipeline';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { getAvailableDatesForAdminAction, getReportLimitsAction, listMonitoringSitesAction } from './actions';
 import styles from './reports.module.css';
 
@@ -66,7 +67,15 @@ function daysBetween(start: string, end: string): number {
   return Math.round((b - a) / 86_400_000) + 1;
 }
 
-export function AdminReportsManager({ vrmSites, customers }: { vrmSites: SiteRecord[]; customers: AdminCustomerRow[] }) {
+export function AdminReportsManager({
+  vrmSites,
+  customers,
+  lang,
+}: {
+  vrmSites: SiteRecord[];
+  customers: AdminCustomerRow[];
+  lang: Lang;
+}) {
   const [schema, setSchema] = useState<Schema>('vrm');
   const [customerId, setCustomerId] = useState<string>(customers[0]?.id ?? '');
   const [monitoringSites, setMonitoringSites] = useState<SiteSummary[] | null>(null);
@@ -193,11 +202,11 @@ export function AdminReportsManager({ vrmSites, customers }: { vrmSites: SiteRec
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string; maxDays?: number } | null;
         if (body?.error === 'range_too_long') {
-          setError(`The chosen range is ${numDays} days; the maximum is ${body.maxDays ?? '—'}.`);
+          setError(t(lang, 'admin_reports_err_range_too_long').replace('{days}', String(numDays)).replace('{max}', String(body.maxDays ?? '—')));
         } else if (body?.error === 'not_authorized') {
-          setError('This site does not belong to the selected customer.');
+          setError(t(lang, 'admin_reports_err_not_authorized'));
         } else {
-          setError('Could not generate the report. Please try again.');
+          setError(t(lang, 'admin_reports_err_generate_generic'));
         }
         setGenerating(false);
         return;
@@ -205,7 +214,7 @@ export function AdminReportsManager({ vrmSites, customers }: { vrmSites: SiteRec
       const { job_id } = (await res.json()) as { job_id: string };
       setJobId(job_id);
     } catch {
-      setError('Could not reach the reporting service.');
+      setError(t(lang, 'admin_reports_err_unreachable'));
       setGenerating(false);
     }
   }
@@ -227,13 +236,13 @@ export function AdminReportsManager({ vrmSites, customers }: { vrmSites: SiteRec
     try {
       const res = await fetch(`/api/admin/pipeline/reports/${encodeURIComponent(jobId)}/download`);
       if (!res.ok) {
-        setError('Could not prepare the download.');
+        setError(t(lang, 'admin_reports_err_download_prep'));
         return;
       }
       const { url } = (await res.json()) as { url: string; filename: string };
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch {
-      setError('Could not prepare the download.');
+      setError(t(lang, 'admin_reports_err_download_prep'));
     } finally {
       setDownloading(false);
     }
@@ -243,22 +252,24 @@ export function AdminReportsManager({ vrmSites, customers }: { vrmSites: SiteRec
     <div>
       <div className={styles.controls}>
         <label className={styles.controlField}>
-          <span className={styles.controlLabel}>Origin</span>
+          <span className={styles.controlLabel}>{t(lang, 'admin_customers_filter_origin')}</span>
           <Select value={originFilter} onChange={(e) => setOriginFilter(e.target.value as OriginFilter)}>
-            <option value="all">All</option>
-            <option value="admin">Admin (Oscar&apos;s own sites)</option>
-            <option value="self_serve">Self-serve (subscribers)</option>
+            <option value="all">{t(lang, 'admin_common_all')}</option>
+            <option value="admin">{t(lang, 'admin_upload_origin_admin_note')}</option>
+            <option value="self_serve">{t(lang, 'admin_upload_origin_self_serve_note')}</option>
           </Select>
         </label>
         <label className={styles.controlField}>
-          <span className={styles.controlLabel}>Source</span>
+          <span className={styles.controlLabel}>{t(lang, 'admin_reports_field_source')}</span>
           <Select value={schema} onChange={(e) => setSchema(e.target.value as Schema)}>
-            <option value="vrm">vrm — external customers</option>
-            <option value="monitoring">monitoring — own sites</option>
+            <option value="vrm">{t(lang, 'admin_reports_source_vrm')}</option>
+            <option value="monitoring">{t(lang, 'admin_reports_source_monitoring')}</option>
           </Select>
         </label>
         <label className={styles.controlField}>
-          <span className={styles.controlLabel}>Customer {schema === 'monitoring' ? '(job reference only)' : ''}</span>
+          <span className={styles.controlLabel}>
+            {t(lang, 'admin_upload_field_customer')} {schema === 'monitoring' ? t(lang, 'admin_reports_customer_job_ref_only') : ''}
+          </span>
           <Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
             {visibleCustomers.map((c) => (
               <option key={c.id} value={c.id}>
@@ -268,9 +279,9 @@ export function AdminReportsManager({ vrmSites, customers }: { vrmSites: SiteRec
           </Select>
         </label>
         <label className={styles.controlField}>
-          <span className={styles.controlLabel}>Site</span>
+          <span className={styles.controlLabel}>{t(lang, 'admin_sites_col_site')}</span>
           <Select value={siteId} onChange={(e) => setSiteId(e.target.value)}>
-            <option value="">— choose a site —</option>
+            <option value="">{t(lang, 'admin_reports_choose_site_placeholder')}</option>
             {sites.map((s) => (
               <option key={s.site_id} value={s.site_id}>
                 {s.display_name}
@@ -281,28 +292,31 @@ export function AdminReportsManager({ vrmSites, customers }: { vrmSites: SiteRec
       </div>
       {schema === 'monitoring' && (
         <p className={styles.caption}>
-          <code>monitoring</code> sites have no customer FK — they are filtered by the <code>owner</code> field (person&apos;s
-          name) compared against the customer name chosen above; that customer also remains the job&apos;s internal reference
-          (required by <code>vrm.jobs.customer_id</code>).
+          <code>monitoring</code> {t(lang, 'admin_reports_monitoring_notice_1')} <code>owner</code>{' '}
+          {t(lang, 'admin_reports_monitoring_notice_2')} <code>vrm.jobs.customer_id</code>
+          {t(lang, 'admin_reports_monitoring_notice_3')}
         </p>
       )}
 
-      {sites.length === 0 && <p className={styles.emptyPanel}>No sites in the {schema} schema.</p>}
+      {sites.length === 0 && <p className={styles.emptyPanel}>{t(lang, 'admin_reports_no_sites').replace('{schema}', schema)}</p>}
 
-      {dates && dates.length === 0 && siteId && <p className={styles.emptyPanel}>This site has no daily data yet.</p>}
+      {dates && dates.length === 0 && siteId && <p className={styles.emptyPanel}>{t(lang, 'admin_reports_no_data_yet')}</p>}
 
       {dates && dates.length > 0 && (
         <div className={styles.panel}>
           <p className={styles.caption}>
-            Available data: {dates[0]} → {dates[dates.length - 1]} ({dates.length} days)
+            {t(lang, 'admin_reports_available_data')
+              .replace('{start}', dates[0])
+              .replace('{end}', dates[dates.length - 1])
+              .replace('{count}', String(dates.length))}
           </p>
           <div className={styles.controls}>
             <label className={styles.controlField}>
-              <span className={styles.controlLabel}>Start date</span>
+              <span className={styles.controlLabel}>{t(lang, 'admin_reports_field_start_date')}</span>
               <input type="date" className={styles.dateInput} value={start} min={dates[0]} max={end || dates[dates.length - 1]} onChange={(e) => setStart(e.target.value)} />
             </label>
             <label className={styles.controlField}>
-              <span className={styles.controlLabel}>End date</span>
+              <span className={styles.controlLabel}>{t(lang, 'admin_reports_field_end_date')}</span>
               <input type="date" className={styles.dateInput} value={end} min={start || dates[0]} max={dates[dates.length - 1]} onChange={(e) => setEnd(e.target.value)} />
             </label>
           </div>
@@ -310,14 +324,22 @@ export function AdminReportsManager({ vrmSites, customers }: { vrmSites: SiteRec
           {limits && numDays > 0 && !tooLong && (
             <p className={styles.caption}>
               {isOverviewRange
-                ? `Overview — ${numDays} days, grouped by month.`
-                : `Detailed — ${numDays} days, day by day.`}
+                ? t(lang, 'admin_reports_overview_range').replace('{days}', String(numDays))
+                : t(lang, 'admin_reports_detailed_range').replace('{days}', String(numDays))}
             </p>
           )}
-          {tooLong && limits && <p className={styles.error}>The range is {numDays} days; the maximum is {limits.max_overview_range_days}.</p>}
+          {tooLong && limits && (
+            <p className={styles.error}>
+              {t(lang, 'admin_reports_range_too_long').replace('{days}', String(numDays)).replace('{max}', String(limits.max_overview_range_days))}
+            </p>
+          )}
           {!tooLong && numDays > 0 && covered < numDays && (
             <p className={styles.warning}>
-              The range {start} → {end} has {covered} of {numDays} days with data.
+              {t(lang, 'admin_reports_partial_coverage')
+                .replace('{start}', start)
+                .replace('{end}', end)
+                .replace('{covered}', String(covered))
+                .replace('{total}', String(numDays))}
             </p>
           )}
 
@@ -325,16 +347,16 @@ export function AdminReportsManager({ vrmSites, customers }: { vrmSites: SiteRec
 
           {!generating && (
             <button type="button" className={styles.generateButton} onClick={handleGenerate} disabled={!start || !end || tooLong}>
-              Generate report
+              {t(lang, 'admin_reports_generate_button')}
             </button>
           )}
           {generating && jobId && (
             <JobProgress
               jobId={jobId}
               endpoint="/api/admin/pipeline/jobs"
-              runningLabel="Generating…"
-              genericFailedLabel="Something went wrong. Please try again."
-              unreachableLabel="Could not reach the reporting service."
+              runningLabel={t(lang, 'admin_reports_generating_label')}
+              genericFailedLabel={t(lang, 'admin_upload_generic_failed')}
+              unreachableLabel={t(lang, 'admin_reports_err_unreachable')}
               onDone={handleJobDone}
               onFailed={handleJobFailed}
             />
@@ -345,10 +367,10 @@ export function AdminReportsManager({ vrmSites, customers }: { vrmSites: SiteRec
       {summary && (
         <div className={styles.panel}>
           <div className={styles.statGrid}>
-            <Stat label="Solar generation" value={summary.totals.pv.toFixed(1)} unit="kWh" />
-            <Stat label="Consumption" value={summary.totals.load.toFixed(1)} unit="kWh" />
-            <Stat label="Independence" value={summary.gridIndependencePct} unit="%" />
-            <Stat label="Health" value={summary.avgHealth} unit={`/100 · ${summary.healthStatus}`} good />
+            <Stat label={t(lang, 'admin_reports_stat_solar')} value={summary.totals.pv.toFixed(1)} unit="kWh" />
+            <Stat label={t(lang, 'admin_reports_stat_consumption')} value={summary.totals.load.toFixed(1)} unit="kWh" />
+            <Stat label={t(lang, 'admin_reports_stat_independence')} value={summary.gridIndependencePct} unit="%" />
+            <Stat label={t(lang, 'admin_reports_stat_health')} value={summary.avgHealth} unit={`/100 · ${summary.healthStatus}`} good />
           </div>
 
           {/* Reorganized 2026-08-19 at Oscar's request, mirroring the same
@@ -367,18 +389,23 @@ export function AdminReportsManager({ vrmSites, customers }: { vrmSites: SiteRec
           <div className={styles.chipRow}>
             <span className={styles.chip}>{summary.systemType}</span>
             <span className={styles.chip}>
-              {summary.daysWithData}/{summary.daysWithData + summary.missingDays} days with data
+              {t(lang, 'admin_reports_days_with_data')
+                .replace('{covered}', String(summary.daysWithData))
+                .replace('{total}', String(summary.daysWithData + summary.missingDays))}
             </span>
           </div>
 
           <p className={styles.caption}>
-            Period {summary.startStr} → {summary.endStr} · {summary.daysWithData} days
+            {t(lang, 'admin_reports_period_caption')
+              .replace('{start}', summary.startStr)
+              .replace('{end}', summary.endStr)
+              .replace('{days}', String(summary.daysWithData))}
           </p>
 
-          {summary.weatherErrors.length > 0 && <p className={styles.warning}>Could not fetch weather data from Open-Meteo.</p>}
+          {summary.weatherErrors.length > 0 && <p className={styles.warning}>{t(lang, 'admin_reports_weather_error')}</p>}
 
           <button type="button" className={styles.generateButton} onClick={handleDownload} disabled={downloading}>
-            {downloading ? 'Preparing…' : 'Download PDF'}
+            {downloading ? t(lang, 'admin_reports_preparing') : t(lang, 'admin_reports_download_button')}
           </button>
         </div>
       )}

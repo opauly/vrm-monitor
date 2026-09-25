@@ -1,9 +1,11 @@
 'use client';
 
 // Topic-card switcher for `/admin/help` — same pattern as the customer
-// side's own `app/(portal)/app/help/HelpManager.tsx`, English-only inline
-// literals throughout (no `lib/i18n/strings.ts` keys), matching every
-// other `/admin/**` page's convention.
+// side's own `app/(portal)/app/help/HelpManager.tsx`. Bilingual (2026-09-24,
+// along with the rest of the admin panel) — `TOPICS` is built by
+// `getTopics(lang)` rather than a static array, since its `lead`/`steps`/
+// `bullets` are ReactNode (some with embedded `<strong>`/`<code>` tags
+// around a translated sentence, not just a translated string).
 //
 // Rebuilt 2026-09-19 (Oscar's own audit request) from three static
 // Panels — all three about VRM Fleet, nothing else — into one topic per
@@ -15,6 +17,7 @@ import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Panel } from '@/components/ui';
 import { DataSourceDiagram, ScoreLegend } from '@/components/app';
+import { t, type Lang } from '@/lib/i18n/strings';
 import styles from './help.module.css';
 
 type Topic = {
@@ -28,202 +31,182 @@ type Topic = {
   links: { href: string; label: string }[];
 };
 
-const TOPICS: Topic[] = [
-  {
-    id: 'customers',
-    nav: 'Customers',
-    title: 'Managing customers',
-    lead: 'The full roster of external VRM Monitor customers — separate from Pauly & Co’s own installations (see VRM Fleet for those).',
-    steps: [
-      <>
-        Click <strong>New customer</strong> to create one — name, account type (Owner/Installer), dashboard
-        language, plan, site limit (blank means unlimited), login email, country, and optional contact info.
-        Submitting sends the first invite email automatically, in one step.
-      </>,
-      <>
-        Click <strong>Edit</strong> on a row to change any of those fields — except the login email, which is
-        fixed once set.
-      </>,
-      <>
-        Click <strong>Billing</strong> on a row to act on that customer&apos;s real ONVO subscription directly:{' '}
-        <strong>Refresh</strong> (reconcile against ONVO), <strong>Cancel at period end</strong>,{' '}
-        <strong>Cancel immediately</strong>, or — only for a customer stuck pending signup —{' '}
-        <strong>Promote to active</strong>. No card entry happens anywhere in this panel.
-      </>,
-    ],
-    bullets: [
-      <>
-        <strong>Resend invite</strong> re-sends the portal activation email; <strong>Activate</strong>/
-        <strong>Deactivate</strong> moves a customer between the active table and a separate deactivated one below
-        it.
-      </>,
-      <>
-        <strong>Disconnect VRM</strong> revokes a customer&apos;s VRM link without deleting anything already imported.
-      </>,
-      'Filter the list by Origin (Admin vs. Self-serve) and Provisioning state (Active vs. Pending signup).',
-    ],
-    links: [{ href: '/admin/customers', label: 'Customers' }],
-  },
-  {
-    id: 'sites',
-    nav: 'Sites',
-    title: 'Managing sites across every customer',
-    lead: 'Every site, for every customer, in one table — a customer’s own My Sites only ever shows their own.',
-    steps: [
-      <>
-        Click <strong>Edit</strong> on any site to change its full configuration — PV size, battery specs,
-        location/timezone/country, savings rate and currency, report schedule (cadence/day/hour), report
-        recipients, which report modules are included, and its active/grid-export flags.
-      </>,
-      <>
-        Use the customer dropdown + <strong>Reassign</strong> to move a site to a different customer — customers
-        themselves never have this option.
-      </>,
-    ],
-    bullets: [
-      'Filter by Origin (Admin vs. Self-serve).',
-      'Data source, last VRM sync, and active status are all visible per row at a glance.',
-    ],
-    diagram: 'dataSource',
-    links: [
-      { href: '/admin/sites', label: 'Sites' },
-      { href: '/admin/vrm-fleet', label: 'VRM Fleet — link an installation' },
-    ],
-  },
-  {
-    id: 'upload',
-    nav: 'Upload',
-    title: 'Uploading a CSV on a customer’s behalf',
-    lead: 'The same import pipeline as a customer’s own Upload CSV page, with one addition: you pick the customer first.',
-    steps: [
-      'Pick a customer (filterable by Origin).',
-      'Pick one of their existing sites, or create a new one inline — PV size, battery, location, timezone, currency.',
-      'Upload the VRM CSV file and review the preview (rows parsed, alarm events, outages, warnings).',
-      'Click Import to commit the previewed data.',
-    ],
-    bullets: ['That customer’s own upload history — file, period, days imported, alarms — is listed below the form.'],
-    diagram: 'dataSource',
-    links: [{ href: '/admin/upload', label: 'Upload' }],
-  },
-  {
-    id: 'reports',
-    nav: 'Reports',
-    title: 'Generating a report for any customer',
-    lead: 'The same generator customers use themselves, but able to target any customer or site, and read from either data source.',
-    steps: [
-      <>
-        Choose a <strong>Source</strong> — <code>vrm</code> (external customers, CSV/VRM-API-based) or{' '}
-        <code>monitoring</code> (Pauly & Co&apos;s own Cerbo GX/Node-RED fleet) — a toggle customers never see.
-      </>,
-      'Pick a customer and a site, then a date range, and click Generate report.',
-      'Review the summary (generation, consumption, independence %, health score, coverage warnings) and click Download PDF.',
-    ],
-    bullets: [
-      <>
-        This is a one-off generate-and-download flow, not an archive — for report <strong>history</strong> across
-        every customer, see Activity instead.
-      </>,
-    ],
-    links: [
-      { href: '/admin/reports', label: 'Reports' },
-      { href: '/admin/activity', label: 'Activity — report run history' },
-    ],
-  },
-  {
-    id: 'activity',
-    nav: 'Activity',
-    title: 'The cross-customer activity log',
-    lead: 'One place to see everything that happened across every customer, most recent first — not just whichever one you’re currently looking at.',
-    bullets: [
-      'The CSV upload log — every ingestion, from any customer, admin or self-serve.',
-      'Billing events — every ONVO webhook delivery received, including a rejected-secret attempt.',
-      'Recent signups — the self-serve funnel exactly as it happens, in real time.',
-      'Every scheduled or on-demand report run, across every customer.',
-    ],
-    links: [{ href: '/admin/activity', label: 'Activity' }],
-  },
-  {
-    id: 'analytics',
-    nav: 'Analytics',
-    title: 'Visits, clicks, and the signup funnel',
-    lead: 'Traffic and conversion for the marketing site and the app, via PostHog — pageviews and clicks are automatic; the funnel below is captured at each real success point.',
-    bullets: [
-      <>
-        <code>$pageview</code> / <code>$autocapture</code> — every page view and every click, on every page,
-        automatically.
-      </>,
-      <>
-        <code>signup_request_submitted</code> &rarr; <code>trial_started</code> &rarr;{' '}
-        <code>subscription_started</code> &rarr; <code>subscription_cancelled</code> — the real funnel, in order.{' '}
-        <code>subscription_started</code> is captured from <code>vrm_api</code>&apos;s own billing reconciliation
-        (Python), not from this app — the one step that can&apos;t be seen from a single Next.js route.
-      </>,
-      'Not connected yet? The Analytics page itself shows the exact setup steps — a PostHog project key is all it needs.',
-    ],
-    links: [{ href: '/admin/analytics', label: 'Analytics' }],
-  },
-  {
-    id: 'fleet',
-    nav: 'VRM Fleet',
-    title: 'Monitor a site live',
-    lead: (
-      <>
-        VRM Fleet only shows sites connected through the <strong>VRM API</strong> — a site that only ever receives
-        CSV uploads has no live connection to poll, so it never appears there, no matter how many reports it has.
-      </>
-    ),
-    steps: [
-      <>
-        <strong>Customer connects their own installation.</strong> The customer goes to their Sites page and uses
-        the VRM Link panel to enter their own VRM installation and personal access token. Once connected, the
-        site&apos;s <code>source</code> flips to <code>vrm_api</code> automatically — no separate step needed to
-        make it show up on VRM Fleet.
-      </>,
-      <>
-        <strong>You link it directly, as admin.</strong> From the VRM Fleet dashboard, click{' '}
-        <em>+ Link a new installation</em> (this is your own VRM account, not a customer&apos;s). Pick the
-        installation from the list, attach it to an existing customer or create a new one, then give it a site
-        name.
-      </>,
-    ],
-    bullets: [
-      <>
-        Once linked and active: a live sweep refreshes PV/load/battery/grid/SOC every ~15 minutes (the only
-        requirement is <code>source = &apos;vrm_api&apos;</code> and <code>active = true</code> — no separate
-        enrollment), and the site&apos;s existing daily report pipeline keeps computing System score, Grid score,
-        self-sufficiency, self-consumption, DoD, and yield the same way it always did.
-      </>,
-      <>
-        <strong>Connection</strong> (Online/Stale) reflects the last ~15-minute live sweep; the &quot;Report
-        data: &hellip;&quot; line underneath is the separate daily sync&apos;s own last-completed date — the two
-        can genuinely disagree for days, by design.
-      </>,
-      <>
-        <strong>Grid</strong> prefers a dedicated meter when one exists, falling back to the inverter&apos;s own
-        AC input reading otherwise — the two are not the same number.
-      </>,
-      <>
-        No one-click &quot;unmonitor&quot; yet — setting a site&apos;s <code>active</code> column to{' '}
-        <code>false</code> removes it from VRM Fleet immediately without deleting history. Genuinely deleting a
-        site is still not self-service.
-      </>,
-    ],
-    diagram: 'scoreLegend',
-    links: [
-      { href: '/admin/fleet', label: 'VRM Fleet' },
-      { href: '/admin/vrm-fleet', label: 'Link a new installation' },
-    ],
-  },
-];
+function getTopics(lang: Lang): Topic[] {
+  const click = t(lang, 'admin_help_word_click');
+  return [
+    {
+      id: 'customers',
+      nav: t(lang, 'admin_nav_customers'),
+      title: t(lang, 'admin_help_customers_title'),
+      lead: t(lang, 'admin_help_customers_lead'),
+      steps: [
+        <>
+          {click} <strong>{t(lang, 'admin_customers_new_button')}</strong> {t(lang, 'admin_help_customers_step1_post')}
+        </>,
+        <>
+          {click} <strong>{t(lang, 'admin_customers_edit_button')}</strong> {t(lang, 'admin_help_customers_step2_post')}
+        </>,
+        <>
+          {click} <strong>{t(lang, 'admin_customers_billing_button')}</strong> {t(lang, 'admin_help_customers_step3_post')}
+        </>,
+      ],
+      bullets: [
+        <>
+          <strong>{t(lang, 'admin_customers_resend_invite')}</strong> {t(lang, 'admin_help_customers_bullet1_post')}
+        </>,
+        <>
+          <strong>{t(lang, 'admin_customers_disconnect_vrm')}</strong> {t(lang, 'admin_help_customers_bullet2_post')}
+        </>,
+        t(lang, 'admin_help_customers_bullet3'),
+      ],
+      links: [{ href: '/admin/customers', label: t(lang, 'admin_nav_customers') }],
+    },
+    {
+      id: 'sites',
+      nav: t(lang, 'admin_nav_sites'),
+      title: t(lang, 'admin_help_sites_title'),
+      lead: t(lang, 'admin_help_sites_lead'),
+      steps: [
+        <>
+          {click} <strong>{t(lang, 'admin_customers_edit_button')}</strong> {t(lang, 'admin_help_sites_step1_post')}
+        </>,
+        <>
+          {t(lang, 'admin_help_sites_step2_pre')} <strong>{t(lang, 'admin_sites_reassign_button')}</strong>{' '}
+          {t(lang, 'admin_help_sites_step2_post')}
+        </>,
+      ],
+      bullets: [t(lang, 'admin_help_sites_bullet1'), t(lang, 'admin_help_sites_bullet2')],
+      diagram: 'dataSource',
+      links: [
+        { href: '/admin/sites', label: t(lang, 'admin_nav_sites') },
+        { href: '/admin/vrm-fleet', label: t(lang, 'admin_help_sites_vrmfleet_link') },
+      ],
+    },
+    {
+      id: 'upload',
+      nav: t(lang, 'admin_nav_upload'),
+      title: t(lang, 'admin_help_upload_title'),
+      lead: t(lang, 'admin_help_upload_lead'),
+      steps: [
+        t(lang, 'admin_help_upload_step1'),
+        t(lang, 'admin_help_upload_step2'),
+        t(lang, 'admin_help_upload_step3'),
+        t(lang, 'admin_help_upload_step4'),
+      ],
+      bullets: [t(lang, 'admin_help_upload_bullet1')],
+      diagram: 'dataSource',
+      links: [{ href: '/admin/upload', label: t(lang, 'admin_nav_upload') }],
+    },
+    {
+      id: 'reports',
+      nav: t(lang, 'admin_nav_reports'),
+      title: t(lang, 'admin_help_reports_title'),
+      lead: t(lang, 'admin_help_reports_lead'),
+      steps: [
+        <>
+          {t(lang, 'admin_help_reports_step1_a')} <strong>{t(lang, 'admin_reports_field_source')}</strong> — <code>vrm</code>{' '}
+          {t(lang, 'admin_help_reports_step1_c')} <code>monitoring</code> {t(lang, 'admin_help_reports_step1_d')}
+        </>,
+        t(lang, 'admin_help_reports_step2'),
+        t(lang, 'admin_help_reports_step3'),
+      ],
+      bullets: [
+        <>
+          {t(lang, 'admin_help_reports_bullet1_pre')} <strong>{t(lang, 'admin_help_word_history')}</strong>{' '}
+          {t(lang, 'admin_help_reports_bullet1_post')}
+        </>,
+      ],
+      links: [
+        { href: '/admin/reports', label: t(lang, 'admin_nav_reports') },
+        { href: '/admin/activity', label: t(lang, 'admin_help_reports_activity_link') },
+      ],
+    },
+    {
+      id: 'activity',
+      nav: t(lang, 'admin_nav_activity'),
+      title: t(lang, 'admin_help_activity_title'),
+      lead: t(lang, 'admin_help_activity_lead'),
+      bullets: [
+        t(lang, 'admin_help_activity_bullet1'),
+        t(lang, 'admin_help_activity_bullet2'),
+        t(lang, 'admin_help_activity_bullet3'),
+        t(lang, 'admin_help_activity_bullet4'),
+      ],
+      links: [{ href: '/admin/activity', label: t(lang, 'admin_nav_activity') }],
+    },
+    {
+      id: 'analytics',
+      nav: t(lang, 'admin_nav_analytics'),
+      title: t(lang, 'admin_help_analytics_title'),
+      lead: t(lang, 'admin_help_analytics_lead'),
+      bullets: [
+        <>
+          <code>$pageview</code> / <code>$autocapture</code> {t(lang, 'admin_help_analytics_bullet1_post')}
+        </>,
+        <>
+          <code>signup_request_submitted</code> &rarr; <code>trial_started</code> &rarr; <code>subscription_started</code> &rarr;{' '}
+          <code>subscription_cancelled</code> {t(lang, 'admin_help_analytics_bullet2_a')} <code>subscription_started</code>{' '}
+          {t(lang, 'admin_help_analytics_bullet2_b')} <code>vrm_api</code>
+          {t(lang, 'admin_help_analytics_bullet2_c')}
+        </>,
+        t(lang, 'admin_help_analytics_bullet3'),
+      ],
+      links: [{ href: '/admin/analytics', label: t(lang, 'admin_nav_analytics') }],
+    },
+    {
+      id: 'fleet',
+      nav: t(lang, 'admin_nav_fleet'),
+      title: t(lang, 'admin_help_fleet_title'),
+      lead: (
+        <>
+          {t(lang, 'admin_help_fleet_lead_pre')} <strong>{t(lang, 'admin_help_word_vrm_api')}</strong> —{' '}
+          {t(lang, 'admin_help_fleet_lead_post')}
+        </>
+      ),
+      steps: [
+        <>
+          <strong>{t(lang, 'admin_help_fleet_step1_bold')}</strong> {t(lang, 'admin_help_fleet_step1_post1')} <code>source</code>{' '}
+          {t(lang, 'admin_help_fleet_step1_post2')} <code>vrm_api</code> {t(lang, 'admin_help_fleet_step1_post3')}
+        </>,
+        <>
+          <strong>{t(lang, 'admin_help_fleet_step2_bold')}</strong> {t(lang, 'admin_help_fleet_step2_post1')}{' '}
+          <em>{t(lang, 'admin_fleet_link_new')}</em> {t(lang, 'admin_help_fleet_step2_post2')}
+        </>,
+      ],
+      bullets: [
+        <>
+          {t(lang, 'admin_help_fleet_bullet1_pre')} <code>source = &apos;vrm_api&apos;</code> {t(lang, 'admin_help_fleet_bullet1_mid')}{' '}
+          <code>active = true</code> {t(lang, 'admin_help_fleet_bullet1_post')}
+        </>,
+        <>
+          <strong>{t(lang, 'admin_fleet_col_connection')}</strong> {t(lang, 'admin_help_fleet_bullet2_post')}
+        </>,
+        <>
+          <strong>{t(lang, 'admin_fleetsite_kpi_grid')}</strong> {t(lang, 'admin_help_fleet_bullet3_post')}
+        </>,
+        <>
+          {t(lang, 'admin_help_fleet_bullet4_pre')} <code>active</code> {t(lang, 'admin_help_fleet_bullet4_mid')}{' '}
+          <code>false</code> {t(lang, 'admin_help_fleet_bullet4_post')}
+        </>,
+      ],
+      diagram: 'scoreLegend',
+      links: [
+        { href: '/admin/fleet', label: t(lang, 'admin_fleet_title') },
+        { href: '/admin/vrm-fleet', label: t(lang, 'admin_help_link_new_installation') },
+      ],
+    },
+  ];
+}
 
-export function AdminHelpManager() {
-  const [activeId, setActiveId] = useState(TOPICS[0].id);
-  const active = TOPICS.find((topic) => topic.id === activeId) ?? TOPICS[0];
+export function AdminHelpManager({ lang }: { lang: Lang }) {
+  const topics = getTopics(lang);
+  const [activeId, setActiveId] = useState(topics[0].id);
+  const active = topics.find((topic) => topic.id === activeId) ?? topics[0];
 
   return (
     <div>
       <div className={styles.topicGrid} role="tablist">
-        {TOPICS.map((topic) => (
+        {topics.map((topic) => (
           <button
             key={topic.id}
             type="button"
@@ -247,8 +230,8 @@ export function AdminHelpManager() {
             ))}
           </ol>
         )}
-        {active.diagram === 'dataSource' && <DataSourceDiagram />}
-        {active.diagram === 'scoreLegend' && <ScoreLegend />}
+        {active.diagram === 'dataSource' && <DataSourceDiagram lang={lang} />}
+        {active.diagram === 'scoreLegend' && <ScoreLegend lang={lang} />}
         {active.bullets && (
           <ul className={styles.bulletList}>
             {active.bullets.map((bullet, i) => (

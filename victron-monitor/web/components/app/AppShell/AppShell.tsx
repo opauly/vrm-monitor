@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { AccountMenu } from '@/components/ui';
 import type { Lang } from '@/lib/i18n/strings';
 import { NavLink } from './NavLink';
+import { AdminLangSwitcher } from './AdminLangSwitcher';
 import styles from './AppShell.module.css';
 
 export type AppNavItem = {
@@ -31,12 +32,11 @@ export type AppShellProps = {
   email: string;
   navItems: AppNavItem[];
   /** English/Spanish label language for `navItems`' OWN pre-translated
-   * labels' surrounding chrome — currently unused by this component itself
-   * (the account corner's `AccountMenu` is English-only, matching the
-   * marketing nav's identical menu, 2026-09-08) but kept on the type since
-   * both callers already pass their session's real language and a future
-   * translated addition to this shell's own chrome (not a `navItems` label)
-   * would want it immediately rather than threading it through again. */
+   * labels' surrounding chrome. The account corner's `AccountMenu` stays
+   * English-only (matching the marketing nav's identical menu, 2026-09-08)
+   * — the one piece of chrome this DOES drive is the admin-only
+   * `AdminLangSwitcher` below (2026-09-24), which needs to know the
+   * CURRENT language to render its own pressed state. */
   lang: Lang;
   children: ReactNode;
 };
@@ -48,7 +48,7 @@ export type AppShellProps = {
 // itself — the account corner's avatar/dropdown interaction lives inside
 // `AccountMenu`, its own small Client Component, same split `NavAuthArea`
 // already uses on the marketing nav for the identical reason.
-export function AppShell({ role, email, navItems, children }: AppShellProps) {
+export function AppShell({ role, email, navItems, lang, children }: AppShellProps) {
   // Two groups, not one — see `AppNavItem.personal`'s own doc comment.
   // `/app`'s customer nav never sets `personal` on anything, so
   // `personalItems` is always empty there and this renders exactly as
@@ -85,6 +85,7 @@ export function AppShell({ role, email, navItems, children }: AppShellProps) {
           </nav>
         )}
         <div className={styles.account}>
+          {role === 'admin' && <AdminLangSwitcher lang={lang} />}
           <AccountMenu email={email} />
         </div>
       </header>

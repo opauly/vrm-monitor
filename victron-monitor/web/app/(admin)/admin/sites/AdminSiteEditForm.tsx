@@ -14,50 +14,43 @@ import { COUNTRIES } from '@/lib/countries';
 import { SUPPORTED_FLAT_CURRENCIES } from '@/lib/currencies';
 import type { SiteRecord } from '@/lib/server/db';
 import { REPORT_MODULE_ICONS } from '@/lib/reportModuleThumbnails';
+import { t, type Lang, type StringKey } from '@/lib/i18n/strings';
 import { updateAnySiteAction, type AdminSiteFormState } from './actions';
 import styles from './sites.module.css';
 
 const TIMEZONES = listTimezones();
 const COUNTRY_CODES = Object.keys(COUNTRIES);
-// ISO weekday order (1 = Monday), same as `app/(portal)/app/sites/SiteForm.tsx`'s
-// own `WEEKDAY_STRING_KEYS` — plain English here since this whole panel is
-// (admin views are English-only, see `lib/i18n/strings.ts`'s own header).
-const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+// ISO weekday order (1 = Monday) — keys into the same `sites_weekday_1..7`
+// table `app/(portal)/app/sites/SiteForm.tsx` already uses, not a second
+// English-only copy (this file used to keep its own, back when admin was
+// English-only; see `lib/i18n/strings.ts`'s `FORCE_LANG` history).
+const WEEKDAY_KEYS: StringKey[] = [
+  'sites_weekday_1', 'sites_weekday_2', 'sites_weekday_3', 'sites_weekday_4',
+  'sites_weekday_5', 'sites_weekday_6', 'sites_weekday_7',
+];
 const MAX_REPORT_RECIPIENTS = 5;
 // Same 13 ids `sites.ts:REPORT_MODULES` / `victron/weekly_report.py:
-// ALL_MODULES` / migration 029's widened CHECK constraint use, with plain
-// English labels — same "restated, not imported" reasoning this file's
-// other constants already give. `desc` (2026-08-29, Oscar's own
-// instruction) pairs with a static thumbnail icon
+// ALL_MODULES` / migration 029's widened CHECK constraint use, keyed into
+// the same `sites_module_*`/`sites_module_desc_*` table SiteForm.tsx uses —
+// this file used to restate its own English copy here (see WEEKDAY_KEYS'
+// comment above for why that's no longer true). `desc` (2026-08-29, Oscar's
+// own instruction) pairs with a static thumbnail icon
 // (lib/reportModuleThumbnails.tsx) for the same "preview + description per
 // checkbox" this file's customer-facing counterpart (SiteForm.tsx) shows.
-const REPORT_MODULES: Array<{ id: string; label: string; desc: string }> = [
-  { id: 'energy_mix', label: 'Where your energy came from',
-    desc: 'A donut chart showing the split between solar, battery, and grid energy.' },
-  { id: 'battery_health', label: 'Battery health',
-    desc: 'Full-charge days, lowest charge level, temperature, and voltage range.' },
-  { id: 'grid_quality', label: 'Grid quality',
-    desc: 'Voltage and frequency stability from the utility grid.' },
-  { id: 'events', label: 'Events',
-    desc: 'Grid outages and alarm episodes recorded during the period.' },
-  { id: 'soc_chart', label: 'Battery charge over time',
-    desc: 'Daily high and low battery charge level over the period.' },
-  { id: 'solar_performance', label: 'Solar performance',
-    desc: 'Actual solar output compared to the theoretical maximum.' },
-  { id: 'weather', label: 'Weather',
-    desc: 'Local sunshine, rain, and cloud cover for the period.' },
-  { id: 'trend', label: '4-week trend',
-    desc: 'Health score and solar production trend across the last 4 weeks.' },
-  { id: 'savings', label: 'Tariff savings',
-    desc: 'Estimated cost avoided by using solar instead of grid power.' },
-  { id: 'critical_alerts', label: 'Critical alerts',
-    desc: 'DC ripple, cell imbalance, and temperature faults on the battery system.' },
-  { id: 'grid_meter_detail', label: 'Grid meter detail',
-    desc: 'Per-phase voltage, current, and power factor from a real physical grid meter, where installed.' },
-  { id: 'generator_runtime', label: 'Generator runtime',
-    desc: 'Hours the backup generator ran during the period.' },
-  { id: 'tank_level', label: 'Tank level',
-    desc: 'Fuel or water tank capacity, fluid type, and last known status.' },
+const REPORT_MODULES: Array<{ id: string; labelKey: StringKey; descKey: StringKey }> = [
+  { id: 'energy_mix', labelKey: 'sites_module_energy_mix', descKey: 'sites_module_desc_energy_mix' },
+  { id: 'battery_health', labelKey: 'sites_module_battery_health', descKey: 'sites_module_desc_battery_health' },
+  { id: 'grid_quality', labelKey: 'sites_module_grid_quality', descKey: 'sites_module_desc_grid_quality' },
+  { id: 'events', labelKey: 'sites_module_events', descKey: 'sites_module_desc_events' },
+  { id: 'soc_chart', labelKey: 'sites_module_soc_chart', descKey: 'sites_module_desc_soc_chart' },
+  { id: 'solar_performance', labelKey: 'sites_module_solar_performance', descKey: 'sites_module_desc_solar_performance' },
+  { id: 'weather', labelKey: 'sites_module_weather', descKey: 'sites_module_desc_weather' },
+  { id: 'trend', labelKey: 'sites_module_trend', descKey: 'sites_module_desc_trend' },
+  { id: 'savings', labelKey: 'sites_module_savings', descKey: 'sites_module_desc_savings' },
+  { id: 'critical_alerts', labelKey: 'sites_module_critical_alerts', descKey: 'sites_module_desc_critical_alerts' },
+  { id: 'grid_meter_detail', labelKey: 'sites_module_grid_meter_detail', descKey: 'sites_module_desc_grid_meter_detail' },
+  { id: 'generator_runtime', labelKey: 'sites_module_generator_runtime', descKey: 'sites_module_desc_generator_runtime' },
+  { id: 'tank_level', labelKey: 'sites_module_tank_level', descKey: 'sites_module_desc_tank_level' },
 ];
 // Same set `victron/weekly_report.py:DEFAULT_MODULES` treats as "no
 // customization yet" — the original 9 plus critical_alerts, NOT the 3
@@ -70,32 +63,28 @@ const DEFAULT_REPORT_MODULES = [
 ];
 // The report's fixed spine (PLAN_PHASE18.md's Decisions section) — never
 // selectable, shown alongside REPORT_MODULES as always-checked/disabled.
-const FIXED_MODULE_LABELS = [
-  'Summary cards (always included)',
-  'AI narrative (always included)',
-  'Solar vs. consumption chart (always included)',
-];
+const FIXED_MODULE_KEYS: StringKey[] = ['sites_module_fixed_kpi', 'sites_module_fixed_narrative', 'sites_module_fixed_bar_chart'];
 
 /** Plain-language summary of a schedule choice, shown before it's saved —
- * same purpose as `SiteForm.tsx`'s own confirmation copy, restated in
- * English here rather than imported since nothing else in this admin panel
- * goes through `t()`. */
-function describeSchedule(schedule: string, weekday: number, dayOfMonth: number, hour: number): string {
-  if (schedule === 'off') return 'No scheduled reports (paused).';
+ * same purpose as `SiteForm.tsx`'s own confirmation copy. */
+function describeSchedule(lang: Lang, schedule: string, weekday: number, dayOfMonth: number, hour: number): string {
+  if (schedule === 'off') return t(lang, 'admin_sites_desc_schedule_off');
   const hourLabel = `${String(hour).padStart(2, '0')}:00`;
-  if (schedule === 'daily') return `Daily, at ${hourLabel}.`;
-  if (schedule === 'weekly') return `Weekly on ${WEEKDAYS[weekday - 1]}, at ${hourLabel}.`;
-  return `Monthly on day ${dayOfMonth}, at ${hourLabel}.`;
+  if (schedule === 'daily') return t(lang, 'admin_sites_desc_schedule_daily').replace('{hour}', hourLabel);
+  if (schedule === 'weekly') {
+    return t(lang, 'admin_sites_desc_schedule_weekly').replace('{weekday}', t(lang, WEEKDAY_KEYS[weekday - 1])).replace('{hour}', hourLabel);
+  }
+  return t(lang, 'admin_sites_desc_schedule_monthly').replace('{day}', String(dayOfMonth)).replace('{hour}', hourLabel);
 }
 
-function describeModules(mode: 'default' | 'custom', selected: Set<string>): string {
-  if (mode === 'default') return 'Default modules (core sections + critical alerts).';
-  if (selected.size === REPORT_MODULES.length) return 'All modules included.';
-  if (selected.size === 0) return 'No optional modules — only the core summary.';
-  return `${selected.size} of ${REPORT_MODULES.length} modules included.`;
+function describeModules(lang: Lang, mode: 'default' | 'custom', selected: Set<string>): string {
+  if (mode === 'default') return t(lang, 'admin_sites_desc_modules_default');
+  if (selected.size === REPORT_MODULES.length) return t(lang, 'admin_sites_desc_modules_all');
+  if (selected.size === 0) return t(lang, 'admin_sites_desc_modules_none');
+  return t(lang, 'admin_sites_desc_modules_count').replace('{count}', String(selected.size)).replace('{total}', String(REPORT_MODULES.length));
 }
 
-export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: () => void }) {
+export function AdminSiteEditForm({ site, lang, onDone }: { site: SiteRecord; lang: Lang; onDone: () => void }) {
   const boundAction = updateAnySiteAction.bind(null, site.site_id);
   const [state, formAction, pending] = useActionState<AdminSiteFormState, FormData>(boundAction, {});
 
@@ -166,32 +155,32 @@ export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: 
   return (
     <form action={formAction} className={styles.form}>
       <div className={styles.fieldRow}>
-        <Field label="Site name" htmlFor={`as-name-${site.site_id}`} required>
+        <Field label={t(lang, 'sites_field_name')} htmlFor={`as-name-${site.site_id}`} required>
           <Input id={`as-name-${site.site_id}`} name="display_name" defaultValue={site.display_name} required disabled={pending} />
         </Field>
-        <Field label="System type" htmlFor={`as-type-${site.site_id}`}>
+        <Field label={t(lang, 'sites_field_system_type')} htmlFor={`as-type-${site.site_id}`}>
           <Select id={`as-type-${site.site_id}`} name="system_type" defaultValue={site.system_type} disabled={pending}>
-            <option value="hybrid">Hybrid</option>
-            <option value="off_grid">Off-grid</option>
-            <option value="grid_zero">Grid-tied, no battery</option>
+            <option value="hybrid">{t(lang, 'system_type_hybrid')}</option>
+            <option value="off_grid">{t(lang, 'system_type_off_grid')}</option>
+            <option value="grid_zero">{t(lang, 'system_type_grid_zero')}</option>
           </Select>
         </Field>
       </div>
 
       <div className={styles.fieldRow}>
-        <Field label="PV power (kWp)" htmlFor={`as-kwp-${site.site_id}`}>
+        <Field label={t(lang, 'sites_field_pv_kwp')} htmlFor={`as-kwp-${site.site_id}`}>
           <Input id={`as-kwp-${site.site_id}`} name="pv_kwp" type="number" step="0.1" min="0" defaultValue={site.pv_kwp ?? ''} disabled={pending} />
         </Field>
-        <Field label="Report language" htmlFor={`as-lang-${site.site_id}`}>
+        <Field label={t(lang, 'sites_field_report_language')} htmlFor={`as-lang-${site.site_id}`}>
           <Select id={`as-lang-${site.site_id}`} name="report_language" defaultValue={site.report_language} disabled={pending}>
-            <option value="en">English</option>
-            <option value="es">Español</option>
+            <option value="en">{t(lang, 'lang_en')}</option>
+            <option value="es">{t(lang, 'lang_es')}</option>
           </Select>
         </Field>
       </div>
 
       <div className={styles.fieldRow}>
-        <Field label="Nominal battery (kWh)" htmlFor={`as-batt-nom-${site.site_id}`}>
+        <Field label={t(lang, 'admin_sites_field_battery_nominal')} htmlFor={`as-batt-nom-${site.site_id}`}>
           <Input
             id={`as-batt-nom-${site.site_id}`}
             name="battery_nominal_kwh"
@@ -203,7 +192,7 @@ export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: 
             disabled={pending}
           />
         </Field>
-        <Field label="DoD (%)" htmlFor={`as-batt-dod-${site.site_id}`}>
+        <Field label={t(lang, 'sites_field_battery_dod')} htmlFor={`as-batt-dod-${site.site_id}`}>
           <Input
             id={`as-batt-dod-${site.site_id}`}
             name="battery_dod_pct"
@@ -217,13 +206,15 @@ export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: 
           />
         </Field>
       </div>
-      {usableKwh !== null && <p className={styles.caption}>Usable battery = nominal × DoD/100 = {usableKwh.toFixed(2)} kWh</p>}
+      {usableKwh !== null && (
+        <p className={styles.caption}>{t(lang, 'sites_field_battery_usable_caption').replace('{value}', usableKwh.toFixed(2))}</p>
+      )}
 
       <div className={styles.fieldRow}>
-        <Field label="Location" htmlFor={`as-loc-${site.site_id}`}>
+        <Field label={t(lang, 'sites_field_location')} htmlFor={`as-loc-${site.site_id}`}>
           <Input id={`as-loc-${site.site_id}`} name="location" defaultValue={site.location ?? ''} disabled={pending} />
         </Field>
-        <Field label="Timezone" htmlFor={`as-tz-${site.site_id}`}>
+        <Field label={t(lang, 'sites_field_timezone')} htmlFor={`as-tz-${site.site_id}`}>
           <Select id={`as-tz-${site.site_id}`} name="timezone" defaultValue={site.timezone} disabled={pending}>
             {TIMEZONES.map((tz) => (
               <option key={tz} value={tz}>
@@ -232,7 +223,7 @@ export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: 
             ))}
           </Select>
         </Field>
-        <Field label="Country" htmlFor={`as-country-${site.site_id}`}>
+        <Field label={t(lang, 'sites_field_country')} htmlFor={`as-country-${site.site_id}`}>
           <Select id={`as-country-${site.site_id}`} name="country" defaultValue={site.country ?? 'CR'} disabled={pending}>
             {COUNTRY_CODES.map((code) => (
               <option key={code} value={code}>
@@ -244,10 +235,10 @@ export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: 
       </div>
 
       <div className={styles.fieldRow}>
-        <Field label="Latitude" htmlFor={`as-lat-${site.site_id}`}>
+        <Field label={t(lang, 'sites_field_latitude')} htmlFor={`as-lat-${site.site_id}`}>
           <Input id={`as-lat-${site.site_id}`} name="latitude" type="number" step="0.000001" defaultValue={site.latitude ?? ''} disabled={pending} />
         </Field>
-        <Field label="Longitude" htmlFor={`as-lng-${site.site_id}`}>
+        <Field label={t(lang, 'sites_field_longitude')} htmlFor={`as-lng-${site.site_id}`}>
           <Input
             id={`as-lng-${site.site_id}`}
             name="longitude"
@@ -260,7 +251,7 @@ export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: 
       </div>
 
       <div className={styles.fieldRow}>
-        <Field label="Savings rate (per kWh)" htmlFor={`as-rate-${site.site_id}`}>
+        <Field label={t(lang, 'sites_field_savings_rate')} htmlFor={`as-rate-${site.site_id}`}>
           <Input
             id={`as-rate-${site.site_id}`}
             name="savings_rate"
@@ -271,7 +262,7 @@ export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: 
             disabled={pending}
           />
         </Field>
-        <Field label="Currency" htmlFor={`as-currency-${site.site_id}`}>
+        <Field label={t(lang, 'sites_field_savings_currency')} htmlFor={`as-currency-${site.site_id}`}>
           <Select id={`as-currency-${site.site_id}`} name="savings_currency" defaultValue={site.savings_currency ?? 'USD'} disabled={pending}>
             {SUPPORTED_FLAT_CURRENCIES.map((code) => (
               <option key={code} value={code}>
@@ -282,13 +273,11 @@ export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: 
         </Field>
       </div>
 
-      {site.source !== 'vrm_api' && (
-        <p className={styles.caption}>This site was added by CSV upload, so it has no live connection for a schedule to run against.</p>
-      )}
+      {site.source !== 'vrm_api' && <p className={styles.caption}>{t(lang, 'admin_sites_csv_notice')}</p>}
       {site.source === 'vrm_api' && (
         <>
           <div className={styles.fieldRow}>
-            <Field label="Report schedule" htmlFor={`as-schedule-${site.site_id}`}>
+            <Field label={t(lang, 'admin_sites_field_report_schedule')} htmlFor={`as-schedule-${site.site_id}`}>
               <Select
                 id={`as-schedule-${site.site_id}`}
                 name="report_schedule"
@@ -296,14 +285,14 @@ export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: 
                 onChange={(e) => setReportSchedule(e.target.value)}
                 disabled={pending}
               >
-                <option value="off">No schedule (paused)</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
+                <option value="off">{t(lang, 'admin_sites_schedule_off')}</option>
+                <option value="daily">{t(lang, 'sites_schedule_daily')}</option>
+                <option value="weekly">{t(lang, 'sites_schedule_weekly')}</option>
+                <option value="monthly">{t(lang, 'sites_schedule_monthly')}</option>
               </Select>
             </Field>
             {reportSchedule === 'weekly' && (
-              <Field label="Weekday" htmlFor={`as-weekday-${site.site_id}`}>
+              <Field label={t(lang, 'admin_sites_field_weekday')} htmlFor={`as-weekday-${site.site_id}`}>
                 <Select
                   id={`as-weekday-${site.site_id}`}
                   name="report_schedule_weekday"
@@ -311,16 +300,16 @@ export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: 
                   onChange={(e) => setScheduleWeekday(e.target.value)}
                   disabled={pending}
                 >
-                  {WEEKDAYS.map((label, i) => (
-                    <option key={label} value={i + 1}>
-                      {label}
+                  {WEEKDAY_KEYS.map((key, i) => (
+                    <option key={key} value={i + 1}>
+                      {t(lang, key)}
                     </option>
                   ))}
                 </Select>
               </Field>
             )}
             {reportSchedule === 'monthly' && (
-              <Field label="Day of month" htmlFor={`as-dom-${site.site_id}`}>
+              <Field label={t(lang, 'admin_sites_field_day_of_month')} htmlFor={`as-dom-${site.site_id}`}>
                 <Input
                   id={`as-dom-${site.site_id}`}
                   name="report_schedule_day_of_month"
@@ -334,7 +323,7 @@ export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: 
               </Field>
             )}
             {reportSchedule !== 'off' && (
-              <Field label="Hour" htmlFor={`as-hour-${site.site_id}`}>
+              <Field label={t(lang, 'admin_sites_field_hour')} htmlFor={`as-hour-${site.site_id}`}>
                 <Select
                   id={`as-hour-${site.site_id}`}
                   name="report_schedule_hour"
@@ -354,23 +343,24 @@ export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: 
 
           {scheduleChanged && (
             <p className={styles.caption}>
-              Review before saving: {describeSchedule(reportSchedule, Number(scheduleWeekday), Number(scheduleDayOfMonth), Number(scheduleHour))}
+              {t(lang, 'sites_schedule_review_notice')}{' '}
+              {describeSchedule(lang, reportSchedule, Number(scheduleWeekday), Number(scheduleDayOfMonth), Number(scheduleHour))}
             </p>
           )}
 
-          <Field label="Report recipients" htmlFor={`as-recipients-${site.site_id}`}>
+          <Field label={t(lang, 'admin_sites_field_recipients')} htmlFor={`as-recipients-${site.site_id}`}>
             <Textarea
               id={`as-recipients-${site.site_id}`}
               name="report_recipients"
               rows={3}
-              placeholder="One email per line"
+              placeholder={t(lang, 'admin_sites_recipients_placeholder')}
               value={recipients}
               onChange={(e) => setRecipients(e.target.value)}
               disabled={pending}
             />
           </Field>
           <p className={recipientCount > MAX_REPORT_RECIPIENTS ? styles.error : styles.caption}>
-            {recipientCount} / {MAX_REPORT_RECIPIENTS} recipients
+            {t(lang, 'admin_sites_recipients_count').replace('{count}', String(recipientCount)).replace('{max}', String(MAX_REPORT_RECIPIENTS))}
           </p>
 
           {/* PLAN_PHASE18.md §5 — untiered on the admin side, unlike the
@@ -381,15 +371,17 @@ export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: 
              side: distinguishing "unchecked everything" from "this section
              never rendered" (a non-vrm_api site). */}
           <input type="hidden" name="report_modules_present" value="true" />
-          <p className={styles.moduleCaption}>Report modules — {describeModules(moduleMode, selectedModules)}</p>
+          <p className={styles.moduleCaption}>
+            {t(lang, 'sites_modules_title')} — {describeModules(lang, moduleMode, selectedModules)}
+          </p>
           <div className={styles.moduleModeRow}>
             <label className={styles.checkboxLabel}>
               <input type="radio" name="_module_mode" checked={moduleMode === 'default'} onChange={() => setModuleMode('default')} disabled={pending} />
-              Default
+              {t(lang, 'sites_modules_mode_default')}
             </label>
             <label className={styles.checkboxLabel}>
               <input type="radio" name="_module_mode" checked={moduleMode === 'custom'} onChange={() => setModuleMode('custom')} disabled={pending} />
-              Custom
+              {t(lang, 'sites_modules_mode_custom')}
             </label>
           </div>
           {moduleMode === 'custom' && (
@@ -399,10 +391,10 @@ export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: 
                  group (real live-test feedback, 2026-08-29). No `name`:
                  display only, never submitted. */}
               <div className={styles.fixedModuleRow}>
-                {FIXED_MODULE_LABELS.map((label) => (
-                  <label key={label} className={styles.checkboxLabelDisabled}>
+                {FIXED_MODULE_KEYS.map((key) => (
+                  <label key={key} className={styles.checkboxLabelDisabled}>
                     <input type="checkbox" checked disabled />
-                    {label}
+                    {t(lang, key)}
                   </label>
                 ))}
               </div>
@@ -419,26 +411,30 @@ export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: 
                       disabled={pending}
                     />
                     <span className={styles.moduleThumb} aria-hidden="true">{REPORT_MODULE_ICONS[m.id]}</span>
-                    <span>{m.label}</span>
+                    <span>{t(lang, m.labelKey)}</span>
                   </div>
-                  <p className={styles.moduleDesc}>{m.desc}</p>
+                  <p className={styles.moduleDesc}>{t(lang, m.descKey)}</p>
                 </label>
               ))}
               </div>
             </>
           )}
-          {modulesChanged && <p className={styles.caption}>Review before saving — {describeModules(moduleMode, selectedModules)}</p>}
+          {modulesChanged && (
+            <p className={styles.caption}>
+              {t(lang, 'admin_sites_modules_review_notice')} {describeModules(lang, moduleMode, selectedModules)}
+            </p>
+          )}
         </>
       )}
 
       <div className={styles.checkboxRow}>
         <label className={styles.checkboxLabel}>
           <input type="checkbox" name="exports_to_grid" value="true" defaultChecked={site.exports_to_grid} disabled={pending} />
-          This system exports energy to the grid
+          {t(lang, 'sites_field_exports_to_grid')}
         </label>
         <label className={styles.checkboxLabel}>
           <input type="checkbox" name="active" value="true" defaultChecked={site.active} disabled={pending} />
-          Active
+          {t(lang, 'sites_field_active')}
         </label>
       </div>
 
@@ -446,10 +442,14 @@ export function AdminSiteEditForm({ site, onDone }: { site: SiteRecord; onDone: 
 
       <div className={styles.formActions}>
         <Button type="submit" disabled={pending}>
-          {pending ? 'Saving…' : scheduleChanged || modulesChanged ? 'Confirm & save' : 'Save'}
+          {pending
+            ? t(lang, 'admin_common_saving')
+            : scheduleChanged || modulesChanged
+              ? t(lang, 'sites_schedule_confirm_save_button')
+              : t(lang, 'admin_common_save')}
         </Button>
         <Button type="button" variant="ghost" onClick={onDone} disabled={pending}>
-          Cancel
+          {t(lang, 'admin_common_cancel')}
         </Button>
       </div>
     </form>

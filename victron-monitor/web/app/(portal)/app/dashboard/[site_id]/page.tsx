@@ -6,7 +6,7 @@ import { getCustomer, getDashboardAccess, getCustomerFleetSiteDetail, type SiteA
 import { formatDateTimeInZone } from '@/lib/dates';
 import { t } from '@/lib/i18n/strings';
 import { Panel, Button, InfoTooltip } from '@/components/ui';
-import { SYSTEM_SCORE_INFO, GRID_SCORE_INFO } from '@/lib/healthScoreInfo';
+import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
 import { FlowDiagram } from '../../../../(admin)/admin/fleet/FlowDiagram';
 import { Gauge } from '../../../../(admin)/admin/fleet/Gauge';
 import { PeriodStatsPanel } from '../../../../(admin)/admin/fleet/PeriodStatsPanel';
@@ -276,7 +276,7 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
             <div className={styles.scoreBlock}>
               <div className={styles.scoreBlockLabel}>
                 System
-                <InfoTooltip label="How the system score is calculated">{SYSTEM_SCORE_INFO}</InfoTooltip>
+                <InfoTooltip label={t(lang, 'score_info_system_tooltip_label')}>{systemScoreInfo(lang)}</InfoTooltip>
               </div>
               <div className={styles.healthRow}>
                 <span className={`${styles.healthBadge} ${healthClass(site.system_score)}`}>
@@ -296,7 +296,7 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
             <div className={styles.scoreBlock}>
               <div className={styles.scoreBlockLabel}>
                 Grid
-                <InfoTooltip label="How the grid score is calculated">{GRID_SCORE_INFO}</InfoTooltip>
+                <InfoTooltip label={t(lang, 'score_info_grid_tooltip_label')}>{gridScoreInfo(lang)}</InfoTooltip>
               </div>
               {site.grid_score === null ? (
                 <div className={styles.sub}>No grid connection on this system</div>
@@ -358,13 +358,14 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
         )}
       </div>
 
-      <PeriodStatsPanel week={site.week} month={site.month} />
+      <PeriodStatsPanel week={site.week} month={site.month} lang={lang} />
 
       <ShapeChart
         siteIds={[site.site_id]}
-        title="Site shape"
-        cardSub="This site's real 15-min VRM data, fetched on demand — nothing here is stored."
+        title={t(lang, 'admin_fleetsite_shape_title')}
+        cardSub={t(lang, 'admin_fleetsite_shape_sub')}
         apiBasePath="/api/pipeline/vrm-fleet"
+        lang={lang}
       />
 
       <div className={styles.metaRow}>

@@ -4,7 +4,8 @@ import { requireAdmin } from '@/lib/server/auth';
 import { getFleetOverview, type FleetConnectionStatus, type FleetOverviewRow } from '@/lib/server/db/admin';
 import { Table, InfoTooltip } from '@/components/ui';
 import { formatDateTime, formatDateTimeInZone } from '@/lib/dates';
-import { SYSTEM_SCORE_INFO, GRID_SCORE_INFO } from '@/lib/healthScoreInfo';
+import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { FleetFreshness } from './FleetFreshness';
 import { FlowDiagram } from './FlowDiagram';
 import { ShapeChart } from './ShapeChart';
@@ -27,10 +28,10 @@ export const metadata: Metadata = {
 // link into `/admin/fleet/[site_id]`. The interactive shape chart is the
 // one piece that genuinely needs a Client Component (`ShapeChart.tsx`) —
 // everything else on this page stays server-rendered.
-function connectionLabel(status: FleetConnectionStatus): string {
-  if (status === 'online') return 'Online';
-  if (status === 'stale') return 'Stale';
-  return 'Never synced';
+function connectionLabel(status: FleetConnectionStatus, lang: Lang): string {
+  if (status === 'online') return t(lang, 'admin_fleet_status_online');
+  if (status === 'stale') return t(lang, 'admin_fleet_status_stale');
+  return t(lang, 'admin_fleet_status_never');
 }
 
 function connectionClass(status: FleetConnectionStatus): string {
@@ -85,7 +86,7 @@ function sortedAlphabetically(sites: FleetOverviewRow[]): FleetOverviewRow[] {
   return [...sites].sort((a, b) => a.display_name.localeCompare(b.display_name));
 }
 
-function row(site: FleetOverviewRow) {
+function row(site: FleetOverviewRow, lang: Lang) {
   return (
     <tr key={site.site_id}>
       <td>
@@ -94,9 +95,9 @@ function row(site: FleetOverviewRow) {
       </td>
       <td>
         <span className={`${styles.dot} ${connectionClass(site.connection_status)}`} aria-hidden="true" />
-        {connectionLabel(site.connection_status)}
+        {connectionLabel(site.connection_status, lang)}
         <div className={styles.sub}>
-          Report data: {site.vrm_last_synced_at ? formatDateTime(site.vrm_last_synced_at, 'en-US') : 'never'}
+          {t(lang, 'admin_fleet_report_data')} {site.vrm_last_synced_at ? formatDateTime(site.vrm_last_synced_at, 'en-US') : t(lang, 'admin_fleet_never')}
         </div>
       </td>
       <td>
@@ -105,30 +106,32 @@ function row(site: FleetOverviewRow) {
             className={`${styles.healthBadge} ${healthClass(site.system_score)}`}
             title={site.system_notes ? site.system_notes.split(';').map((n) => n.trim()).filter(Boolean).join('\n') : undefined}
           >
-            Sys {site.system_score === null ? '—' : `${site.system_score}/100`}
+            {t(lang, 'admin_fleet_badge_sys')} {site.system_score === null ? '—' : `${site.system_score}/100`}
           </span>
           <span
             className={`${styles.healthBadge} ${healthClass(site.grid_score)}`}
             title={site.grid_notes ? site.grid_notes.split(';').map((n) => n.trim()).filter(Boolean).join('\n') : undefined}
           >
-            Grid {site.grid_score === null ? '—' : `${site.grid_score}/100`}
+            {t(lang, 'admin_fleet_badge_grid')} {site.grid_score === null ? '—' : `${site.grid_score}/100`}
           </span>
         </div>
-        {site.health_date && <div className={styles.sub}>as of {site.health_date}</div>}
+        {site.health_date && <div className={styles.sub}>{t(lang, 'admin_fleet_as_of').replace('{date}', site.health_date)}</div>}
       </td>
       <td>{site.active_alarms > 0 ? <span className={styles.alarmCount}>{site.active_alarms}</span> : '0'}</td>
       <td>{site.active_critical_alerts > 0 ? <span className={styles.alarmCount}>{site.active_critical_alerts}</span> : '0'}</td>
       <td>
         {site.live_captured_at ? (
           <>
-            <div>{formatWatts(site.live_pv_power_w)} PV &middot; {formatWatts(site.live_load_power_w)} load</div>
+            <div>{t(lang, 'admin_fleet_pv_load').replace('{pv}', formatWatts(site.live_pv_power_w)).replace('{load}', formatWatts(site.live_load_power_w))}</div>
             <div className={styles.sub}>
-              {formatWatts(site.live_battery_power_w)} batt &middot; {site.live_soc_pct === null ? '—' : `${site.live_soc_pct}%`} SOC
+              {t(lang, 'admin_fleet_batt_soc')
+                .replace('{batt}', formatWatts(site.live_battery_power_w))
+                .replace('{soc}', site.live_soc_pct === null ? '—' : `${site.live_soc_pct}%`)}
             </div>
-            <div className={styles.sub}>as of {formatDateTimeInZone(site.live_captured_at, site.timezone, 'en-US')}</div>
+            <div className={styles.sub}>{t(lang, 'admin_fleet_as_of').replace('{date}', formatDateTimeInZone(site.live_captured_at, site.timezone, 'en-US'))}</div>
           </>
         ) : (
-          <span className={styles.sub}>No live reading yet</span>
+          <span className={styles.sub}>{t(lang, 'admin_fleet_no_live_reading')}</span>
         )}
       </td>
       <td>
@@ -141,7 +144,7 @@ function row(site: FleetOverviewRow) {
       <td className={styles.sub}>{site.system_type}</td>
       <td>
         <Link href={`/admin/fleet/${encodeURIComponent(site.site_id)}`} className={styles.viewLive}>
-          View live →
+          {t(lang, 'admin_fleet_view_live')} →
         </Link>
       </td>
     </tr>
@@ -149,7 +152,8 @@ function row(site: FleetOverviewRow) {
 }
 
 export default async function AdminFleetPage() {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const lang = session.uiLanguage;
   const overview = await getFleetOverview();
 
   const sites = overview.sites;
@@ -227,40 +231,38 @@ export default async function AdminFleetPage() {
   return (
     <div>
       <div className={styles.pageHead}>
-        <h1>VRM Fleet</h1>
+        <h1>{t(lang, 'admin_fleet_title')}</h1>
         {mostRecentCapturedAt && (
           <div className={styles.liveBadge}>
             <span className={styles.pulse} />
-            <FleetFreshness mostRecentCapturedAt={mostRecentCapturedAt} />
+            <FleetFreshness mostRecentCapturedAt={mostRecentCapturedAt} lang={lang} />
           </div>
         )}
       </div>
       <Link href="/admin/vrm-fleet" className={styles.manageLink}>
-        + Link a new installation →
+        {t(lang, 'admin_fleet_link_new')} →
       </Link>
       <p className="mono page-desc">
-        Every <code>source=&apos;vrm_api&apos;</code> site&apos;s current status — the most recent{' '}
-        <code>vrm.daily_health</code>/<code>vrm.energy_daily</code> figures, any alarm/critical-alert episode still
-        open, and a live PV/load/battery/SOC reading refreshed every ~15 minutes by{' '}
-        <code>vrm-fleet/refresh-snapshots</code>. Grid power comes from a dedicated meter where one exists, and
-        falls back to the inverter&apos;s own reading otherwise — checked per site from real data, not assumed.
+        {t(lang, 'admin_fleet_desc_1')} <code>source=&apos;vrm_api&apos;</code> {t(lang, 'admin_fleet_desc_2')}{' '}
+        <code>vrm.daily_health</code>/<code>vrm.energy_daily</code> {t(lang, 'admin_fleet_desc_3')}{' '}
+        <code>vrm-fleet/refresh-snapshots</code>. {t(lang, 'admin_fleet_desc_4')}
       </p>
 
-      <p className={styles.rollupHint}>Click any card to see the per-site numbers behind it.</p>
+      <p className={styles.rollupHint}>{t(lang, 'admin_fleet_rollup_hint')}</p>
 
-      <h2 className={styles.rollupGroupLabel}>Fleet &amp; connectivity</h2>
+      <h2 className={styles.rollupGroupLabel}>{t(lang, 'admin_fleet_group_connectivity')}</h2>
       <div className={styles.rollupRow}>
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Sites monitored</span>
+            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_sites_label')}</span>
             <span className={styles.rollupValue}>{overview.rollup.site_count}</span>
-            <span className={styles.rollupDesc}>Total sites currently linked via the VRM API</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_sites_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {sortedAlphabetically(sites).map((s) => (
               <div key={s.site_id} className={styles.rollupBreakdownRow}>
                 <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{connectionLabel(s.connection_status)}</span>
+                <span>{connectionLabel(s.connection_status, lang)}</span>
               </div>
             ))}
           </div>
@@ -268,17 +270,17 @@ export default async function AdminFleetPage() {
 
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Online</span>
+            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_online_label')}</span>
             <span className={styles.rollupValue}>
               {overview.rollup.online_count} / {overview.rollup.site_count}
             </span>
-            <span className={styles.rollupDesc}>Live snapshot received in the last 45 minutes</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_online_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {sortedByValue(sites, (s) => _CONNECTION_RANK[s.connection_status]).map((s) => (
               <div key={s.site_id} className={styles.rollupBreakdownRow}>
                 <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{connectionLabel(s.connection_status)}</span>
+                <span>{connectionLabel(s.connection_status, lang)}</span>
               </div>
             ))}
           </div>
@@ -286,20 +288,20 @@ export default async function AdminFleetPage() {
 
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Grid reading</span>
+            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_grid_reading_label')}</span>
             <span className={styles.rollupValue}>
               {meteredSites.length}/{sites.length}
             </span>
-            <span className={styles.rollupDesc}>Sites reporting grid power, via meter or inverter</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_grid_reading_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {sortedAlphabetically(sites).map((s) => (
               <div key={s.site_id} className={styles.rollupBreakdownRow}>
                 <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
                 <span>
-                  {s.live_grid_source === 'meter' ? 'dedicated meter'
-                    : s.live_grid_source === 'inverter' ? 'via inverter'
-                    : 'none'}
+                  {s.live_grid_source === 'meter' ? t(lang, 'admin_fleet_grid_source_meter')
+                    : s.live_grid_source === 'inverter' ? t(lang, 'admin_fleet_grid_source_inverter')
+                    : t(lang, 'admin_fleet_grid_source_none')}
                 </span>
               </div>
             ))}
@@ -308,11 +310,11 @@ export default async function AdminFleetPage() {
 
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>History sync</span>
+            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_history_sync_label')}</span>
             <span className={styles.rollupValue}>
               {historySyncedSites.length}/{sites.length}
             </span>
-            <span className={styles.rollupDesc}>Daily report data synced in the last 24 hours</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_history_sync_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {/* Oldest/never-synced first — a negated epoch so "never"
@@ -321,23 +323,23 @@ export default async function AdminFleetPage() {
             {sortedByValue(sites, (s) => (s.vrm_last_synced_at ? -new Date(s.vrm_last_synced_at).getTime() : Infinity)).map((s) => (
               <div key={s.site_id} className={styles.rollupBreakdownRow}>
                 <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{s.vrm_last_synced_at ? formatDateTime(s.vrm_last_synced_at, 'en-US') : 'never'}</span>
+                <span>{s.vrm_last_synced_at ? formatDateTime(s.vrm_last_synced_at, 'en-US') : t(lang, 'admin_fleet_never')}</span>
               </div>
             ))}
           </div>
         </details>
       </div>
 
-      <h2 className={styles.rollupGroupLabel}>Health &amp; alerts</h2>
+      <h2 className={styles.rollupGroupLabel}>{t(lang, 'admin_fleet_group_health')}</h2>
       <div className={styles.rollupRow}>
         <details className={styles.rollupCard}>
           <summary>
             <span className={styles.rollupLabel}>
-              Avg system score
-              <InfoTooltip label="How the system score is calculated">{SYSTEM_SCORE_INFO}</InfoTooltip>
+              {t(lang, 'admin_fleet_card_avg_system_label')}
+              <InfoTooltip label={t(lang, 'score_info_system_tooltip_label')}>{systemScoreInfo(lang)}</InfoTooltip>
             </span>
             <span className={styles.rollupValue}>{overview.rollup.avg_system_score === null ? '—' : `${overview.rollup.avg_system_score}/100`}</span>
-            <span className={styles.rollupDesc}>Equipment health — alarms, SOC, cycling, temperature, voltage</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_avg_system_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {sortedByValue(sites, (s) => s.system_score).map((s) => (
@@ -352,11 +354,11 @@ export default async function AdminFleetPage() {
         <details className={styles.rollupCard}>
           <summary>
             <span className={styles.rollupLabel}>
-              Avg grid score
-              <InfoTooltip label="How the grid score is calculated">{GRID_SCORE_INFO}</InfoTooltip>
+              {t(lang, 'admin_fleet_card_avg_grid_label')}
+              <InfoTooltip label={t(lang, 'score_info_grid_tooltip_label')}>{gridScoreInfo(lang)}</InfoTooltip>
             </span>
             <span className={styles.rollupValue}>{overview.rollup.avg_grid_score === null ? '—' : `${overview.rollup.avg_grid_score}/100`}</span>
-            <span className={styles.rollupDesc}>Grid reliability — outages and grid dependency</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_avg_grid_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {sortedByValue(sites, (s) => s.grid_score).map((s) => (
@@ -370,9 +372,9 @@ export default async function AdminFleetPage() {
 
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Active alarms</span>
+            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_active_alarms_label')}</span>
             <span className={styles.rollupValue}>{overview.rollup.total_active_alarms}</span>
-            <span className={styles.rollupDesc}>Low battery / overload, present in the latest live fetch</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_active_alarms_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {sortedByValue(sites, (s) => s.active_alarms).map((s) => (
@@ -386,9 +388,9 @@ export default async function AdminFleetPage() {
 
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Active critical alerts</span>
+            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_critical_alerts_label')}</span>
             <span className={styles.rollupValue}>{overview.rollup.total_active_critical_alerts}</span>
-            <span className={styles.rollupDesc}>DC ripple, cell imbalance, temp fault — live, right now</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_critical_alerts_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {sortedByValue(sites, (s) => s.active_critical_alerts).map((s) => (
@@ -402,11 +404,11 @@ export default async function AdminFleetPage() {
 
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Outages (7d)</span>
+            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_outages_label')}</span>
             <span className={styles.rollupValue}>
               {outageSites.length}/{sites.length}
             </span>
-            <span className={styles.rollupDesc}>Sites with a grid outage in the last 7 days</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_outages_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {sortedByValue(sites, (s) => (s.week.daysWithData === 0 ? null : s.week.outageMinutes)).map((s) => (
@@ -419,13 +421,13 @@ export default async function AdminFleetPage() {
         </details>
       </div>
 
-      <h2 className={styles.rollupGroupLabel}>Energy performance (today)</h2>
+      <h2 className={styles.rollupGroupLabel}>{t(lang, 'admin_fleet_group_energy')}</h2>
       <div className={styles.rollupRow}>
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Avg SOC</span>
+            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_avg_soc_label')}</span>
             <span className={styles.rollupValue}>{avgSoc === null ? '—' : `${avgSoc}%`}</span>
-            <span className={styles.rollupDesc}>Average state of charge across the fleet, right now</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_avg_soc_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {sortedByValue(sites, (s) => s.live_soc_pct).map((s) => (
@@ -439,9 +441,9 @@ export default async function AdminFleetPage() {
 
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Self-sufficiency</span>
+            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_self_sufficiency_label')}</span>
             <span className={styles.rollupValue}>{avgSelfSufficiency === null ? '—' : `${avgSelfSufficiency}%`}</span>
-            <span className={styles.rollupDesc}>Share of today&apos;s load covered by solar + battery</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_self_sufficiency_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {sortedByValue(sites, (s) => s.self_sufficiency_pct).map((s) => (
@@ -455,9 +457,9 @@ export default async function AdminFleetPage() {
 
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Self-consumption</span>
+            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_self_consumption_label')}</span>
             <span className={styles.rollupValue}>{avgSelfConsumption === null ? '—' : `${avgSelfConsumption}%`}</span>
-            <span className={styles.rollupDesc}>Share of solar generated that was used on-site</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_self_consumption_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {sortedByValue(sites, (s) => s.self_consumption_pct).map((s) => (
@@ -471,9 +473,9 @@ export default async function AdminFleetPage() {
 
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Grid dependency</span>
+            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_grid_dependency_label')}</span>
             <span className={styles.rollupValue}>{avgGridDependency === null ? '—' : `${avgGridDependency}%`}</span>
-            <span className={styles.rollupDesc}>Share of today&apos;s load pulled from the grid</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_grid_dependency_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {sortedByValue(sites, (s) => s.grid_dependency_pct).map((s) => (
@@ -486,17 +488,14 @@ export default async function AdminFleetPage() {
         </details>
       </div>
 
-      <h2 className={styles.rollupGroupLabel}>AI Insights</h2>
-      <p className={styles.sub}>
-        Deterministic checks against each site&apos;s own history — not a model. Split by type below so a spike in
-        one kind of anomaly doesn&apos;t hide in a single combined count.
-      </p>
+      <h2 className={styles.rollupGroupLabel}>{t(lang, 'admin_fleet_group_ai')}</h2>
+      <p className={styles.sub}>{t(lang, 'admin_fleet_ai_desc')}</p>
       <div className={styles.rollupRow}>
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Unexpected silence</span>
+            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_silence_label')}</span>
             <span className={styles.rollupValue}>{silenceCount}</span>
-            <span className={styles.rollupDesc}>A real zero during hours this site has historically produced</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_silence_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {sortedByValue(sites, (s) => s.active_anomalies.filter((a) => a.anomaly_type === 'unexpected_silence').length).map((s) => (
@@ -510,9 +509,9 @@ export default async function AdminFleetPage() {
 
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Quiet drift</span>
+            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_drift_label')}</span>
             <span className={styles.rollupValue}>{driftCount}</span>
-            <span className={styles.rollupDesc}>Trending down vs. this site&apos;s own recent baseline</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_drift_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {sortedByValue(sites, (s) => s.active_anomalies.filter((a) => a.anomaly_type === 'quiet_drift').length).map((s) => (
@@ -526,9 +525,9 @@ export default async function AdminFleetPage() {
 
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Underperformance</span>
+            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_underperf_label')}</span>
             <span className={styles.rollupValue}>{underperformanceCount}</span>
-            <span className={styles.rollupDesc}>Below what this site&apos;s installed size should deliver</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_underperf_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {sortedByValue(sites, (s) => s.active_anomalies.filter((a) => a.anomaly_type === 'underperformance').length).map((s) => (
@@ -542,9 +541,9 @@ export default async function AdminFleetPage() {
 
         <details className={styles.rollupCard}>
           <summary>
-            <span className={styles.rollupLabel}>Incomplete charging</span>
+            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_incomplete_label')}</span>
             <span className={styles.rollupValue}>{incompleteChargingCount}</span>
-            <span className={styles.rollupDesc}>Battery hasn&apos;t reached full charge in 5+ of the last 7 days</span>
+            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_incomplete_desc')}</span>
           </summary>
           <div className={styles.rollupBreakdown}>
             {sortedByValue(sites, (s) => s.active_anomalies.filter((a) => a.anomaly_type === 'incomplete_charging').length).map((s) => (
@@ -558,47 +557,48 @@ export default async function AdminFleetPage() {
       </div>
 
       {sites.length === 0 ? (
-        <p className={styles.sub}>No VRM-API-connected sites yet.</p>
+        <p className={styles.sub}>{t(lang, 'admin_fleet_no_sites')}</p>
       ) : (
         <>
           <FlowDiagram
             solarW={solarSites.length > 0 ? totalSolar : null}
-            solarNote={`${solarSites.length} of ${sites.length} sites`}
+            solarNote={t(lang, 'admin_fleet_flow_note_of_sites').replace('{n}', String(solarSites.length)).replace('{m}', String(sites.length))}
             loadW={loadSites.length > 0 ? totalLoad : null}
-            loadLabel="All homes"
+            loadLabel={t(lang, 'admin_fleet_flow_load_label')}
             batteryW={batterySites.length > 0 ? totalBattery : null}
-            batteryNote="net"
+            batteryNote={t(lang, 'admin_fleet_flow_battery_note')}
             gridW={totalGrid}
             hasGridMeter={meteredSites.length > 0}
-            gridNote={`${meteredSites.length} of ${sites.length} sites`}
+            gridNote={t(lang, 'admin_fleet_flow_note_of_sites').replace('{n}', String(meteredSites.length)).replace('{m}', String(sites.length))}
           />
 
           <ShapeChart
             siteIds={sites.map((s) => s.site_id)}
-            title="Fleet shape"
-            cardSub="Aggregate of every connected site's real 15-min VRM data, fetched on demand and summed — nothing here is stored."
+            title={t(lang, 'admin_fleet_shape_title')}
+            cardSub={t(lang, 'admin_fleet_shape_sub')}
+            lang={lang}
           />
 
           <Table>
             <thead>
               <tr>
-                <th>Site</th>
-                <th>Connection</th>
-                <th>Health</th>
-                <th>Alarms</th>
-                <th>Critical alerts</th>
-                <th>Live</th>
-                <th>Yield</th>
-                <th>Type</th>
+                <th>{t(lang, 'admin_sites_col_site')}</th>
+                <th>{t(lang, 'admin_fleet_col_connection')}</th>
+                <th>{t(lang, 'admin_reports_stat_health')}</th>
+                <th>{t(lang, 'admin_upload_col_hist_alarms')}</th>
+                <th>{t(lang, 'admin_fleet_col_critical_alerts')}</th>
+                <th>{t(lang, 'admin_fleet_col_live')}</th>
+                <th>{t(lang, 'admin_fleet_col_yield')}</th>
+                <th>{t(lang, 'admin_customers_col_type')}</th>
                 <th></th>
               </tr>
             </thead>
-            <tbody>{sites.map(row)}</tbody>
+            <tbody>{sites.map((s) => row(s, lang))}</tbody>
           </Table>
 
           {lowestSoc && (
             <p className={styles.sub} style={{ marginTop: 10 }}>
-              Lowest SOC right now: {lowestSoc.live_soc_pct}% ({lowestSoc.display_name})
+              {t(lang, 'admin_fleet_lowest_soc').replace('{pct}', String(lowestSoc.live_soc_pct)).replace('{name}', lowestSoc.display_name)}
             </p>
           )}
         </>
