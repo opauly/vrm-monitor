@@ -81,50 +81,43 @@ export function AdminReportsManager({
   const [monitoringSites, setMonitoringSites] = useState<SiteSummary[] | null>(null);
 
   // Same admin/self-serve distinction `/admin/customers` filters by — Oscar's
-  // own admin-linked installations vs. real signed-up subscribers. Narrows
-  // the pool the monitoring-owner match below runs against, so it stays a
-  // togglable filter rather than the earlier hard exclusion (which made it
-  // impossible to generate a report for one of Oscar's own real sites).
+  // own admin-linked installations vs. real signed-up subscribers. Only
+  // meaningful for `schema === 'vrm'` (see below).
   const [originFilter, setOriginFilter] = useState<OriginFilter>('all');
   const originFilteredCustomers = originFilter === 'all' ? customers : customers.filter((c) => c.origin === originFilter);
 
-  // Bug-fix pass 2026-08-18 (Bug 3): `monitoring.sites` has no `customer_id`
-  // FK (this schema predates `vrm.customers` — it's Oscar's own
-  // Node-RED-monitored fleet, a different, older product), but its `owner`
-  // text column holds the real person's name, populated on every current
-  // row and confirmed to match `vrm.customers.name` exactly for at least
-  // one real customer (Karen Montealegre, 3 sites). Exact match,
-  // case-insensitive/trimmed — the data checked is consistently formatted,
-  // so a looser substring match would only risk a false-positive match
-  // between two differently-named people, not save anyone from a typo.
+  // `monitoring.sites` has no `customer_id` FK at all (this schema predates
+  // `vrm.customers` — it's Oscar's own Node-RED-monitored fleet, a single
+  // tenant in every practical sense). Bug fix 2026-09-27: this used to try
+  // matching `monitoring.sites.owner` text against `vrm.customers.name`,
+  // which only ever matched one real customer by coincidence and silently
+  // fell back to the FULL `vrm.customers` list otherwise — the exact same
+  // list the `vrm` tab shows, which is what read as "switching Source does
+  // nothing." Worse, since a customer was then almost always "selected"
+  // (from that fallback list), the site list below filtered by owner-name
+  // against it too, and usually matched nothing — a monitoring report could
+  // silently have zero sites to pick from depending on which customer
+  // happened to be selected. Every monitoring report is nominally Oscar's
+  // own job regardless of which physical site, so there is no real choice
+  // to offer here: lock it to the Pauly & Co Portfolio tenant (the same
+  // shared admin-portfolio customer `victron/ingest.py`'s
+  // `get_or_create_admin_portfolio_customer()` already uses) and show every
+  // monitoring site unconditionally.
+  const portfolioCustomer = customers.find((c) => c.slug === 'pauly-co-portfolio') ?? null;
 
-  // The Customer dropdown itself used to stay the same full `vrm.customers`
-  // list regardless of Source, which read as "switching to monitoring does
-  // nothing" — confusing, since for `monitoring` a customer is only useful
-  // here if they actually own a monitoring site. Narrow it to customers with
-  // an owner-name match once `monitoringSites` has loaded; fall back to the
-  // full list while loading or if nothing matches at all, so the picker is
-  // never left empty.
-  const monitoringCustomers = monitoringSites
-    ? originFilteredCustomers.filter((c) => monitoringSites.some((s) => (s.owner ?? '').trim().toLowerCase() === c.name.trim().toLowerCase()))
-    : null;
-  const visibleCustomers = schema === 'vrm' ? originFilteredCustomers : monitoringCustomers && monitoringCustomers.length > 0 ? monitoringCustomers : originFilteredCustomers;
-
-  if (customerId && visibleCustomers.length > 0 && !visibleCustomers.some((c) => c.id === customerId)) {
-    setCustomerId(visibleCustomers[0].id);
+  if (schema === 'monitoring' && portfolioCustomer && customerId !== portfolioCustomer.id) {
+    setCustomerId(portfolioCustomer.id);
   }
-
-  const selectedCustomerName = customers.find((c) => c.id === customerId)?.name ?? null;
-  const normalizedCustomerName = selectedCustomerName?.trim().toLowerCase() ?? null;
+  if (schema === 'vrm' && originFilteredCustomers.length > 0 && !originFilteredCustomers.some((c) => c.id === customerId)) {
+    setCustomerId(originFilteredCustomers[0].id);
+  }
 
   const sites: SiteSummary[] =
     schema === 'vrm'
       ? vrmSites
           .filter((s) => s.customer_id === customerId)
           .map((s) => ({ site_id: s.site_id, display_name: s.display_name, owner: null }))
-      : normalizedCustomerName
-        ? (monitoringSites ?? []).filter((s) => (s.owner ?? '').trim().toLowerCase() === normalizedCustomerName)
-        : (monitoringSites ?? []);
+      : (monitoringSites ?? []);
 
   const [siteId, setSiteId] = useState<string>('');
   const [limits, setLimits] = useState<{ max_custom_range_days: number; max_overview_range_days: number } | null>(null);
@@ -251,14 +244,16 @@ export function AdminReportsManager({
   return (
     <div>
       <div className={styles.controls}>
-        <label className={styles.controlField}>
-          <span className={styles.controlLabel}>{t(lang, 'admin_customers_filter_origin')}</span>
-          <Select value={originFilter} onChange={(e) => setOriginFilter(e.target.value as OriginFilter)}>
-            <option value="all">{t(lang, 'admin_common_all')}</option>
-            <option value="admin">{t(lang, 'admin_upload_origin_admin_note')}</option>
-            <option value="self_serve">{t(lang, 'admin_upload_origin_self_serve_note')}</option>
-          </Select>
-        </label>
+        {schema === 'vrm' && (
+          <label className={styles.controlField}>
+            <span className={styles.controlLabel}>{t(lang, 'admin_customers_filter_origin')}</span>
+            <Select value={originFilter} onChange={(e) => setOriginFilter(e.target.value as OriginFilter)}>
+              <option value="all">{t(lang, 'admin_common_all')}</option>
+              <option value="admin">{t(lang, 'admin_upload_origin_admin_note')}</option>
+              <option value="self_serve">{t(lang, 'admin_upload_origin_self_serve_note')}</option>
+            </Select>
+          </label>
+        )}
         <label className={styles.controlField}>
           <span className={styles.controlLabel}>{t(lang, 'admin_reports_field_source')}</span>
           <Select value={schema} onChange={(e) => setSchema(e.target.value as Schema)}>
@@ -270,13 +265,19 @@ export function AdminReportsManager({
           <span className={styles.controlLabel}>
             {t(lang, 'admin_upload_field_customer')} {schema === 'monitoring' ? t(lang, 'admin_reports_customer_job_ref_only') : ''}
           </span>
-          <Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-            {visibleCustomers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
+          {schema === 'monitoring' ? (
+            <Select value={customerId} disabled>
+              {portfolioCustomer && <option value={portfolioCustomer.id}>{portfolioCustomer.name}</option>}
+            </Select>
+          ) : (
+            <Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+              {originFilteredCustomers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          )}
         </label>
         <label className={styles.controlField}>
           <span className={styles.controlLabel}>{t(lang, 'admin_sites_col_site')}</span>
