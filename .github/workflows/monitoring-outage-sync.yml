@@ -1,0 +1,37 @@
+name: Monitoring outage sync (VRM cloud)
+
+# 2026-09-27. One call, against vrm_api: POST /v1/monitoring-sync/grid-events
+# (vrm_api/routers/monitoring_sync.py). Pulls individual outage events from
+# Victron's VRM cloud API for the small subset of `monitoring`-schema sites
+# that are real Victron hardware with a known vrm_installation_id — today
+# just the 3 Vista Atenas sites, see that router's own module docstring for
+# why this exists alongside (not instead of) Node-RED's own grid_events
+# writes.
+#
+# Its own daily workflow rather than a step in scheduled-reports.yml's
+# hourly one on purpose: unlike that workflow's cheap, local per-site checks
+# (safe to over-call), this makes a real VRM API request per linked site
+# every time it runs. Once a day is plenty for outage history feeding a
+# weekly report.
+
+on:
+  schedule:
+    # 08:00 UTC daily (02:00 America/Costa_Rica) — same off-peak reasoning
+    # as billing-reconcile.yml's own schedule, ahead of that workflow and
+    # well ahead of scheduled-reports.yml's hourly report-generation ticks.
+    - cron: "0 8 * * *"
+  workflow_dispatch: {} # manual trigger from the Actions tab, for a spot check
+
+jobs:
+  sync-monitoring-grid-events:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync grid outage events from VRM cloud
+        env:
+          PIPELINE_API_URL: ${{ secrets.PIPELINE_API_URL }}
+          PIPELINE_API_KEY: ${{ secrets.PIPELINE_API_KEY }}
+        run: |
+          curl -sS -f \
+            -X POST "${PIPELINE_API_URL}/v1/monitoring-sync/grid-events" \
+            -H "Authorization: Bearer ${PIPELINE_API_KEY}" \
+            -H "Content-Type: application/json"

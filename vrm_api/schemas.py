@@ -440,6 +440,20 @@ class FleetAnomalyDetectDailyOut(BaseModel):
     failed: int
 
 
+class MonitoringOutageSyncOut(BaseModel):
+    """`POST /v1/monitoring-sync/grid-events`'s response (2026-09-27) — pulls
+    individual outage events from VRM's cloud API for the `monitoring`-schema
+    sites that have a `vrm_installation_id` linked (see
+    `vrm_api/routers/monitoring_sync.py`'s own module docstring for why this
+    exists alongside Node-RED's own grid_events writes, not instead of
+    them). Same counts-only shape as `FleetAnomalyDetectDailyOut` — one
+    site's failure is logged, not itemized here, and never stops the sweep."""
+
+    synced: int
+    events_written: int
+    failed: int
+
+
 class SiteShapeOut(BaseModel):
     """`GET /v1/vrm-fleet/site-shape`'s response — Fleet Dashboard Phase 2.5
     (2026-08-30). 24 hour-of-day buckets (index 0 = midnight local time),

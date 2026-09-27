@@ -171,30 +171,45 @@ def get_outage_events(site_id: str, start: str | date, end: str | date,
     vrm_daily.py:_grid_outages()` already computes `source`/SOC per event,
     and `victron/ingest.py` persists what it computes.
 
-    `monitoring` has no equivalent detail: Node-RED never captures a raw SOC/
-    power series anywhere this report can re-query later, only the lost/
-    restored transition itself (`monitoring.grid_events`'s `timestamp`/
-    `duration_minutes`). Every row from this path therefore has `source`/
-    `soc_*_pct` all `None` — `report_svg.py`'s renderer drops those columns
-    entirely for a report where every event is like this, rather than
-    showing them blank (see that module's own comment).
-
-    One assumption here is NOT independently confirmed against a live
-    Node-RED `grid_events` row: `timestamp` is treated as the RESTORE time
-    (the moment duration became knowable — the same WARNING/CLEARED shape
-    every other event table in this schema already follows), so `started_at`
-    is derived as `timestamp - duration_minutes`. If that is backwards for a
-    real site, the displayed time is off by the outage's own duration —
-    cosmetic, not a crash — but worth checking against one real site's data
-    before this ships.
+    `monitoring` is split two ways, by row, not by site (2026-09-27):
+    - A row with `started_at` set was written by `vrm_api`'s
+      `POST /v1/monitoring-sync/grid-events` — real per-event `source`/SOC,
+      pulled from VRM's cloud API for the 3 sites that are actual Victron
+      hardware with a known `vrm_installation_id` (confirmed with Oscar,
+      2026-09-27: the other 13 `monitoring` sites are non-Victron gear with
+      no VRM installation, so this sync never runs for them).
+    - A row with `started_at` NULL is Node-RED's own direct write (`event`/
+      `previous_state`/`new_state`/`timestamp`/`duration_minutes`) — no
+      SOC/source, `started_at` derived here as `timestamp - duration_minutes`
+      (`timestamp` is the RESTORE moment, when duration becomes knowable —
+      the same WARNING/CLEARED shape every other event table in this schema
+      already follows). This is the only outage source for the 13
+      non-Victron sites, and a same-day fallback for a linked site on a day
+      the VRM sync itself hasn't run yet.
+    Both kinds can exist for the same linked site; whichever query below
+    turns up something for a given moment is what the report shows — there
+    is no de-duplication because in practice the VRM-sourced sync fully
+    supersedes what little Node-RED ever wrote for these 3 sites (see
+    `monitoring_vrm_grid_events.sql`'s own migration comment).
     """
     if schema == MONITORING:
-        rows = (_table(schema, "grid_events").select("timestamp,duration_minutes")
-                .eq("site_id", site_id)
-                .gte("timestamp", f"{start}T00:00:00").lte("timestamp", f"{end}T23:59:59")
-                .order("timestamp").execute().data or [])
-        events = []
-        for r in rows:
+        vrm_rows = (_table(schema, "grid_events")
+                   .select("started_at,duration_minutes,soc_start_pct,soc_end_pct,soc_min_pct,source")
+                   .eq("site_id", site_id)
+                   .not_.is_("started_at", "null")
+                   .gte("started_at", f"{start}T00:00:00").lte("started_at", f"{end}T23:59:59")
+                   .order("started_at").execute().data or [])
+        events = [{
+            "started_at": r["started_at"], "duration_minutes": float(r["duration_minutes"]),
+            "source": r.get("source"), "soc_start_pct": r.get("soc_start_pct"),
+            "soc_end_pct": r.get("soc_end_pct"), "soc_min_pct": r.get("soc_min_pct"),
+        } for r in vrm_rows]
+
+        legacy_rows = (_table(schema, "grid_events").select("timestamp,duration_minutes")
+                      .eq("site_id", site_id).is_("started_at", "null")
+                      .gte("timestamp", f"{start}T00:00:00").lte("timestamp", f"{end}T23:59:59")
+                      .order("timestamp").execute().data or [])
+        for r in legacy_rows:
             duration = float(r.get("duration_minutes") or 0)
             if duration < 1:
                 continue  # the paired lost-transition row, with no duration yet
@@ -204,6 +219,7 @@ def get_outage_events(site_id: str, start: str | date, end: str | date,
                 "started_at": started.isoformat(), "duration_minutes": duration,
                 "source": None, "soc_start_pct": None, "soc_end_pct": None, "soc_min_pct": None,
             })
+        events.sort(key=lambda e: e["started_at"])
     else:
         rows = (_table(schema, "grid_events")
                 .select("started_at,duration_minutes,soc_start_pct,soc_end_pct,soc_min_pct,source")
