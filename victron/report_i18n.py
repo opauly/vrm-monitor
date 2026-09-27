@@ -47,6 +47,29 @@ EN = {
     # clean bill of health. Kept short — this sits in the KPI card's one-line
     # sub-label slot, which has no wrap or truncation.
     "outagesGridQualityNote": "See Grid Quality",
+    # The per-outage detail table (2026-09-27) — one row per grid-loss event,
+    # replacing the single rolled-up "N (X min)" figure the Events section
+    # alone used to show. `outageColSource`/`outageColSoc` are only emitted
+    # by report_svg.py's outage_table_svg() when at least one event in the
+    # report actually carries that data — CSV/API-ingested sites, not
+    # Node-RED sites, which never capture a raw SOC/power series to derive it
+    # from (see database/vrm_report_db.py:get_outage_events()'s own
+    # docstring). `labelSolar`/`labelBattery` above are reused for the Source
+    # column's two single-source values on purpose — same words the
+    # Energy Mix legend already uses for the same two things.
+    "subOutageDetail": "Each grid outage this period, with what covered the "
+                       "load and whether your battery held it the whole time.",
+    "outageLongestLabel": "Longest outage",
+    "outageColDateTime": "Date & time",
+    "outageColDuration": "Duration",
+    "outageColSource": "Source",
+    "outageColSoc": "Battery SOC",
+    "outageColSustained": "Sustained",
+    "outageSourceMixed": "Solar + Battery",
+    "outageSustainedYes": "Sustained",
+    "outageSustainedNo": "Low battery",
+    "durationMinAbbr": "min",
+    "durationHourAbbr": "h",
     "minutes": "minutes",
     "days": "days",
     "kwh": "kWh",
@@ -201,6 +224,20 @@ ES = dict(EN, **{
     "outages": "Cortes de Red",
     "noOutagesShort": "Sin cortes",
     "outagesGridQualityNote": "Ver Calidad de Red",
+    "subOutageDetail": "Cada corte de red de este período, con lo que "
+                       "cubrió la carga y si la batería la sostuvo todo el "
+                       "tiempo.",
+    "outageLongestLabel": "Corte más largo",
+    "outageColDateTime": "Fecha y hora",
+    "outageColDuration": "Duración",
+    "outageColSource": "Fuente",
+    "outageColSoc": "SOC de Batería",
+    "outageColSustained": "Sostenido",
+    "outageSourceMixed": "Solar + Batería",
+    "outageSustainedYes": "Sostenido",
+    "outageSustainedNo": "Batería baja",
+    "durationMinAbbr": "min",
+    "durationHourAbbr": "h",
     "minutes": "minutos",
     "days": "días",
     "energyMix": "De dónde vino su energía",

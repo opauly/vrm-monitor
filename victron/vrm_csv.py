@@ -534,7 +534,7 @@ def parse_export(source, site_id: str, filename: str = "",
         "alarm_events": alarm_events(raw, site_id),
         "critical_alerts": critical_alerts(raw, site_id),
         "unscored_alarms": unscored,
-        "outages": vrm_daily._grid_outages(tidied, MAX_GAP_S).to_dict("records"),
+        "outages": vrm_daily.grid_outage_events(tidied, MAX_GAP_S),
         "missing_signals": missing,
         "warnings": warnings,
     }

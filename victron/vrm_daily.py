@@ -51,6 +51,12 @@ _GRID_SITE_MIN_SHARE = 0.05
 # Sub-2-minute dropouts are recloser operations, not outages worth reporting.
 _MIN_OUTAGE_MIN = 2.0
 
+# Below this average wattage during an outage, a channel (PV or battery
+# discharge) is treated as "not meaningfully contributing" rather than
+# real: night-time PV noise and a battery monitor's own quiescent draw both
+# sit well under this, so a channel has to be doing real work to count.
+_SOURCE_MIN_W = 30.0
+
 # Battery temperatures outside this band are treated as sensor dropouts rather
 # than measurements. The reference export reports a 3 °C minimum at a site in
 # Atenas, Costa Rica, which is not a real battery temperature.
@@ -114,8 +120,19 @@ def _grid_outages(tidied: pd.DataFrame, max_gap_s: int) -> pd.DataFrame:
     Takes the tidied frame (not `raw`): voltage is normalised to numeric there,
     and phase 2 is absent on single-phase sites. `max_gap_s` is required, not
     defaulted — see the module docstring.
+
+    Also carries what covered the load during each event — `soc_start`/
+    `soc_end`/`soc_min` (battery SOC%) and `source` ('pv' | 'battery' | 'mixed'
+    | `None`, from average `pv_w`/`batt_discharge_w` over the event window
+    against `_SOURCE_MIN_W`). This is the one place in the codebase that still
+    has the tidied frame in hand at the exact moment an individual outage is
+    identified — `to_energy_daily_rows()` below immediately collapses these
+    into a day's `outage_count`/`outage_minutes` and the per-event detail is
+    gone. Computed here, once, rather than re-sliced later from a frame nobody
+    keeps around after the report request that built it.
     """
-    empty = pd.DataFrame(columns=["start", "end", "minutes"])
+    empty = pd.DataFrame(columns=["start", "end", "minutes", "soc_start",
+                                  "soc_end", "soc_min", "source"])
     if tidied.empty or not {"grid_v_l1", "grid_v_l2"} <= set(tidied.columns):
         return empty
 
@@ -142,15 +159,66 @@ def _grid_outages(tidied: pd.DataFrame, max_gap_s: int) -> pd.DataFrame:
     dt = pd.Series(tidied.index, index=tidied.index).diff()
     dt = dt.dt.total_seconds().fillna(0.0).clip(upper=max_gap_s)
 
+    has_soc = "soc_pct" in tidied.columns
+    has_pv = "pv_w" in tidied.columns
+    has_batt_dis = "batt_discharge_w" in tidied.columns
+
     rows = []
     for _, block in tidied.groupby((state != state.shift()).cumsum()):
         if bool(state.loc[block.index[0]]):
             continue  # grid present through this block
         minutes = float(dt.loc[block.index].sum()) / 60.0
-        if minutes >= _MIN_OUTAGE_MIN:
-            rows.append({"start": block.index[0], "end": block.index[-1],
-                         "minutes": round(minutes, 1)})
-    return pd.DataFrame(rows, columns=["start", "end", "minutes"])
+        if minutes < _MIN_OUTAGE_MIN:
+            continue
+
+        soc = pd.to_numeric(block["soc_pct"], errors="coerce").dropna() if has_soc else pd.Series(dtype=float)
+        soc_start = float(soc.iloc[0]) if not soc.empty else None
+        soc_end = float(soc.iloc[-1]) if not soc.empty else None
+        soc_min = float(soc.min()) if not soc.empty else None
+
+        # PV/battery-discharge averages over the outage window, not the max —
+        # a brief PV spike during an otherwise battery-carried night outage
+        # shouldn't flip the whole event to "mixed". `_SOURCE_MIN_W` keeps a
+        # channel sitting at sensor noise from counting as "contributing".
+        avg_pv = float(pd.to_numeric(block["pv_w"], errors="coerce").fillna(0.0).mean()) if has_pv else 0.0
+        avg_batt_dis = (float(pd.to_numeric(block["batt_discharge_w"], errors="coerce").fillna(0.0).mean())
+                       if has_batt_dis else 0.0)
+        pv_on, batt_on = avg_pv > _SOURCE_MIN_W, avg_batt_dis > _SOURCE_MIN_W
+        source = ("mixed" if pv_on and batt_on
+                  else "pv" if pv_on
+                  else "battery" if batt_on
+                  else None)  # neither signal moved — e.g. a genset carried it, or neither is wired
+
+        rows.append({"start": block.index[0], "end": block.index[-1],
+                     "minutes": round(minutes, 1),
+                     "soc_start": soc_start, "soc_end": soc_end, "soc_min": soc_min,
+                     "source": source})
+    return pd.DataFrame(rows, columns=["start", "end", "minutes", "soc_start",
+                                       "soc_end", "soc_min", "source"])
+
+
+def grid_outage_events(tidied: pd.DataFrame, max_gap_s: int) -> list[dict]:
+    """`_grid_outages()`'s rows as JSON-safe dicts, ready for `vrm.grid_events`
+    (or a caller's `"outages"` key in a parsed-export dict) — real python
+    floats/strings/isoformat timestamps, not pandas Timestamps/numpy scalars/
+    NaN, which a Supabase REST insert or `json.dumps()` can't take as-is.
+    Kept separate from `_grid_outages()` itself because that function's own
+    `start`/`end` columns stay real Timestamps for `to_energy_daily_rows()`'s
+    `.dt.date` grouping — converting there would break that caller.
+    """
+    outages = _grid_outages(tidied, max_gap_s)
+    events = []
+    for _, o in outages.iterrows():
+        events.append({
+            "started_at": o["start"].isoformat(),
+            "ended_at": o["end"].isoformat(),
+            "duration_minutes": float(o["minutes"]),
+            "soc_start_pct": None if pd.isna(o["soc_start"]) else round(float(o["soc_start"]), 1),
+            "soc_end_pct": None if pd.isna(o["soc_end"]) else round(float(o["soc_end"]), 1),
+            "soc_min_pct": None if pd.isna(o["soc_min"]) else round(float(o["soc_min"]), 1),
+            "source": o["source"] if o["source"] else None,
+        })
+    return events
 
 
 def alarm_episode_events(active: pd.Series, *, site_id: str, alarm: str,

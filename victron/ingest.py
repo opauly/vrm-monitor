@@ -149,6 +149,12 @@ def ingest_parsed(parsed: dict, site_id: str, filename: str = "",
     for e in critical_events:
         e["site_id"] = site_id
         e["category"] = e.pop("source")
+    # Individual grid-outage events (2026-09-27) — `.get(..., [])` for the
+    # same forward-compat reason as `critical_alerts` above: any `parsed`
+    # dict predating this key still ingests everything else unchanged.
+    grid_events = [dict(g) for g in parsed.get("outages", [])]
+    for g in grid_events:
+        g["site_id"] = site_id
 
     # 1. Alarm events first — the energy_daily trigger reads them.
     if replace_alarms and rows:
@@ -168,6 +174,15 @@ def ingest_parsed(parsed: dict, site_id: str, filename: str = "",
          .execute())
     for chunk in _chunks(critical_events):
         _t("critical_alerts").insert(chunk).execute()
+
+    if replace_alarms and rows:
+        (_t("grid_events").delete()
+         .eq("site_id", site_id)
+         .gte("started_at", parsed["period_start"])
+         .lte("started_at", parsed["period_end"])
+         .execute())
+    for chunk in _chunks(grid_events):
+        _t("grid_events").insert(chunk).execute()
 
     # PLAN_PHASE15.md §5.3/§5.4: look up what dump_type (if any) already
     # occupies each touched (site_id, date) BEFORE the upsert below
@@ -245,10 +260,18 @@ def ingest_parsed(parsed: dict, site_id: str, filename: str = "",
                      # can explain why the report changed."
                      "days_replacing_csv": days_replacing_csv},
     }
+    # `grid_events_written` deliberately stays OUT of `log` above — unlike
+    # `warnings` (a jsonb column that swallows whatever shape this puts in
+    # it), `ingestion_log`'s other fields are named columns on a table this
+    # module doesn't define (it lives only in Supabase, not in this repo's
+    # tracked SQL), so a key with no matching column would fail the insert
+    # for every ingest, not just this one. Surfaced only in the return value
+    # below, which nothing writes to a table.
     _t("ingestion_log").insert(log).execute()
 
     return {"rows_written": written, "alarm_events_written": len(events),
             "critical_alerts_written": len(critical_events),
+            "grid_events_written": len(grid_events),
             "period_start": parsed["period_start"], "period_end": parsed["period_end"],
             "days_replacing_csv": days_replacing_csv}
 

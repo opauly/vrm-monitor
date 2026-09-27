@@ -17,7 +17,7 @@ migration (see CONTEXT.md).
 
 Everything here is read-only. Ingestion writes live in `victron/`.
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from database.supabase_client import get_client
 
@@ -153,6 +153,93 @@ def get_longest_outage_minutes(site_id: str, start: str | date, end: str | date,
 
     rows = get_energy_daily(site_id, start, end, schema)
     return max((float(r.get("outage_minutes") or 0) for r in rows), default=0.0)
+
+
+# Same two categories `get_alarm_episode_counts_by_category()` below scores —
+# nothing else in `alarm_events` is a reliable "the system struggled" signal,
+# so nothing else counts against `sustained` in `get_outage_events()`.
+_LOAD_NOT_SUSTAINED_ALARMS = ("Low Battery Alarm", "Overload Alarm")
+
+
+def get_outage_events(site_id: str, start: str | date, end: str | date,
+                      schema: str) -> list[dict]:
+    """Individual grid-outage events in the window, normalized across both
+    schemas, each carrying a `sustained` flag: `True` unless a Low Battery/
+    Overload alarm episode started within that specific outage's window.
+
+    `vrm` reads `vrm.grid_events` directly (2026-09-27) — `victron/
+    vrm_daily.py:_grid_outages()` already computes `source`/SOC per event,
+    and `victron/ingest.py` persists what it computes.
+
+    `monitoring` has no equivalent detail: Node-RED never captures a raw SOC/
+    power series anywhere this report can re-query later, only the lost/
+    restored transition itself (`monitoring.grid_events`'s `timestamp`/
+    `duration_minutes`). Every row from this path therefore has `source`/
+    `soc_*_pct` all `None` — `report_svg.py`'s renderer drops those columns
+    entirely for a report where every event is like this, rather than
+    showing them blank (see that module's own comment).
+
+    One assumption here is NOT independently confirmed against a live
+    Node-RED `grid_events` row: `timestamp` is treated as the RESTORE time
+    (the moment duration became knowable — the same WARNING/CLEARED shape
+    every other event table in this schema already follows), so `started_at`
+    is derived as `timestamp - duration_minutes`. If that is backwards for a
+    real site, the displayed time is off by the outage's own duration —
+    cosmetic, not a crash — but worth checking against one real site's data
+    before this ships.
+    """
+    if schema == MONITORING:
+        rows = (_table(schema, "grid_events").select("timestamp,duration_minutes")
+                .eq("site_id", site_id)
+                .gte("timestamp", f"{start}T00:00:00").lte("timestamp", f"{end}T23:59:59")
+                .order("timestamp").execute().data or [])
+        events = []
+        for r in rows:
+            duration = float(r.get("duration_minutes") or 0)
+            if duration < 1:
+                continue  # the paired lost-transition row, with no duration yet
+            ended = datetime.fromisoformat(str(r["timestamp"]).replace("Z", "+00:00"))
+            started = ended - timedelta(minutes=duration)
+            events.append({
+                "started_at": started.isoformat(), "duration_minutes": duration,
+                "source": None, "soc_start_pct": None, "soc_end_pct": None, "soc_min_pct": None,
+            })
+    else:
+        rows = (_table(schema, "grid_events")
+                .select("started_at,duration_minutes,soc_start_pct,soc_end_pct,soc_min_pct,source")
+                .eq("site_id", site_id)
+                .gte("started_at", f"{start}T00:00:00").lte("started_at", f"{end}T23:59:59")
+                .order("started_at").execute().data or [])
+        events = [{
+            "started_at": r["started_at"], "duration_minutes": float(r["duration_minutes"]),
+            "source": r.get("source"), "soc_start_pct": r.get("soc_start_pct"),
+            "soc_end_pct": r.get("soc_end_pct"), "soc_min_pct": r.get("soc_min_pct"),
+        } for r in rows]
+
+    if not events:
+        return events
+
+    # One query for every relevant alarm start in the window, then a plain
+    # interval check per event — cheaper than a query per outage, and a real
+    # window has at most a handful of episodes even on a bad week.
+    alarm_rows = (_table(schema, "alarm_events").select("timestamp")
+                 .eq("site_id", site_id)
+                 .in_("alarm", _LOAD_NOT_SUSTAINED_ALARMS)
+                 .eq("severity", "WARNING")
+                 .gte("timestamp", f"{start}T00:00:00").lte("timestamp", f"{end}T23:59:59")
+                 .execute().data or [])
+    alarm_times = [datetime.fromisoformat(str(r["timestamp"]).replace("Z", "+00:00"))
+                  for r in alarm_rows]
+
+    for e in events:
+        e_start = datetime.fromisoformat(str(e["started_at"]).replace("Z", "+00:00"))
+        e_end = e_start + timedelta(minutes=e["duration_minutes"])
+        # Only catches an alarm that STARTS during the outage, not one already
+        # active when the outage began — a known gap, not a silent one (see
+        # this function's own docstring).
+        e["sustained"] = not any(e_start <= t <= e_end for t in alarm_times)
+
+    return events
 
 
 def get_low_battery_shutdown_count(site_id: str, start: str | date, end: str | date,
@@ -486,6 +573,13 @@ def fetch_report_window(site_id: str, start: str | date, end: str | date,
         "trend": trend,
         "health": get_daily_health(site_id, start, end, schema),
         "longest_outage_minutes": get_longest_outage_minutes(site_id, start, end, schema),
+        # Every system_type — the off-grid guard lives at render time
+        # (weekly_report.py's own `_rows()` already drops the outages row
+        # there entirely), and an off-grid site's own grid_events table is
+        # naturally empty anyway (vrm_daily._grid_outages()'s own
+        # off-grid guard), so this is a cheap no-op query for those sites,
+        # not a wrong one.
+        "outage_events": get_outage_events(site_id, start, end, schema),
         # Off-grid-only KPI (report bug fix, 2026-08-18) — skipped for every
         # other system_type so a grid-tied report doesn't pay for a query it
         # never renders.

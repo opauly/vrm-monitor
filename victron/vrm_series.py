@@ -626,7 +626,7 @@ def fetch_and_map(client, id_site, site_id: str, start, end, *,
         "difference from the CSV path."
     )
 
-    outages = vrm_daily._grid_outages(tidied, max_gap_s).to_dict("records")
+    outages = vrm_daily.grid_outage_events(tidied, max_gap_s)
 
     return {
         "site_id": site_id,

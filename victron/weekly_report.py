@@ -303,7 +303,7 @@ def generate_narrative(stats: dict, lang: str) -> str:
             f"\n- Grid outages: {stats['outageCount']} ({stats['outageMinutes']} minutes total)"
             f"\n- Longest single outage: {stats['longestOutageMinutes']} minutes"
             f"\n- Battery covered loads during outages: "
-            f"{'yes' if stats['batteryProtectedDuringOutage'] else 'no / unknown'}"
+            f"{'yes' if stats['batteryProtectedDuringOutage'] else 'no — see outage detail'}"
         )
     prompt += (
         f"\n- Alarm episodes: {stats['alarmEpisodes']}"
@@ -602,6 +602,15 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
             battery_cycles = round(est_cycles, 2)
             battery_cycles_estimated = True
     longest_outage = window["longest_outage_minutes"]
+    outage_events = window["outage_events"]
+    # Real signal (2026-09-27), replacing the tautological
+    # `totals["outageCount"] > 0` this used to be — "an outage happened" is
+    # not the same claim as "the battery covered it", and conflating the two
+    # is exactly the gap this feature closes. `True` when every outage this
+    # period had no Low Battery/Overload alarm overlapping it (or there were
+    # no outages at all — nothing to fail); `get_outage_events()`'s own
+    # `sustained` flag per event carries the real alarm-overlap check.
+    battery_protected_during_outage = all(e["sustained"] for e in outage_events)
 
     # Overview mode (plan doc §22): health/grid-independence/battery-cycling
     # trend, one point per bucket. Independence and cycles are *derived* per
@@ -731,7 +740,7 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
             "outageCount": totals["outageCount"],
             "outageMinutes": totals["outageMinutes"],
             "longestOutageMinutes": longest_outage,
-            "batteryProtectedDuringOutage": totals["outageCount"] > 0,
+            "batteryProtectedDuringOutage": battery_protected_during_outage,
             "alarmEpisodes": alarm_total,
             "bestDay": f"{best_day['pv']:.1f}" if best_day else "n/a",
             "worstDay": f"{worst_day['pv']:.1f}" if worst_day else "n/a",
@@ -757,6 +766,7 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
         "dailyGrouped": days, "totals": totals, "prevTotals": prev_totals,
         "avgHealth": avg_health, "healthStatus": health_status,
         "alarmEpisodesTotal": alarm_total,
+        "outageEvents": outage_events,
         "gridIndependencePct": grid_independence, "batteryCycles": battery_cycles,
         "batteryCyclesEstimated": battery_cycles_estimated,
         "minSoc": min_soc, "maxSoc": max_soc,
@@ -1163,6 +1173,17 @@ def render_html(d: dict, selected: set[str] | None = None) -> str:
     else:
         row2 = ""
 
+    # Per-outage detail table (2026-09-27) — elaborates on the Events
+    # section's own rolled-up outage figure, so it's gated the same way:
+    # only when Events is selected, and never for off_grid (the underlying
+    # detector already returns no events there — see this same off_grid
+    # guard a few lines up, on `events` itself). `outage_table_svg()` itself
+    # already no-ops on an empty list, so a selected report with zero
+    # outages this period renders nothing extra, same as before this
+    # feature existed.
+    outage_table = (S.outage_table_svg(d["outageEvents"], d["longestOutageMinutes"], t)
+                    if want_events and d["systemType"] != "off_grid" else "")
+
     # Pack `pool_specs` two-per-row (PLAN_PHASE18.md §7, 2026-08-29 live-test
     # feedback) — a genuinely odd one out is the ONLY case that still goes
     # full-width alone. `right_bg` (currently only Weather sets it) only
@@ -1238,6 +1259,7 @@ def render_html(d: dict, selected: set[str] | None = None) -> str:
         # by a report ever actually being generated for a grid_zero site.
         row1_svg=_safe(row1_svg) if row1_svg else "",
         row2_svg=_safe(row2) if row2 else "",
+        outage_table_svg=_safe(outage_table) if outage_table else "",
         soc_svg=(_safe(S.soc_chart_svg(d, t)) if (has_batt and "soc_chart" in selected) else ""),
         trend_svg=(_safe(S.four_week_trend_svg(d["trend"], t)) if "trend" in selected else ""),
         savings_svg=_safe(savings_svg) if savings_svg else "",

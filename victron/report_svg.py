@@ -842,6 +842,136 @@ def single_block_row_svg(title: str, rows: list[dict], sub: str,
     return _svg(r, PW, h)
 
 
+def _outage_duration_fmt(minutes: float, t: dict) -> str:
+    """`"38 min"` under an hour, `"2h 14m"` at or past it — matches the
+    approved mockup exactly. `"h"`/`durationMinAbbr` are the only pieces
+    that vary by language; the combined-form `"m"` is not (see
+    report_i18n.py's own comment on these two keys)."""
+    total = round(minutes)
+    if total < 60:
+        return f"{total} {t['durationMinAbbr']}"
+    return f"{total // 60}{t['durationHourAbbr']} {total % 60}m"
+
+
+# Dot colors for the Source column — illustrative, not reused from elsewhere
+# in the palette on purpose: GREEN/AMBER/RED here are all already spoken for
+# (health tiers, the Sustained badge itself), so Source gets its own two.
+_SOURCE_DOT = {"pv": "#D4860F", "battery": "#4A9FD4"}
+
+
+def outage_table_svg(events: list[dict], longest_minutes: float, t: dict) -> str:
+    """One row per grid-outage event this period (2026-09-27) — what the
+    Events section's single rolled-up "N (X min)" figure used to hide.
+
+    `rich` (Source + Battery SOC columns) is decided from the DATA, not from
+    which schema/ingestion path produced it: a CSV/API-ingested site's events
+    carry `source`/`soc_*_pct`; a Node-RED site's don't (see
+    database/vrm_report_db.py:get_outage_events()'s own docstring on why).
+    Whichever it is, it is consistent for every event in one report — a site
+    doesn't switch ingestion path mid-window in practice — so checking the
+    first event decides it for the whole table.
+
+    Caller skips this entirely when `events` is empty (no outages this
+    period) — the Events section's own existing "No outages" line already
+    covers that case; an empty table with just a header would not add
+    anything.
+    """
+    if not events:
+        return ""
+    rich = any(e.get("source") is not None or e.get("soc_start_pct") is not None
+              for e in events)
+
+    full_sub = f"{t['subOutageDetail']} {t['outageLongestLabel']}: {_outage_duration_fmt(longest_minutes, t)}."
+    sub_lines = wrap_svg_lines(full_sub, int((PW - 2 * IPAD) / 3.1))
+    first = info_block_first_row_y(full_sub)
+    h = first + len(events) * ROW_H + 16
+
+    avail = PW - 2 * IPAD
+    if rich:
+        col_x = {"when": 0, "duration": 145, "source": 215, "soc": 300}
+    else:
+        col_x = {"when": 0, "duration": 200}
+
+    r = (f"<rect x='0' y='0' width='{PW}' height='{h}' rx='8' fill='{BG_GREY}'/>"
+         f"<text x='{IPAD}' y='14' font-size='8' font-weight='700' fill='#777'>"
+         f"{esc(t['outages'].upper())}</text>")
+    for li, line in enumerate(sub_lines):
+        r += (f"<text x='{IPAD}' y='{14 + (li + 1) * 9}' font-size='6.5' "
+              f"fill='#bbb'>{esc(line)}</text>")
+
+    def col(key: str, label_or_text: str, bold: bool = False, fill: str = "#999",
+           size: float = 8.0, anchor: str = "start"):
+        x = IPAD + (avail if anchor == "end" else col_x[key])
+        weight = "700" if bold else "400"
+        return (f"<text x='{x:g}' y='{{y}}' font-size='{size:g}' font-weight='{weight}' "
+                f"fill='{fill}' text-anchor='{anchor}'>{esc(label_or_text)}</text>")
+
+    header_y = first
+    r += (f"<line x1='{IPAD}' y1='{header_y - 12}' x2='{PW - IPAD}' y2='{header_y - 12}' "
+          f"stroke='{LINE}' stroke-width='0.5'/>")
+    header_cells = [col("when", t["outageColDateTime"].upper(), bold=True),
+                    col("duration", t["outageColDuration"].upper(), bold=True)]
+    if rich:
+        header_cells += [col("source", t["outageColSource"].upper(), bold=True),
+                         col("soc", t["outageColSoc"].upper(), bold=True)]
+    header_cells.append(col("sustained", t["outageColSustained"].upper(), bold=True, anchor="end"))
+    r += "".join(c.format(y=header_y) for c in header_cells)
+    r += (f"<line x1='{IPAD}' y1='{header_y + 5}' x2='{PW - IPAD}' y2='{header_y + 5}' "
+          f"stroke='{LINE}' stroke-width='0.5'/>")
+
+    for i, ev in enumerate(events):
+        ry = first + (i + 1) * ROW_H
+        when = str(ev["started_at"])[5:16].replace("T", " ")
+        duration_txt = _outage_duration_fmt(ev["duration_minutes"], t)
+        r += (col("when", when, size=9.5, fill="#222").format(y=ry)
+             + col("duration", duration_txt, size=9.5, fill="#222").format(y=ry))
+
+        if rich:
+            source = ev.get("source")
+            if source == "mixed":
+                source_txt = t["outageSourceMixed"]
+            elif source == "pv":
+                source_txt = t["labelSolar"]
+            elif source == "battery":
+                source_txt = t["labelBattery"]
+            else:
+                source_txt = "—"
+            source_x = IPAD + col_x["source"]
+            if source in _SOURCE_DOT:
+                r += (f"<circle cx='{source_x + 3:g}' cy='{ry - 3}' r='3' "
+                      f"fill='{_SOURCE_DOT[source]}'/>")
+                r += (f"<text x='{source_x + 10:g}' y='{ry}' font-size='9' fill='#222'>"
+                      f"{esc(source_txt)}</text>")
+            else:
+                r += (f"<text x='{source_x:g}' y='{ry}' font-size='9' fill='#222'>"
+                      f"{esc(source_txt)}</text>")
+
+            soc_start, soc_end, soc_min = ev.get("soc_start_pct"), ev.get("soc_end_pct"), ev.get("soc_min_pct")
+            if soc_start is None or soc_end is None:
+                soc_txt, soc_color = "—", "#999"
+            else:
+                soc_txt = f"{soc_start:.0f}% → {soc_end:.0f}%"
+                soc_color = RED if (soc_min is not None and soc_min < 20) else "#222"
+            r += col("soc", soc_txt, size=9, fill=soc_color).format(y=ry)
+
+        sustained = ev.get("sustained", True)
+        badge_bg = "rgba(31,174,110,0.12)" if sustained else "rgba(201,64,64,0.12)"
+        badge_fg = GREEN if sustained else RED
+        badge_label = ("✓ " + t["outageSustainedYes"]) if sustained else ("✗ " + t["outageSustainedNo"])
+        bw = min(text_width(badge_label, 8.5, bold=True) + 14, avail)
+        bx = IPAD + avail - bw
+        r += (f"<rect x='{bx:.1f}' y='{ry - 11}' width='{bw:.0f}' height='15' rx='7.5' "
+              f"fill='{badge_bg}'/>"
+              f"<text x='{IPAD + avail - bw / 2:.1f}' y='{ry - 0.5:.1f}' text-anchor='middle' "
+              f"font-size='8.5' font-weight='600' fill='{badge_fg}'>{esc(badge_label)}</text>")
+
+        if i < len(events) - 1:
+            r += (f"<line x1='{IPAD}' y1='{ry + 5}' x2='{PW - IPAD}' y2='{ry + 5}' "
+                  f"stroke='{LINE}' stroke-width='0.5'/>")
+
+    return _svg(r, PW, h)
+
+
 # ══════════════════════════════════════════════════════════════════
 # 4-week solar trend (page 2)
 # ══════════════════════════════════════════════════════════════════
