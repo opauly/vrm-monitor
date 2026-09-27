@@ -8,7 +8,7 @@
 // `app/(portal)/app/sites/SiteForm.tsx:handleGeocodeClick` already
 // establishes for a non-`<form>` server action call, not a new pattern.
 import { Fragment, startTransition, useMemo, useState } from 'react';
-import { Button, Select, Table } from '@/components/ui';
+import { Button, Input, Select, Table } from '@/components/ui';
 import { formatDate as formatDateShared } from '@/lib/dates';
 import type { AdminCustomerRow } from '@/lib/server/db/admin';
 import { planLabel } from '@/lib/plans';
@@ -104,15 +104,30 @@ export function CustomersManager({ customers, lang }: { customers: AdminCustomer
   // (this product has tens of customers, not thousands).
   const [originFilter, setOriginFilter] = useState<OriginFilter>('all');
   const [provisioningFilter, setProvisioningFilter] = useState<ProvisioningFilter>('all');
+  // Live-filters as the admin types (2026-09-26, Oscar's own request) —
+  // same plain client-side approach as the Origin/Provisioning selects
+  // above, over the same already-fetched `customers` prop. Matches on
+  // whatever's visible in the Name column (name, slug, country) plus the
+  // contact/login fields that aren't shown in the table but are exactly
+  // what "find this one customer" usually means in practice.
+  const [query, setQuery] = useState('');
+  const normalizedQuery = query.trim().toLowerCase();
 
   const filteredCustomers = useMemo(
     () =>
       customers.filter((c) => {
         if (originFilter !== 'all' && c.origin !== originFilter) return false;
         if (provisioningFilter !== 'all' && c.provisioning_state !== provisioningFilter) return false;
+        if (normalizedQuery) {
+          const haystack = [c.name, c.slug, c.contact_name, c.contact_email, c.auth_email]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          if (!haystack.includes(normalizedQuery)) return false;
+        }
         return true;
       }),
-    [customers, originFilter, provisioningFilter],
+    [customers, originFilter, provisioningFilter, normalizedQuery],
   );
 
   // Active customers are what you're managing day to day; a deactivated one
@@ -291,25 +306,38 @@ export function CustomersManager({ customers, lang }: { customers: AdminCustomer
             <option value="pending_subscription">{t(lang, 'admin_customers_pending_signup')}</option>
           </Select>
         </label>
+        <Input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t(lang, 'admin_search_placeholder')}
+          className={styles.searchBox}
+        />
         <span className={styles.filterCount}>
           {t(lang, 'admin_customers_filter_count').replace('{n}', String(filteredCustomers.length)).replace('{m}', String(customers.length))}
         </span>
       </div>
 
-      <Table>
-        {tableHead}
-        <tbody>{activeCustomers.map(renderCustomerRow)}</tbody>
-      </Table>
-
-      {deactivatedCustomers.length > 0 && (
+      {filteredCustomers.length === 0 ? (
+        <p className={styles.empty}>{t(lang, 'admin_search_no_results')}</p>
+      ) : (
         <>
-          <h2 className={styles.deactivatedHeading}>
-            {t(lang, 'admin_customers_deactivated_heading').replace('{n}', String(deactivatedCustomers.length))}
-          </h2>
           <Table>
             {tableHead}
-            <tbody>{deactivatedCustomers.map(renderCustomerRow)}</tbody>
+            <tbody>{activeCustomers.map(renderCustomerRow)}</tbody>
           </Table>
+
+          {deactivatedCustomers.length > 0 && (
+            <>
+              <h2 className={styles.deactivatedHeading}>
+                {t(lang, 'admin_customers_deactivated_heading').replace('{n}', String(deactivatedCustomers.length))}
+              </h2>
+              <Table>
+                {tableHead}
+                <tbody>{deactivatedCustomers.map(renderCustomerRow)}</tbody>
+              </Table>
+            </>
+          )}
         </>
       )}
 

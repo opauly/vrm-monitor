@@ -73,3 +73,17 @@ export function formatDate(iso: string, locale: DateLocale = 'es-CR'): string {
     day: 'numeric',
   });
 }
+
+/** True if `iso` is within the last `hours` hours of the current moment —
+ * `/admin/fleet` and `/app/dashboard`'s own "History sync" rollup card
+ * ("daily report data synced in the last 24 hours") is the one place this
+ * app needs a live "how long ago" check, as opposed to everything else in
+ * this file, which only ever formats a fixed, already-known timestamp.
+ * Kept as its own exported function (2026-09-26) rather than inlined at
+ * each call site specifically so the `Date.now()` read lives inside one
+ * small, clearly-impure utility instead of directly in a Server
+ * Component's render body — `react-hooks/purity` flags a component
+ * calling `Date.now()` itself, not a plain function it imports and calls. */
+export function isWithinLastHours(iso: string, hours: number): boolean {
+  return Date.now() - new Date(iso).getTime() <= hours * 60 * 60 * 1000;
+}

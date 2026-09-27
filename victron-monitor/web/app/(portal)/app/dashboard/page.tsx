@@ -4,7 +4,7 @@ import { requireCustomerAllowPending } from '@/lib/server/auth';
 import { getCustomer, getDashboardAccess, getCustomerFleetOverview, type FleetConnectionStatus, type FleetOverviewRow } from '@/lib/server/db';
 import { Table, Panel, Button, InfoTooltip } from '@/components/ui';
 import { PendingSubscriptionUpsell } from '@/components/app';
-import { formatDateTime, formatDateTimeInZone } from '@/lib/dates';
+import { formatDateTime, formatDateTimeInZone, isWithinLastHours } from '@/lib/dates';
 import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
 import { t, type Lang } from '@/lib/i18n/strings';
 import { FleetFreshness } from '../../../(admin)/admin/fleet/FleetFreshness';
@@ -191,11 +191,7 @@ export default async function CustomerDashboardPage() {
   const avgSoc = socSites.length > 0 ? Math.round((socSites.reduce((a, s) => a + (s.live_soc_pct ?? 0), 0) / socSites.length) * 10) / 10 : null;
   const lowestSoc = socSites.length > 0 ? socSites.reduce((min, s) => ((s.live_soc_pct ?? 0) < (min.live_soc_pct ?? 0) ? s : min)) : null;
 
-  const now = Date.now();
-  const historySyncedSites = sites.filter((s) => {
-    if (!s.vrm_last_synced_at) return false;
-    return now - new Date(s.vrm_last_synced_at).getTime() <= 24 * 60 * 60 * 1000;
-  });
+  const historySyncedSites = sites.filter((s) => s.vrm_last_synced_at !== null && isWithinLastHours(s.vrm_last_synced_at, 24));
 
   const outageSites = sites.filter((s) => s.week.outageCount > 0);
 

@@ -430,6 +430,8 @@ export const STRINGS = {
     admin_fleet_card_alarms_combined_desc:
       'Alarms (low battery/overload) and critical alerts (DC ripple, cell imbalance, temp fault) — both live, right now',
     admin_fleet_alarms_breakdown: '{alarms} alarm(s) · {critical} critical',
+    admin_search_placeholder: 'Search…',
+    admin_search_no_results: 'No results match your search.',
 
     admin_fleet_card_avg_soc_label: 'Avg SOC',
     admin_fleet_card_avg_soc_desc: 'Average state of charge across the fleet, right now',
@@ -1855,6 +1857,8 @@ export const STRINGS = {
     admin_fleet_card_alarms_combined_desc:
       'Alarmas (batería baja/sobrecarga) y alertas críticas (rizado de CD, desbalance de celdas, falla de temperatura) — ambas en vivo, ahora mismo',
     admin_fleet_alarms_breakdown: '{alarms} alarma(s) · {critical} crítica(s)',
+    admin_search_placeholder: 'Buscar…',
+    admin_search_no_results: 'Ningún resultado coincide con tu búsqueda.',
 
     admin_fleet_card_avg_soc_label: 'SOC promedio',
     admin_fleet_card_avg_soc_desc: 'Estado de carga promedio de la flota, ahora mismo',

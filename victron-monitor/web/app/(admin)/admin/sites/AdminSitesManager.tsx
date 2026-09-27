@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, startTransition, useMemo, useState } from 'react';
-import { Button, Select, Table } from '@/components/ui';
+import { Button, Input, Select, Table } from '@/components/ui';
 import { formatDateTime as formatDateTimeShared } from '@/lib/dates';
 import type { SiteRecord } from '@/lib/server/db';
 import type { AdminCustomerRow } from '@/lib/server/db/admin';
@@ -55,10 +55,25 @@ export function AdminSitesManager({
   const customerOriginById = new Map(customers.map((c) => [c.id, c.origin]));
 
   const [originFilter, setOriginFilter] = useState<OriginFilter>('all');
+  // Live-filters as the admin types (2026-09-26, Oscar's own request) —
+  // same plain client-side approach as the Origin select above. Matches
+  // on the site's own name/id plus its customer's name, since "find this
+  // site" and "find this customer's sites" are both real ways to land here.
+  const [query, setQuery] = useState('');
+  const normalizedQuery = query.trim().toLowerCase();
+
   const filteredSites = useMemo(
-    () => sites.filter((s) => originFilter === 'all' || customerOriginById.get(s.customer_id) === originFilter),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- customerOriginById is rebuilt fresh every render from `customers`, not stable across renders
-    [sites, originFilter, customers],
+    () =>
+      sites.filter((s) => {
+        if (originFilter !== 'all' && customerOriginById.get(s.customer_id) !== originFilter) return false;
+        if (normalizedQuery) {
+          const haystack = [s.display_name, s.site_id, customerNameById.get(s.customer_id)].filter(Boolean).join(' ').toLowerCase();
+          if (!haystack.includes(normalizedQuery)) return false;
+        }
+        return true;
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- customerOriginById/customerNameById are rebuilt fresh every render from `customers`, not stable across renders
+    [sites, originFilter, normalizedQuery, customers],
   );
 
   function handleReassign(siteId: string) {
@@ -84,11 +99,21 @@ export function AdminSitesManager({
             <option value="self_serve">{t(lang, 'admin_customers_origin_self_serve')}</option>
           </Select>
         </label>
+        <Input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t(lang, 'admin_search_placeholder')}
+          className={styles.searchBox}
+        />
         <span className={styles.filterCount}>
           {t(lang, 'admin_sites_filter_count').replace('{n}', String(filteredSites.length)).replace('{m}', String(sites.length))}
         </span>
       </div>
 
+      {filteredSites.length === 0 ? (
+        <p className={styles.empty}>{t(lang, 'admin_search_no_results')}</p>
+      ) : (
       <Table>
         <thead>
           <tr>
@@ -177,6 +202,7 @@ export function AdminSitesManager({
           ))}
         </tbody>
       </Table>
+      )}
     </div>
   );
 }

@@ -2,11 +2,12 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/server/auth';
 import { getFleetOverview, type FleetConnectionStatus, type FleetOverviewRow } from '@/lib/server/db/admin';
-import { Table, InfoTooltip } from '@/components/ui';
-import { formatDateTime, formatDateTimeInZone } from '@/lib/dates';
+import { InfoTooltip } from '@/components/ui';
+import { formatDateTime, isWithinLastHours } from '@/lib/dates';
 import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
 import { t, type Lang } from '@/lib/i18n/strings';
 import { FleetFreshness } from './FleetFreshness';
+import { FleetSitesTable } from './FleetSitesTable';
 import { FlowDiagram } from './FlowDiagram';
 import { ShapeChart } from './ShapeChart';
 import styles from './fleet.module.css';
@@ -32,32 +33,6 @@ function connectionLabel(status: FleetConnectionStatus, lang: Lang): string {
   if (status === 'online') return t(lang, 'admin_fleet_status_online');
   if (status === 'stale') return t(lang, 'admin_fleet_status_stale');
   return t(lang, 'admin_fleet_status_never');
-}
-
-function connectionClass(status: FleetConnectionStatus): string {
-  if (status === 'online') return styles.dotOnline;
-  if (status === 'stale') return styles.dotStale;
-  return styles.dotNever;
-}
-
-// Same 4-tier thresholds `vrm_api/report_delivery.py:_health_score_colors()`
-// already uses for the emailed report's own health badge — kept visually
-// consistent with what a customer's report shows, not a second scale
-// invented for this admin-only view.
-function healthClass(score: number | null): string {
-  if (score === null) return styles.healthNone;
-  if (score >= 90) return styles.healthExcellent;
-  if (score >= 80) return styles.healthGood;
-  if (score >= 70) return styles.healthFair;
-  return styles.healthPoor;
-}
-
-// `null` (signal not published by this installation, or no snapshot yet)
-// reads as an em dash, same convention every other "no data" field on this
-// page already uses — never a fabricated "0 W".
-function formatWatts(w: number | null): string {
-  if (w === null) return '—';
-  return Math.abs(w) >= 1000 ? `${(w / 1000).toFixed(1)}kW` : `${Math.round(w)}W`;
 }
 
 // Every rollup card's breakdown list, sorted by whatever value that card
@@ -86,77 +61,6 @@ function sortedAlphabetically(sites: FleetOverviewRow[]): FleetOverviewRow[] {
   return [...sites].sort((a, b) => a.display_name.localeCompare(b.display_name));
 }
 
-function row(site: FleetOverviewRow, lang: Lang) {
-  return (
-    <tr key={site.site_id}>
-      <td>
-        <div>{site.display_name}</div>
-        <div className={`${styles.sub} ${styles.nowrap}`}>{site.customer_name}</div>
-      </td>
-      <td>
-        <span className={`${styles.dot} ${connectionClass(site.connection_status)}`} aria-hidden="true" />
-        {connectionLabel(site.connection_status, lang)}
-        <div className={`${styles.sub} ${styles.nowrap}`}>
-          {t(lang, 'admin_fleet_report_data')} {site.vrm_last_synced_at ? formatDateTime(site.vrm_last_synced_at, 'en-US') : t(lang, 'admin_fleet_never')}
-        </div>
-      </td>
-      <td>
-        <div className={styles.scorePair}>
-          <span
-            className={`${styles.healthBadge} ${styles.nowrap} ${healthClass(site.system_score)}`}
-            title={site.system_notes ? site.system_notes.split(';').map((n) => n.trim()).filter(Boolean).join('\n') : undefined}
-          >
-            {t(lang, 'admin_fleet_badge_sys')} {site.system_score === null ? '—' : `${site.system_score}/100`}
-          </span>
-          <span
-            className={`${styles.healthBadge} ${styles.nowrap} ${healthClass(site.grid_score)}`}
-            title={site.grid_notes ? site.grid_notes.split(';').map((n) => n.trim()).filter(Boolean).join('\n') : undefined}
-          >
-            {t(lang, 'admin_fleet_badge_grid')} {site.grid_score === null ? '—' : `${site.grid_score}/100`}
-          </span>
-        </div>
-        {site.health_date && (
-          <div className={`${styles.sub} ${styles.nowrap}`}>{t(lang, 'admin_fleet_as_of').replace('{date}', site.health_date)}</div>
-        )}
-      </td>
-      <td>{site.active_alarms > 0 ? <span className={styles.alarmCount}>{site.active_alarms}</span> : '0'}</td>
-      <td>{site.active_critical_alerts > 0 ? <span className={styles.alarmCount}>{site.active_critical_alerts}</span> : '0'}</td>
-      <td>
-        {site.live_captured_at ? (
-          <>
-            <div className={styles.nowrap}>
-              {t(lang, 'admin_fleet_pv_load').replace('{pv}', formatWatts(site.live_pv_power_w)).replace('{load}', formatWatts(site.live_load_power_w))}
-            </div>
-            <div className={`${styles.sub} ${styles.nowrap}`}>
-              {t(lang, 'admin_fleet_batt_soc')
-                .replace('{batt}', formatWatts(site.live_battery_power_w))
-                .replace('{soc}', site.live_soc_pct === null ? '—' : `${site.live_soc_pct}%`)}
-            </div>
-            <div className={`${styles.sub} ${styles.nowrap}`}>
-              {t(lang, 'admin_fleet_as_of').replace('{date}', formatDateTimeInZone(site.live_captured_at, site.timezone, 'en-US'))}
-            </div>
-          </>
-        ) : (
-          <span className={styles.sub}>{t(lang, 'admin_fleet_no_live_reading')}</span>
-        )}
-      </td>
-      <td>
-        {site.specific_yield_kwh_per_kwp === null ? (
-          <span className={styles.sub}>—</span>
-        ) : (
-          <span className={styles.yield}>{site.specific_yield_kwh_per_kwp} kWh/kWp</span>
-        )}
-      </td>
-      <td className={`${styles.sub} ${styles.nowrap}`}>{site.system_type}</td>
-      <td>
-        <Link href={`/admin/fleet/${encodeURIComponent(site.site_id)}`} className={styles.viewLive}>
-          {t(lang, 'admin_fleet_view_live')} →
-        </Link>
-      </td>
-    </tr>
-  );
-}
-
 export default async function AdminFleetPage() {
   const session = await requireAdmin();
   const lang = session.uiLanguage;
@@ -181,7 +85,6 @@ export default async function AdminFleetPage() {
   const totalBattery = batterySites.reduce((a, s) => a + (s.live_battery_power_w ?? 0), 0);
   const totalGrid = meteredSites.reduce((a, s) => a + (s.live_grid_power_w ?? 0), 0);
   const avgSoc = socSites.length > 0 ? Math.round((socSites.reduce((a, s) => a + (s.live_soc_pct ?? 0), 0) / socSites.length) * 10) / 10 : null;
-  const lowestSoc = socSites.length > 0 ? socSites.reduce((min, s) => ((s.live_soc_pct ?? 0) < (min.live_soc_pct ?? 0) ? s : min)) : null;
 
   // "History Sync" — the DAILY report-data pipeline's own freshness
   // (vrm_last_synced_at), deliberately separate from "Online" above (the
@@ -189,11 +92,7 @@ export default async function AdminFleetPage() {
   // two are independent pipelines that can genuinely disagree. 24h, not
   // the per-site "Online" badge's 45-minute window: this is a daily-grade
   // signal, checking "did today's sync actually run," not "is it live."
-  const now = Date.now();
-  const historySyncedSites = sites.filter((s) => {
-    if (!s.vrm_last_synced_at) return false;
-    return now - new Date(s.vrm_last_synced_at).getTime() <= 24 * 60 * 60 * 1000;
-  });
+  const historySyncedSites = sites.filter((s) => s.vrm_last_synced_at !== null && isWithinLastHours(s.vrm_last_synced_at, 24));
 
   // Outages this week — from the same real energy_daily-derived figures
   // the per-site "This week" panel already shows, not a live signal (an
@@ -575,28 +474,7 @@ export default async function AdminFleetPage() {
             lang={lang}
           />
 
-          <Table>
-            <thead>
-              <tr>
-                <th>{t(lang, 'admin_sites_col_site')}</th>
-                <th>{t(lang, 'admin_fleet_col_connection')}</th>
-                <th>{t(lang, 'admin_reports_stat_health')}</th>
-                <th>{t(lang, 'admin_upload_col_hist_alarms')}</th>
-                <th>{t(lang, 'admin_fleet_col_critical_alerts')}</th>
-                <th>{t(lang, 'admin_fleet_col_live')}</th>
-                <th>{t(lang, 'admin_fleet_col_yield')}</th>
-                <th>{t(lang, 'admin_customers_col_type')}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>{sites.map((s) => row(s, lang))}</tbody>
-          </Table>
-
-          {lowestSoc && (
-            <p className={styles.sub} style={{ marginTop: 10 }}>
-              {t(lang, 'admin_fleet_lowest_soc').replace('{pct}', String(lowestSoc.live_soc_pct)).replace('{name}', lowestSoc.display_name)}
-            </p>
-          )}
+          <FleetSitesTable sites={sites} lang={lang} />
         </>
       )}
     </div>

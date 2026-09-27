@@ -64,6 +64,18 @@
   font-size: 12px;
   color: var(--mute);
 }
+/* Grows to fill whatever room the Selects/count leave in .filtersRow,
+   rather than sitting at the Input base component's own `width: 100%`
+   (which inside a flex row with no basis would otherwise fight the other
+   controls for space). */
+.searchBox {
+  flex: 1 1 200px;
+  min-width: 160px;
+  width: auto;
+}
+.empty {
+  color: var(--paper-dim);
+}
 
 .rowError {
   color: var(--signal);

@@ -14,7 +14,7 @@
 // this page exists to surface (PLAN_PHASE16.md §7's "the only evidence an
 // attempt happened").
 import { useMemo, useState } from 'react';
-import { Select } from '@/components/ui';
+import { Input, Select } from '@/components/ui';
 import type { IngestionLogRecord, ReportRunRecord } from '@/lib/server/db';
 import type { BillingEventRecord } from '@/lib/server/db/types';
 import type { AdminCustomerRow, AdminSignupRow } from '@/lib/server/db/admin';
@@ -58,25 +58,52 @@ export function ActivityManager({
     return originById.get(customerId) === originFilter;
   }
 
+  // Live-filters all four tables at once as the admin types (2026-09-26,
+  // Oscar's own request) — one search box for the whole page, same "one
+  // control governs every table" precedent the Origin filter above already
+  // sets, since they're all views of the same cross-customer log. Each
+  // table matches against whatever text is actually meaningful for it
+  // (there's no one shared shape across ingestion logs, billing events,
+  // signups, and report runs to search generically).
+  const [query, setQuery] = useState('');
+  const normalizedQuery = query.trim().toLowerCase();
+  function matchesQuery(...fields: (string | null | undefined)[]): boolean {
+    if (!normalizedQuery) return true;
+    return fields.filter(Boolean).join(' ').toLowerCase().includes(normalizedQuery);
+  }
+
   const filteredIngestions = useMemo(
-    () => ingestions.filter((log) => matchesOrigin(customerIdBySite[log.site_id])),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesOrigin is rebuilt fresh every render from stable inputs already listed
-    [ingestions, customerIdBySite, originById, originFilter],
+    () =>
+      ingestions.filter(
+        (log) =>
+          matchesOrigin(customerIdBySite[log.site_id]) &&
+          matchesQuery(customerNameBySite[log.site_id], displayNameBySite[log.site_id], log.filename),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesOrigin/matchesQuery are rebuilt fresh every render from stable inputs already listed
+    [ingestions, customerIdBySite, customerNameBySite, displayNameBySite, originById, originFilter, normalizedQuery],
   );
   const filteredBillingEvents = useMemo(
-    () => billingEvents.filter((ev) => matchesOrigin(ev.customer_id)),
+    () =>
+      billingEvents.filter(
+        (ev) => matchesOrigin(ev.customer_id) && matchesQuery(ev.customer_id ? customerNameById[ev.customer_id] : null, ev.event_type),
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [billingEvents, originById, originFilter],
+    [billingEvents, customerNameById, originById, originFilter, normalizedQuery],
   );
   const filteredSignups = useMemo(
-    () => signups.filter((s) => matchesOrigin(s.customer_id)),
+    () => signups.filter((s) => matchesOrigin(s.customer_id) && matchesQuery(s.email, s.name)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [signups, originById, originFilter],
+    [signups, originById, originFilter, normalizedQuery],
   );
   const filteredReportRuns = useMemo(
-    () => reportRuns.filter((run) => matchesOrigin(run.customer_id)),
+    () =>
+      reportRuns.filter(
+        (run) =>
+          matchesOrigin(run.customer_id) &&
+          matchesQuery(customerNameById[run.customer_id], displayNameBySite[run.site_id], run.trigger),
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [reportRuns, originById, originFilter],
+    [reportRuns, customerNameById, displayNameBySite, originById, originFilter, normalizedQuery],
   );
 
   return (
@@ -90,6 +117,13 @@ export function ActivityManager({
             <option value="self_serve">{t(lang, 'admin_customers_origin_self_serve')}</option>
           </Select>
         </label>
+        <Input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t(lang, 'admin_search_placeholder')}
+          className={styles.searchBox}
+        />
       </div>
 
       <ActivityTable ingestions={filteredIngestions} customerNameBySite={customerNameBySite} displayNameBySite={displayNameBySite} lang={lang} />
