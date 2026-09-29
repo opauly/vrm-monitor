@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { NavAuthArea } from './NavAuthArea';
 import { MobileMenu } from './MobileMenu';
 import styles from './Nav.module.css';
@@ -59,11 +60,18 @@ const LOGO_HEIGHT = 156;
 // visitor who already has a session sees an account menu instead, rather
 // than buttons for an action they've already taken. See that component's
 // own header comment for why this couldn't just be decided here.
-export function Nav() {
+export function Nav({ lang, altHref }: { lang: Lang; altHref: string }) {
+  // `/es` prefix on this page's own in-page anchors/routes only — never on
+  // /signup, /login, mailto, or the language toggle's own `altHref` (that
+  // one IS the other language's full path already, computed by the
+  // caller — see each page.tsx's own header comment).
+  const base = lang === 'es' ? '/es' : '';
+  const altLabel = lang === 'es' ? 'EN' : 'ES';
+
   return (
     <nav className={styles.nav}>
       <div className={`wrap ${styles.inner}`}>
-        <Link href="/" className={styles.brand}>
+        <Link href={base || '/'} className={styles.brand}>
           <Image
             src="/pauly_logo.png"
             alt="Pauly & Co."
@@ -77,23 +85,26 @@ export function Nav() {
         </Link>
         <div className={styles.links}>
           <div className={styles.dropdown}>
-            <Link href="/#how" className={styles.dropdownTrigger}>
-              How it works
+            <Link href={`${base}/#how`} className={styles.dropdownTrigger}>
+              {t(lang, 'marketing_nav_how')}
               <span className={styles.caret} aria-hidden="true">
                 &#9662;
               </span>
             </Link>
             <div className={styles.dropdownMenu}>
-              <Link href="/#how">Overview</Link>
-              <Link href="/#integrator">Why Victron-recommended</Link>
-              <Link href="/#capabilities">Dashboard &amp; reports</Link>
+              <Link href={`${base}/#how`}>{t(lang, 'marketing_nav_how_overview')}</Link>
+              <Link href={`${base}/#integrator`}>{t(lang, 'marketing_nav_how_integrator')}</Link>
+              <Link href={`${base}/#capabilities`}>{t(lang, 'marketing_nav_how_capabilities')}</Link>
             </div>
           </div>
-          <Link href="/whats-inside">What&apos;s inside</Link>
-          <Link href="/#pricing">Pricing</Link>
-          <NavAuthArea />
+          <Link href={`${base}/whats-inside`}>{t(lang, 'marketing_nav_whats_inside')}</Link>
+          <Link href={`${base}/#pricing`}>{t(lang, 'marketing_nav_pricing')}</Link>
+          <Link href={altHref} className={styles.langToggle} aria-label={t(lang, 'marketing_lang_toggle_label')}>
+            {altLabel}
+          </Link>
+          <NavAuthArea lang={lang} />
         </div>
-        <MobileMenu />
+        <MobileMenu lang={lang} altHref={altHref} />
       </div>
     </nav>
   );

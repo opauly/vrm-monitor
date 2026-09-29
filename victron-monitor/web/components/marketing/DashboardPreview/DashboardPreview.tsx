@@ -1,5 +1,6 @@
 import { Eyebrow, Panel } from '@/components/ui';
 import { ShapeChart } from '@/app/(admin)/admin/fleet/ShapeChart';
+import { t, type Lang } from '@/lib/i18n/strings';
 import styles from './DashboardPreview.module.css';
 
 // The illustrative "sample fleet" panel, extracted from LiveDashboard.tsx
@@ -60,32 +61,27 @@ const TIER_CLASS: Record<ReturnType<typeof scoreTier>, string> = {
   poor: styles.healthPoor,
 };
 
-export function DashboardPreview() {
+export function DashboardPreview({ lang }: { lang: Lang }) {
   return (
     <>
-      <Panel
-        variant="readout"
-        hairline
-        role="img"
-        aria-label="Sample fleet dashboard listing three sites, each with a System score and a Grid score: Casa Modelo online at System 86, Grid 91; Finca El Roble online at System 92, Grid 88; and Bodega Central flagged for quiet drift at System 76, Grid 84 — each with a live solar reading"
-      >
+      <Panel variant="readout" hairline role="img" aria-label={t(lang, 'marketing_dashboard_aria')}>
         <div className={styles.head}>
           <span className={styles.site}>
-            SAMPLE FLEET <b>· LIVE VIEW</b>
+            {t(lang, 'marketing_dashboard_site_label')} <b>· {t(lang, 'marketing_dashboard_period')}</b>
           </span>
           <Eyebrow amber className={styles.liveEyebrow}>
-            Live
+            {t(lang, 'marketing_readout_live')}
           </Eyebrow>
         </div>
         <div className={styles.summaryRow}>
           <span>
-            <b className={styles.summaryGood}>12/12</b> sites online
+            <b className={styles.summaryGood}>12/12</b> {t(lang, 'marketing_dashboard_sites_online')}
           </span>
           <span>
-            avg system <b className={styles.summaryGood}>85/100</b>
+            {t(lang, 'marketing_dashboard_avg_system')} <b className={styles.summaryGood}>85/100</b>
           </span>
           <span>
-            avg grid <b className={styles.summaryGood}>88/100</b>
+            {t(lang, 'marketing_dashboard_avg_grid')} <b className={styles.summaryGood}>88/100</b>
           </span>
         </div>
         <ul className={styles.siteList}>
@@ -101,16 +97,14 @@ export function DashboardPreview() {
             </li>
           ))}
         </ul>
-        <p className={styles.narr}>
-          <b>Bodega Central</b> flagged for quiet drift — generating 18% below its own recent baseline.
-        </p>
+        <p className={styles.narr}>{t(lang, 'marketing_dashboard_flagged_narrative')}</p>
       </Panel>
 
       <div className={styles.liveChartWrap}>
         <ShapeChart
           siteIds={['casa-modelo']}
           title="Casa Modelo"
-          cardSub="Sample site · the real live chart, not a mockup — powered by fabricated data, same component every customer's dashboard renders"
+          cardSub={t(lang, 'marketing_dashboard_chart_sub')}
           apiBasePath="/api/marketing/dashboard-sample"
         />
       </div>

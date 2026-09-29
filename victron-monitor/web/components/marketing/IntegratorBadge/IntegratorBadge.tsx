@@ -1,3 +1,4 @@
+import { t, type Lang } from '@/lib/i18n/strings';
 import styles from './IntegratorBadge.module.css';
 
 // Pauly & Co's real acceptance into Victron Energy's "Recommended Software
@@ -9,12 +10,12 @@ import styles from './IntegratorBadge.module.css';
 const ANNOUNCEMENT_URL =
   'https://www.victronenergy.com/blog/2024/12/04/introducing-our-new-software-integrator-program/';
 
-export function IntegratorBadge({ className }: { className?: string }) {
+export function IntegratorBadge({ lang, className }: { lang: Lang; className?: string }) {
   const classes = [styles.badge, className].filter(Boolean).join(' ');
   return (
     <a className={classes} href={ANNOUNCEMENT_URL} target="_blank" rel="noopener noreferrer">
       <span className={styles.dot} aria-hidden="true" />
-      Victron Recommended Software Integrator — Costa Rica
+      {t(lang, 'marketing_integrator_badge')}
     </a>
   );
 }

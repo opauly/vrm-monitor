@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ModeToggle, Panel, SectionHead } from '@/components/ui';
 import { FIXED_MODULE_ICONS, REPORT_MODULE_ICONS } from '@/lib/reportModuleThumbnails';
+import { t, type Lang } from '@/lib/i18n/strings';
 import styles from './ModuleGrid.module.css';
 
 type Mode = 'detallado' | 'overview';
@@ -24,159 +25,130 @@ type Mode = 'detallado' | 'overview';
 // the others — and every card's `mode`-dependent text still updates live
 // even while its group is collapsed, since <details> only hides content
 // visually, it doesn't unmount it.
-export function ModuleGrid() {
+export function ModuleGrid({ lang }: { lang: Lang }) {
   const [mode, setMode] = useState<Mode>('detallado');
+  const detailed = mode === 'detallado';
 
   return (
     <section id="modules">
       <div className="wrap">
-        <SectionHead
-          eyebrow="What's inside"
-          lede="Sixteen sections, computed once. Every plan gets a solid default report automatically, safety alerts included — Growth and Fleet installers can choose exactly which sections appear on each site's report, including a few that only apply if you've got a generator, tank, or physical grid meter wired in. Two sections also read differently depending on the range you pick — try the toggle."
-        >
-          Every section a report
+        <SectionHead eyebrow={t(lang, 'marketing_modules_eyebrow')} lede={t(lang, 'marketing_modules_lede')}>
+          {t(lang, 'marketing_modules_title_a')}
           <br />
-          can contain.
+          {t(lang, 'marketing_modules_title_b')}
         </SectionHead>
 
         <div className={styles.toggleRow}>
           <ModeToggle
-            aria-label="Report mode"
+            aria-label={t(lang, 'marketing_modules_toggle_aria')}
             value={mode}
             onChange={(next) => setMode(next as Mode)}
             options={[
-              { value: 'detallado', label: 'Detailed · ≤31 days' },
-              { value: 'overview', label: 'Overview · 32 days–6 months' },
+              { value: 'detallado', label: t(lang, 'marketing_modules_toggle_detailed') },
+              { value: 'overview', label: t(lang, 'marketing_modules_toggle_overview') },
             ]}
           />
-          <span className={styles.hint}>Past 31 days, the report switches itself — no setting to remember.</span>
+          <span className={styles.hint}>{t(lang, 'marketing_modules_toggle_hint')}</span>
         </div>
 
-        <p className={styles.groupHint}>Click any group to see what it contains.</p>
+        <p className={styles.groupHint}>{t(lang, 'marketing_modules_group_hint')}</p>
 
         <div className={styles.groups}>
           <details className={styles.group}>
             <summary className={styles.groupSummary}>
-              <h3>Scoring &amp; story</h3>
-              <span className={styles.groupCount}>3 sections</span>
+              <h3>{t(lang, 'marketing_modules_group1_title')}</h3>
+              <span className={styles.groupCount}>{t(lang, 'marketing_modules_group1_count')}</span>
             </summary>
             <div className={styles.groupGrid}>
               <Panel className={styles.moduleCard} variant="card" interactive led>
                 <span className={styles.icon} aria-hidden="true">{FIXED_MODULE_ICONS.kpi}</span>
-                <span className={styles.tag}>Scoring</span>
-                <h3>Health score</h3>
-                <p className={styles.body}>
-                  0–100, alongside solar generation, grid independence, and events for the period — one number a
-                  homeowner can actually track over time.
-                </p>
+                <span className={styles.tag}>{t(lang, 'marketing_modules_tag_scoring')}</span>
+                <h3>{t(lang, 'marketing_modules_kpi_title')}</h3>
+                <p className={styles.body}>{t(lang, 'marketing_modules_kpi_body')}</p>
               </Panel>
 
               <Panel className={styles.moduleCard} variant="card" interactive led>
                 <span className={styles.icon} aria-hidden="true">{FIXED_MODULE_ICONS.narrative}</span>
-                <span className={styles.tag}>Narrative</span>
-                <h3>AI narrative</h3>
+                <span className={styles.tag}>{t(lang, 'marketing_modules_tag_narrative')}</span>
+                <h3>{t(lang, 'marketing_modules_narrative_title')}</h3>
                 <p className={styles.body}>
-                  {mode === 'detallado'
-                    ? 'A short paragraph explaining what happened this period — plain language, not a wall of numbers.'
-                    : 'A paragraph that describes how the system trended across segments — improving, worsening, or steady — not one lump total.'}
+                  {detailed ? t(lang, 'marketing_modules_narrative_body_detailed') : t(lang, 'marketing_modules_narrative_body_overview')}
                 </p>
               </Panel>
 
               <Panel className={styles.moduleCard} variant="card" interactive led>
                 <span className={styles.icon} aria-hidden="true">{REPORT_MODULE_ICONS.savings}</span>
-                <span className={styles.tag}>Savings</span>
-                <h3>Estimated savings</h3>
-                <p className={styles.body}>
-                  Estimated electricity cost avoided this period by using solar instead of buying from the grid — a
-                  real number, never a placeholder.
-                </p>
+                <span className={styles.tag}>{t(lang, 'marketing_modules_tag_savings')}</span>
+                <h3>{t(lang, 'marketing_modules_savings_title')}</h3>
+                <p className={styles.body}>{t(lang, 'marketing_modules_savings_body')}</p>
               </Panel>
             </div>
           </details>
 
           <details className={styles.group}>
             <summary className={styles.groupSummary}>
-              <h3>Solar &amp; energy</h3>
-              <span className={styles.groupCount}>5 sections</span>
+              <h3>{t(lang, 'marketing_modules_group2_title')}</h3>
+              <span className={styles.groupCount}>{t(lang, 'marketing_modules_group2_count')}</span>
             </summary>
             <div className={styles.groupGrid}>
               <Panel className={styles.moduleCard} variant="card" interactive led>
                 <span className={styles.icon} aria-hidden="true">{FIXED_MODULE_ICONS.bar_chart}</span>
-                <span className={styles.adapts}>Adapts to range</span>
-                <h3>{mode === 'detallado' ? 'Daily solar vs. consumption' : 'Solar vs. consumption'}</h3>
+                <span className={styles.adapts}>{t(lang, 'marketing_modules_tag_adapts')}</span>
+                <h3>{detailed ? t(lang, 'marketing_modules_bar_title_detailed') : t(lang, 'marketing_modules_bar_title_overview')}</h3>
                 <p className={styles.body}>
-                  {mode === 'detallado'
-                    ? 'Compares daily solar production against household consumption for each day in this period.'
-                    : 'Compares solar production against household consumption for each segment of this period.'}
+                  {detailed ? t(lang, 'marketing_modules_bar_body_detailed') : t(lang, 'marketing_modules_bar_body_overview')}
                 </p>
               </Panel>
 
               <Panel className={styles.moduleCard} variant="card" interactive led>
                 <span className={styles.icon} aria-hidden="true">{REPORT_MODULE_ICONS.energy_mix}</span>
-                <span className={styles.tag}>Energy mix</span>
-                <h3>Where your energy came from</h3>
-                <p className={styles.body}>
-                  Shows how much of your energy came from solar panels, batteries, and the utility grid — one donut,
-                  always up to date.
-                </p>
+                <span className={styles.tag}>{t(lang, 'marketing_modules_tag_energy_mix')}</span>
+                <h3>{t(lang, 'marketing_modules_energy_mix_title')}</h3>
+                <p className={styles.body}>{t(lang, 'marketing_modules_energy_mix_body')}</p>
               </Panel>
 
               <Panel className={styles.moduleCard} variant="card" interactive led>
                 <span className={styles.icon} aria-hidden="true">{REPORT_MODULE_ICONS.solar_performance}</span>
-                <span className={styles.tag}>Performance</span>
-                <h3>Solar performance</h3>
-                <p className={styles.body}>
-                  Compares real solar production to the theoretical maximum, based on your panel capacity and the
-                  sunlight actually available.
-                </p>
+                <span className={styles.tag}>{t(lang, 'marketing_modules_tag_performance')}</span>
+                <h3>{t(lang, 'marketing_modules_solar_performance_title')}</h3>
+                <p className={styles.body}>{t(lang, 'marketing_modules_solar_performance_body')}</p>
               </Panel>
 
               <Panel className={styles.moduleCard} variant="card" interactive led>
                 <span className={styles.icon} aria-hidden="true">{REPORT_MODULE_ICONS.trend}</span>
-                <span className={styles.fixedBadge}>Always weekly</span>
-                <h3>4-week solar trend</h3>
-                <p className={styles.body}>
-                  Compares production across the past 4 weeks to spot seasonal patterns — fixed at this cadence on
-                  purpose, whatever range you picked.
-                </p>
+                <span className={styles.fixedBadge}>{t(lang, 'marketing_modules_badge_always_weekly')}</span>
+                <h3>{t(lang, 'marketing_modules_trend_title')}</h3>
+                <p className={styles.body}>{t(lang, 'marketing_modules_trend_body')}</p>
               </Panel>
 
               <Panel className={styles.moduleCard} variant="card" interactive led>
                 <span className={styles.icon} aria-hidden="true">{REPORT_MODULE_ICONS.weather}</span>
-                <span className={styles.tag}>Weather</span>
-                <h3>Weather context</h3>
-                <p className={styles.body}>
-                  Local conditions for this period — cloud cover and rain directly reduce solar output, so the
-                  report accounts for them.
-                </p>
+                <span className={styles.tag}>{t(lang, 'marketing_modules_tag_weather')}</span>
+                <h3>{t(lang, 'marketing_modules_weather_title')}</h3>
+                <p className={styles.body}>{t(lang, 'marketing_modules_weather_body')}</p>
               </Panel>
             </div>
           </details>
 
           <details className={styles.group}>
             <summary className={styles.groupSummary}>
-              <h3>Battery</h3>
-              <span className={styles.groupCount}>2 sections</span>
+              <h3>{t(lang, 'marketing_modules_group3_title')}</h3>
+              <span className={styles.groupCount}>{t(lang, 'marketing_modules_group3_count')}</span>
             </summary>
             <div className={styles.groupGrid}>
               <Panel className={styles.moduleCard} variant="card" interactive led>
                 <span className={styles.icon} aria-hidden="true">{REPORT_MODULE_ICONS.battery_health}</span>
-                <span className={styles.tag}>Battery</span>
-                <h3>Battery health</h3>
-                <p className={styles.body}>
-                  Tracks how well your batteries charged and discharged throughout this period — cycling stress,
-                  float days, voltage range.
-                </p>
+                <span className={styles.tag}>{t(lang, 'marketing_modules_tag_battery')}</span>
+                <h3>{t(lang, 'marketing_modules_battery_health_title')}</h3>
+                <p className={styles.body}>{t(lang, 'marketing_modules_battery_health_body')}</p>
               </Panel>
 
               <Panel className={styles.moduleCard} variant="card" interactive led>
                 <span className={styles.icon} aria-hidden="true">{REPORT_MODULE_ICONS.soc_chart}</span>
-                <span className={styles.adapts}>Adapts to range</span>
-                <h3>Battery SOC timeline</h3>
+                <span className={styles.adapts}>{t(lang, 'marketing_modules_tag_adapts')}</span>
+                <h3>{t(lang, 'marketing_modules_soc_title')}</h3>
                 <p className={styles.body}>
-                  {mode === 'detallado'
-                    ? 'Shows the daily high and low battery charge level — a dip below 20% signals heavy use.'
-                    : "Shows each segment's high and low battery charge level — a dip below 20% signals heavy use."}
+                  {detailed ? t(lang, 'marketing_modules_soc_body_detailed') : t(lang, 'marketing_modules_soc_body_overview')}
                 </p>
               </Panel>
             </div>
@@ -184,28 +156,22 @@ export function ModuleGrid() {
 
           <details className={styles.group}>
             <summary className={styles.groupSummary}>
-              <h3>Grid &amp; safety</h3>
-              <span className={styles.groupCount}>3 sections</span>
+              <h3>{t(lang, 'marketing_modules_group4_title')}</h3>
+              <span className={styles.groupCount}>{t(lang, 'marketing_modules_group4_count')}</span>
             </summary>
             <div className={styles.groupGrid}>
               <Panel className={styles.moduleCard} variant="card" interactive led>
                 <span className={styles.icon} aria-hidden="true">{REPORT_MODULE_ICONS.grid_quality}</span>
-                <span className={styles.tag}>Grid</span>
-                <h3>Grid quality</h3>
-                <p className={styles.body}>
-                  Measures the quality and stability of the utility grid supply at your site — frequency and
-                  voltage extremes, not just outages.
-                </p>
+                <span className={styles.tag}>{t(lang, 'marketing_modules_tag_grid')}</span>
+                <h3>{t(lang, 'marketing_modules_grid_quality_title')}</h3>
+                <p className={styles.body}>{t(lang, 'marketing_modules_grid_quality_body')}</p>
               </Panel>
 
               <Panel className={styles.moduleCard} variant="card" interactive led>
                 <span className={styles.icon} aria-hidden="true">{REPORT_MODULE_ICONS.events}</span>
-                <span className={styles.tag}>Events</span>
-                <h3>Outages &amp; alarms</h3>
-                <p className={styles.body}>
-                  Logs grid outages and alarm episodes recorded by the system during this period — the same
-                  definition your live monitoring uses. Scored toward the health score above.
-                </p>
+                <span className={styles.tag}>{t(lang, 'marketing_modules_tag_events')}</span>
+                <h3>{t(lang, 'marketing_modules_events_title')}</h3>
+                <p className={styles.body}>{t(lang, 'marketing_modules_events_body')}</p>
               </Panel>
 
               {/* PLAN_PHASE18.md §7 (2026-08-29) — critical_alerts is the one
@@ -215,44 +181,38 @@ export function ModuleGrid() {
                  rather than implied. */}
               <Panel className={styles.moduleCard} variant="card" interactive led>
                 <span className={styles.icon} aria-hidden="true">{REPORT_MODULE_ICONS.critical_alerts}</span>
-                <span className={styles.tag}>Safety</span>
-                <h3>Critical alerts</h3>
-                <p className={styles.body}>
-                  DC ripple, cell imbalance, and temperature faults on the battery system — tracked separately from
-                  the health score, included by default on every plan.
-                </p>
+                <span className={styles.tag}>{t(lang, 'marketing_modules_tag_safety')}</span>
+                <h3>{t(lang, 'marketing_modules_critical_alerts_title')}</h3>
+                <p className={styles.body}>{t(lang, 'marketing_modules_critical_alerts_body')}</p>
               </Panel>
             </div>
           </details>
 
           <details className={styles.group}>
             <summary className={styles.groupSummary}>
-              <h3>Optional add-ons</h3>
-              <span className={styles.groupCount}>3 sections</span>
+              <h3>{t(lang, 'marketing_modules_group5_title')}</h3>
+              <span className={styles.groupCount}>{t(lang, 'marketing_modules_group5_count')}</span>
             </summary>
             <div className={styles.groupGrid}>
               <Panel className={styles.moduleCard} variant="card" interactive led>
                 <span className={styles.icon} aria-hidden="true">{REPORT_MODULE_ICONS.grid_meter_detail}</span>
-                <span className={styles.conditional}>If a meter is installed</span>
-                <h3>Grid meter detail</h3>
-                <p className={styles.body}>
-                  Per-phase voltage, current, and power factor from a real physical grid meter, where one is wired
-                  into the system.
-                </p>
+                <span className={styles.conditional}>{t(lang, 'marketing_modules_conditional_meter')}</span>
+                <h3>{t(lang, 'marketing_modules_grid_meter_title')}</h3>
+                <p className={styles.body}>{t(lang, 'marketing_modules_grid_meter_body')}</p>
               </Panel>
 
               <Panel className={styles.moduleCard} variant="card" interactive led>
                 <span className={styles.icon} aria-hidden="true">{REPORT_MODULE_ICONS.generator_runtime}</span>
-                <span className={styles.conditional}>If a generator is installed</span>
-                <h3>Generator runtime</h3>
-                <p className={styles.body}>Hours the backup generator ran during the period.</p>
+                <span className={styles.conditional}>{t(lang, 'marketing_modules_conditional_generator')}</span>
+                <h3>{t(lang, 'marketing_modules_generator_title')}</h3>
+                <p className={styles.body}>{t(lang, 'marketing_modules_generator_body')}</p>
               </Panel>
 
               <Panel className={styles.moduleCard} variant="card" interactive led>
                 <span className={styles.icon} aria-hidden="true">{REPORT_MODULE_ICONS.tank_level}</span>
-                <span className={styles.conditional}>If a tank sensor is installed</span>
-                <h3>Tank level</h3>
-                <p className={styles.body}>Fuel or water tank capacity, fluid type, and last known status.</p>
+                <span className={styles.conditional}>{t(lang, 'marketing_modules_conditional_tank')}</span>
+                <h3>{t(lang, 'marketing_modules_tank_title')}</h3>
+                <p className={styles.body}>{t(lang, 'marketing_modules_tank_body')}</p>
               </Panel>
             </div>
           </details>

@@ -29,7 +29,12 @@ export const metadata: Metadata = {
   // preview URL both serve this same deployment, so search engines
   // credit the intended canonical host rather than whichever one they
   // happened to crawl first.
-  alternates: { canonical: '/' },
+  // `languages` (2026-09-27) pairs this URL with its /es counterpart via
+  // hreflang — the actual reason this rollout is URL-based rather than a
+  // cookie: Google can only index a language it can find its own URL for.
+  // `x-default` points at the English original for a visitor whose locale
+  // matches neither tag explicitly.
+  alternates: { canonical: '/', languages: { 'en-US': '/', 'es-CR': '/es', 'x-default': '/' } },
   openGraph: {
     title: 'VRM Monitor — Live dashboard + weekly reports for your Victron system',
     description:
@@ -102,20 +107,21 @@ export default async function MarketingPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(SOFTWARE_JSON_LD) }}
       />
-      <Nav />
+      <Nav lang="en" altHref="/es" />
       {stats && (
         <StatsBanner
           sitesMonitored={stats.sitesMonitored}
           installedKwp={stats.installedKwp}
           kwhTracked={stats.kwhTracked}
+          lang="en"
         />
       )}
-      <Hero />
-      <IntegratorSection />
-      <FlowSteps />
-      <CapabilitiesTeaser />
-      <Pricing starterPlanId={featuredPlans.starter} growthPlanId={featuredPlans.growth} />
-      <Footer />
+      <Hero lang="en" />
+      <IntegratorSection lang="en" />
+      <FlowSteps lang="en" />
+      <CapabilitiesTeaser lang="en" />
+      <Pricing starterPlanId={featuredPlans.starter} growthPlanId={featuredPlans.growth} lang="en" />
+      <Footer lang="en" />
     </>
   );
 }

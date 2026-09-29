@@ -2,28 +2,23 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Footer, Nav } from '@/components/marketing';
 import { t } from '@/lib/i18n/strings';
-import styles from '../legal.module.css';
+import styles from '../../legal.module.css';
 
 export const metadata: Metadata = {
-  title: 'Terms of Service',
-  description: 'The terms that govern use of VRM Monitor, including subscriptions, billing and cancellation.',
+  title: 'Términos de Servicio',
+  description: t('es', 'marketing_terms_meta_description'),
   alternates: { languages: { 'en-US': '/terms', 'es-CR': '/es/terms', 'x-default': '/terms' } },
 };
 
-const lang = 'en' as const;
+const lang = 'es' as const;
 
-// `app/(marketing)/terms` — same route-group shape as the marketing home
-// page (Nav + page content + Footer, no shared layout.tsx — see the home
-// page's own comment on why (marketing) doesn't have one). Content is a
-// first draft written from the product's real mechanics (PLAN_PHASE16.md),
-// not boilerplate — but still explicitly flagged as pending real legal
-// review per Oscar's own instruction, not a substitute for a lawyer. Same
-// draft status in the /es/terms counterpart (2026-09-27) — translating an
-// unreviewed draft doesn't make it more final in either language.
-export default function TermsPage() {
+// Spanish counterpart of app/(marketing)/terms/page.tsx (2026-09-27
+// rollout) — same "first draft, not lawyer-reviewed" content as the English
+// original; see that file's own header comment.
+export default function TermsPageEs() {
   return (
     <>
-      <Nav lang={lang} altHref="/es/terms" />
+      <Nav lang={lang} altHref="/terms" />
       <div className="wrap">
         <div className={styles.page}>
           <header className={styles.header}>
@@ -85,7 +80,7 @@ export default function TermsPage() {
             <h2>{t(lang, 'marketing_terms_s7_title')}</h2>
             <p>
               {t(lang, 'marketing_terms_s7_pre')}
-              <Link href="/privacy">{t(lang, 'marketing_terms_s7_linktext')}</Link>
+              <Link href="/es/privacy">{t(lang, 'marketing_terms_s7_linktext')}</Link>
               {t(lang, 'marketing_terms_s7_post')}
             </p>
 
@@ -112,7 +107,7 @@ export default function TermsPage() {
             </p>
           </div>
 
-          <Link href="/" className={styles.backLink}>
+          <Link href="/es" className={styles.backLink}>
             {t(lang, 'marketing_legal_back')}
           </Link>
         </div>

@@ -1,4 +1,5 @@
 import { Panel, SectionHead } from '@/components/ui';
+import { t, type Lang } from '@/lib/i18n/strings';
 import styles from './IntegratorSection.module.css';
 
 // Pauly & Co was accepted into Victron Energy's "Recommended Software
@@ -11,34 +12,22 @@ import styles from './IntegratorSection.module.css';
 const ANNOUNCEMENT_URL =
   'https://www.victronenergy.com/blog/2024/12/04/introducing-our-new-software-integrator-program/';
 
-const POINTS = [
-  {
-    title: 'Direct VRM API access',
-    body: "VRM Monitor connects straight into Victron's own Remote Monitoring infrastructure through the VRM API — not a scraped feed or a third-party workaround.",
-  },
-  {
-    title: 'Vetted, not self-declared',
-    body: 'Victron accepts a limited number of software integrators, reviewed on real project work — not an open badge anyone can claim.',
-  },
-  {
-    title: "Backed by Victron's own network",
-    body: "Access to Victron's developer resources, distributor network, and Latin America sales & training team, for every install this platform supports.",
-  },
-] as const;
+export function IntegratorSection({ lang }: { lang: Lang }) {
+  const points = [
+    { title: t(lang, 'marketing_integrator_point1_title'), body: t(lang, 'marketing_integrator_point1_body') },
+    { title: t(lang, 'marketing_integrator_point2_title'), body: t(lang, 'marketing_integrator_point2_body') },
+    { title: t(lang, 'marketing_integrator_point3_title'), body: t(lang, 'marketing_integrator_point3_body') },
+  ];
 
-export function IntegratorSection() {
   return (
     <section id="integrator" className="band">
       <div className="wrap">
-        <SectionHead
-          eyebrow="Recognized by Victron Energy"
-          lede="Pauly & Co. was accepted into Victron Energy's Recommended Software Integrator Program — Victron's invite-only network for software experts building custom integrations on its own products and VRM API."
-        >
-          A Victron Recommended Software Integrator
+        <SectionHead eyebrow={t(lang, 'marketing_integrator_eyebrow')} lede={t(lang, 'marketing_integrator_lede')}>
+          {t(lang, 'marketing_integrator_title')}
         </SectionHead>
 
         <div className={styles.grid}>
-          {POINTS.map((point) => (
+          {points.map((point) => (
             <Panel key={point.title} variant="card">
               <h3>{point.title}</h3>
               <p className={styles.body}>{point.body}</p>
@@ -47,7 +36,7 @@ export function IntegratorSection() {
         </div>
 
         <a className={styles.link} href={ANNOUNCEMENT_URL} target="_blank" rel="noopener noreferrer">
-          Read Victron&apos;s official announcement →
+          {t(lang, 'marketing_integrator_link')}
         </a>
       </div>
     </section>

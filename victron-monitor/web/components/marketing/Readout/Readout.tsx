@@ -1,4 +1,5 @@
 import { Eyebrow, Gauge, Panel, Stat } from '@/components/ui';
+import { t, type Lang } from '@/lib/i18n/strings';
 import styles from './Readout.module.css';
 
 // The hero's "instrument readout" module — landing_template.html's
@@ -8,32 +9,24 @@ import styles from './Readout.module.css';
 // KPI readout reuses later (Steps 4/6) — a real usage of the "extract
 // components/ui/* from the marketing markup first" ordering that §1.7
 // argues for.
-export function Readout() {
+export function Readout({ lang }: { lang: Lang }) {
   return (
-    <Panel
-      variant="readout"
-      hairline
-      role="img"
-      aria-label="Sample weekly report readout showing health score 84 out of 100, 429 kilowatt hours solar generated, 96.1 percent grid independence, and live gauges for self-sufficiency, self-consumption, and depth of discharge"
-    >
+    <Panel variant="readout" hairline role="img" aria-label={t(lang, 'marketing_readout_aria')}>
       <div className={styles.head}>
         <span className={styles.site}>
-          SAMPLE SITE <b>· 7-DAY REPORT</b>
+          {t(lang, 'marketing_readout_site_label')} <b>· {t(lang, 'marketing_readout_period')}</b>
         </span>
         <Eyebrow amber className={styles.liveEyebrow}>
-          Live
+          {t(lang, 'marketing_readout_live')}
         </Eyebrow>
       </div>
       <div className={styles.stats}>
-        <Stat label="Health score" value={84} unit="/100 · Good" good />
-        <Stat label="Solar generated" value={429} unit="kWh" />
-        <Stat label="Grid independence" value={96.1} unit="%" />
-        <Stat label="Alarm episodes" value={3} unit="events" />
+        <Stat label={t(lang, 'marketing_readout_stat_health')} value={84} unit={t(lang, 'marketing_readout_stat_health_unit')} good />
+        <Stat label={t(lang, 'marketing_readout_stat_solar')} value={429} unit="kWh" />
+        <Stat label={t(lang, 'marketing_readout_stat_independence')} value={96.1} unit="%" />
+        <Stat label={t(lang, 'marketing_readout_stat_alarms')} value={3} unit={t(lang, 'marketing_readout_stat_alarms_unit')} />
       </div>
-      <p className={styles.narr}>
-        &quot;The system produced <b>96.1% of what the home used</b> this week, with the battery covering every
-        evening peak. Grid draw stayed under 17 kWh total…&quot;
-      </p>
+      <p className={styles.narr}>&quot;{t(lang, 'marketing_readout_narrative')}&quot;</p>
 
       {/* Added 2026-09-05 (Oscar's request, seeing the real per-site
          dashboard's own gauge card) — the readout was all report numbers;
@@ -43,9 +36,9 @@ export function Readout() {
          discharge/signal (admin/fleet/[site_id]/page.tsx's own Gauge
          color choices). */}
       <div className={styles.gaugeRow}>
-        <Gauge pct={96.3} color="var(--good)" label="Self-sufficiency" compact />
-        <Gauge pct={91} color="var(--victron-glow)" label="Self-consumption" compact />
-        <Gauge pct={42} color="var(--signal)" label="Depth of discharge" compact />
+        <Gauge pct={96.3} color="var(--good)" label={t(lang, 'marketing_readout_gauge_self_sufficiency')} compact />
+        <Gauge pct={91} color="var(--victron-glow)" label={t(lang, 'marketing_readout_gauge_self_consumption')} compact />
+        <Gauge pct={42} color="var(--signal)" label={t(lang, 'marketing_readout_gauge_dod')} compact />
       </div>
     </Panel>
   );

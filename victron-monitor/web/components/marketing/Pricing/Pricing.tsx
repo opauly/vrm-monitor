@@ -1,9 +1,11 @@
 'use client';
 
 import { Button, Panel, SectionHead } from '@/components/ui';
+import { t, type Lang } from '@/lib/i18n/strings';
 import styles from './Pricing.module.css';
 
 export type PricingProps = {
+  lang: Lang;
   /** Real `vrm.plans.id` rows for the MONTHLY Starter/Growth tiers, in the
    * current `ONVO_MODE` (PLAN_PHASE16.md §8 Step 5.5 build item 7,
    * `lib/server/db/signup.ts:getFeaturedSelfServePlanIds()`) — fetched by
@@ -24,17 +26,14 @@ function signupHref(planId: string | null): string {
 // (2026-09-23) — nothing else here needs client state, but re-adding the
 // toggle later (see this file's own commented-out block further down)
 // shouldn't also require re-adding 'use client' at the same time.
-export function Pricing({ starterPlanId, growthPlanId }: PricingProps) {
+export function Pricing({ starterPlanId, growthPlanId, lang }: PricingProps) {
   return (
     <section id="pricing">
       <div className="wrap">
-        <SectionHead
-          eyebrow="Pricing"
-          lede="One flat rate per tier — no per-site math, no surprise bill as you add sites. Reports for every tier; live monitoring from Growth up."
-        >
-          Subscribe one system,
+        <SectionHead eyebrow={t(lang, 'marketing_pricing_eyebrow')} lede={t(lang, 'marketing_pricing_lede')}>
+          {t(lang, 'marketing_pricing_title_a')}
           <br />
-          or a whole fleet.
+          {t(lang, 'marketing_pricing_title_b')}
         </SectionHead>
 
         {/* Subscription-vs-Single-Report toggle, hidden 2026-09-23 (Oscar's
@@ -72,121 +71,121 @@ export function Pricing({ starterPlanId, growthPlanId }: PricingProps) {
         <>
             <div className={styles.trialBanner}>
               <span className={styles.trialBannerDot} aria-hidden="true" />
-              Every plan starts with a 7-day free trial — cancel before it ends and you won&apos;t be charged.
+              {t(lang, 'marketing_pricing_trial_banner')}
             </div>
             <div className={styles.grid}>
             <Panel variant="price">
               <div className={styles.head}>
-                <h3>Starter</h3>
-                <span className={styles.range}>Up to 10 sites</span>
+                <h3>{t(lang, 'marketing_pricing_starter_name')}</h3>
+                <span className={styles.range}>{t(lang, 'marketing_pricing_starter_range')}</span>
               </div>
               <div className={styles.num}>
-                $29.99<span className={styles.per}>/ mo</span>
+                $29.99<span className={styles.per}>{t(lang, 'marketing_pricing_per_mo')}</span>
               </div>
               <p className={styles.singleNote} style={{ marginTop: -8, marginBottom: 12 }}>
-                or $299.99 / yr
-                <span className={styles.yearlySavings}>Save 17%</span>
+                {t(lang, 'marketing_pricing_yearly_starter')}
+                <span className={styles.yearlySavings}>{t(lang, 'marketing_pricing_yearly_save')}</span>
               </p>
               <ul className={styles.features}>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
-                  Automatic weekly &amp; Overview reports
+                  {t(lang, 'marketing_pricing_starter_li1')}
                 </li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
-                  Up to 100 scheduled reports / mo
+                  {t(lang, 'marketing_pricing_starter_li2')}
                 </li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
-                  Health score + AI narrative
+                  {t(lang, 'marketing_pricing_starter_li3')}
                 </li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
-                  CSV upload or VRM API auto-sync
+                  {t(lang, 'marketing_pricing_starter_li4')}
                 </li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
-                  Spanish / English
+                  {t(lang, 'marketing_pricing_starter_li5')}
                 </li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
-                  Automatic email delivery
+                  {t(lang, 'marketing_pricing_starter_li6')}
                 </li>
               </ul>
               <Button href={signupHref(starterPlanId)} variant="ghost" style={{ justifyContent: 'center' }}>
-                Get started
+                {t(lang, 'marketing_cta_get_started')}
               </Button>
             </Panel>
 
-            <Panel variant="price" featured hairline featuredTag="Most installers">
+            <Panel variant="price" featured hairline featuredTag={t(lang, 'marketing_pricing_growth_featured_tag')}>
               <div className={styles.head}>
-                <h3>Growth</h3>
-                <span className={styles.range}>Up to 50 sites</span>
+                <h3>{t(lang, 'marketing_pricing_growth_name')}</h3>
+                <span className={styles.range}>{t(lang, 'marketing_pricing_growth_range')}</span>
               </div>
               <div className={styles.num}>
-                $99.99<span className={styles.per}>/ mo</span>
+                $99.99<span className={styles.per}>{t(lang, 'marketing_pricing_per_mo')}</span>
               </div>
               <p className={styles.singleNote} style={{ marginTop: -8, marginBottom: 12 }}>
-                or $999.99 / yr
-                <span className={styles.yearlySavings}>Save 17%</span>
+                {t(lang, 'marketing_pricing_yearly_growth')}
+                <span className={styles.yearlySavings}>{t(lang, 'marketing_pricing_yearly_save')}</span>
               </p>
               <ul className={styles.features}>
-                <li className={styles.carry}>Everything in Starter, plus</li>
+                <li className={styles.carry}>{t(lang, 'marketing_pricing_growth_carry')}</li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
-                  Live dashboard — real-time solar, load &amp; battery
+                  {t(lang, 'marketing_pricing_growth_li1')}
                 </li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
-                  Health score updated continuously, not just weekly
+                  {t(lang, 'marketing_pricing_growth_li2')}
                 </li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
-                  AI Insights — 4 automated checks per site <em>(Beta)</em>
+                  {t(lang, 'marketing_pricing_growth_li3')}
                 </li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
-                  Up to 300 scheduled reports / mo
+                  {t(lang, 'marketing_pricing_growth_li4')}
                 </li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
-                  Full white-label branding
+                  {t(lang, 'marketing_pricing_growth_li5')}
                 </li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
-                  Per-site report customization
+                  {t(lang, 'marketing_pricing_growth_li6')}
                 </li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
-                  Priority support
+                  {t(lang, 'marketing_pricing_growth_li7')}
                 </li>
               </ul>
               <Button href={signupHref(growthPlanId)} style={{ justifyContent: 'center' }}>
-                Get started
+                {t(lang, 'marketing_cta_get_started')}
               </Button>
             </Panel>
 
             <Panel variant="price">
               <div className={styles.head}>
-                <h3>Fleet</h3>
-                <span className={styles.range}>50+ sites</span>
+                <h3>{t(lang, 'marketing_pricing_fleet_name')}</h3>
+                <span className={styles.range}>{t(lang, 'marketing_pricing_fleet_range')}</span>
               </div>
               <div className={styles.num} style={{ fontSize: 32 }}>
-                Custom
+                {t(lang, 'marketing_pricing_custom')}
               </div>
               <ul className={styles.features}>
-                <li className={styles.carry}>Everything in Growth, plus</li>
+                <li className={styles.carry}>{t(lang, 'marketing_pricing_fleet_carry')}</li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
-                  Up to 2,000 scheduled reports / mo
+                  {t(lang, 'marketing_pricing_fleet_li1')}
                 </li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
-                  Dedicated onboarding
+                  {t(lang, 'marketing_pricing_fleet_li2')}
                 </li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
-                  Delivery SLA
+                  {t(lang, 'marketing_pricing_fleet_li3')}
                 </li>
               </ul>
               <Button
@@ -194,7 +193,7 @@ export function Pricing({ starterPlanId, growthPlanId }: PricingProps) {
                 variant="ghost"
                 style={{ justifyContent: 'center' }}
               >
-                Talk to us
+                {t(lang, 'marketing_pricing_talk_to_us')}
               </Button>
             </Panel>
             </div>
@@ -244,10 +243,7 @@ export function Pricing({ starterPlanId, growthPlanId }: PricingProps) {
         </div>
         */}
 
-        <p className={styles.note}>
-          Early-access pricing — subscription rates locked in for 12 months for owners and installers who join
-          during onboarding.
-        </p>
+        <p className={styles.note}>{t(lang, 'marketing_pricing_note')}</p>
       </div>
     </section>
   );

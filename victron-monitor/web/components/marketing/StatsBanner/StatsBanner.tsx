@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { IntegratorBadge } from '../IntegratorBadge/IntegratorBadge';
 import styles from './StatsBanner.module.css';
 
@@ -8,6 +9,7 @@ export type StatsBannerProps = {
   sitesMonitored: number;
   installedKwp: number;
   kwhTracked: number;
+  lang: Lang;
 };
 
 // Counts 0 -> target once on mount, easing out (fast start, settles near
@@ -65,7 +67,7 @@ function useCountUp(target: number, durationMs: number, delayMs: number): number
   return value;
 }
 
-export function StatsBanner({ sitesMonitored, installedKwp, kwhTracked }: StatsBannerProps) {
+export function StatsBanner({ sitesMonitored, installedKwp, kwhTracked, lang }: StatsBannerProps) {
   // Slightly staggered starts so the three numbers don't all land at
   // once — a small cascade reads as more alive than three synchronized
   // counters. Durations long enough to actually read as "counting" rather
@@ -76,7 +78,7 @@ export function StatsBanner({ sitesMonitored, installedKwp, kwhTracked }: StatsB
   const kwh = useCountUp(Math.round(kwhTracked), 2400, 300);
 
   return (
-    <section className={styles.banner} aria-label="Platform totals">
+    <section className={styles.banner} aria-label={t(lang, 'marketing_stats_aria')}>
       <div className="wrap">
         <div className={styles.row}>
           <div className={styles.item}>
@@ -84,26 +86,26 @@ export function StatsBanner({ sitesMonitored, installedKwp, kwhTracked }: StatsB
               {sites.toLocaleString('en-US')}
               <span className={styles.unit}>+</span>
             </div>
-            <div className={styles.label}>Sites monitored</div>
+            <div className={styles.label}>{t(lang, 'marketing_stats_sites_label')}</div>
           </div>
           <div className={styles.item}>
             <div className={styles.num}>
               {kwp.toLocaleString('en-US')}
               <span className={styles.unit}>+kWp</span>
             </div>
-            <div className={styles.label}>Installed power so far</div>
+            <div className={styles.label}>{t(lang, 'marketing_stats_kwp_label')}</div>
           </div>
           <div className={styles.item}>
             <div className={styles.num}>
               {kwh.toLocaleString('en-US')}
               <span className={styles.unit}>+kWh</span>
             </div>
-            <div className={styles.label}>Solar tracked so far</div>
+            <div className={styles.label}>{t(lang, 'marketing_stats_kwh_label')}</div>
           </div>
         </div>
 
         <div className={styles.credentialRow}>
-          <IntegratorBadge />
+          <IntegratorBadge lang={lang} />
         </div>
       </div>
     </section>

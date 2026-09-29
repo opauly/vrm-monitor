@@ -22,12 +22,13 @@
 // page load pay for a live Supabase round trip too.
 import { useEffect, useState } from 'react';
 import { AccountMenu, Button } from '@/components/ui';
+import { t, type Lang } from '@/lib/i18n/strings';
 
 type SessionInfo =
   | { authenticated: false }
   | { authenticated: true; role: 'admin' | 'customer'; email: string };
 
-export function NavAuthArea() {
+export function NavAuthArea({ lang }: { lang: Lang }) {
   // `null` = not checked yet (renders the same logged-out buttons the
   // server did, so the initial client render matches SSR exactly).
   const [session, setSession] = useState<SessionInfo | null>(null);
@@ -54,10 +55,10 @@ export function NavAuthArea() {
             these two — kept identical so the logged-out render here is
             pixel-for-pixel what Nav.tsx used to render directly. */}
         <Button href="/login" variant="ghost" style={{ padding: '9px 16px' }}>
-          Log in
+          {t(lang, 'marketing_nav_login')}
         </Button>
         <Button href="/signup" variant="ghost" style={{ padding: '9px 16px' }}>
-          Sign up
+          {t(lang, 'marketing_nav_signup')}
         </Button>
       </>
     );
@@ -69,11 +70,11 @@ export function NavAuthArea() {
   // seen the in-app nav that would otherwise surface them.
   const items =
     session.role === 'admin'
-      ? [{ href: '/admin', label: 'Admin dashboard' }]
+      ? [{ href: '/admin', label: t(lang, 'marketing_nav_admin_dashboard') }]
       : [
-          { href: '/app', label: 'My account' },
-          { href: '/app/profile', label: 'Profile' },
-          { href: '/app/help', label: 'Help' },
+          { href: '/app', label: t(lang, 'marketing_nav_my_account') },
+          { href: '/app/profile', label: t(lang, 'marketing_nav_profile') },
+          { href: '/app/help', label: t(lang, 'marketing_nav_help') },
         ];
 
   return <AccountMenu email={session.email} items={items} />;

@@ -1,8 +1,9 @@
 import { Button } from '@/components/ui';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { Readout } from '../Readout/Readout';
 import styles from './Hero.module.css';
 
-export function Hero() {
+export function Hero({ lang }: { lang: Lang }) {
   return (
     <header className={styles.hero}>
       <div className={`wrap ${styles.grid}`}>
@@ -15,16 +16,13 @@ export function Hero() {
               (clickable, links to Victron's real announcement, names
               "Costa Rica") — it stays the single instance instead. */}
           <h1 className={styles.h1}>
-            Your system, <em className={styles.em}>live</em>.
+            {t(lang, 'marketing_hero_h1_a')}
+            <em className={styles.em}>{t(lang, 'marketing_hero_h1_a_em')}</em>.
             <br />
-            Your story, <em className={styles.em}>weekly</em>.
+            {t(lang, 'marketing_hero_h1_b')}
+            <em className={styles.em}>{t(lang, 'marketing_hero_h1_b_em')}</em>.
           </h1>
-          <p className={`lede ${styles.lede}`}>
-            Built on real Victron VRM data — every Cerbo GX is already logging health score, grid independence, and
-            battery behavior. Watch it live on a dashboard that updates every ~15 minutes, and get the full story in
-            a branded, AI-narrated report — for your own system, or every customer on your fleet — automatically,
-            every week.
-          </p>
+          <p className={`lede ${styles.lede}`}>{t(lang, 'marketing_hero_lede')}</p>
           <div className={styles.ctas}>
             {/* PLAN_PHASE16.md §8 Step 5.5 — replaces the old `#cta` anchor
                 into the now-deleted `AccessForm`; the real self-serve
@@ -40,18 +38,16 @@ export function Hero() {
                 starts with a 7-day free trial" line) rather than promising
                 a sample and delivering a signup form. */}
             <Button href="/signup" arrow>
-              Get started
+              {t(lang, 'marketing_cta_get_started')}
             </Button>
             <Button href="/signup" variant="ghost">
-              Start free trial
+              {t(lang, 'marketing_cta_start_trial')}
             </Button>
           </div>
-          <span className={styles.note}>
-            No Node-RED changes. No Cerbo reflash. Works with equipment you&apos;ve already installed.
-          </span>
+          <span className={styles.note}>{t(lang, 'marketing_hero_note')}</span>
         </div>
 
-        <Readout />
+        <Readout lang={lang} />
       </div>
     </header>
   );

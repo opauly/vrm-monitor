@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { t, type Lang } from '@/lib/i18n/strings';
 import styles from './Footer.module.css';
 
 // Footer now renders on /terms and /privacy too (not just the marketing
@@ -13,7 +14,8 @@ import styles from './Footer.module.css';
 // `LiveDashboard` merged into `CapabilitiesTeaser` — see that component's
 // own header comment); a separate "Live dashboard" link is dropped rather
 // than repointed, same as Nav's own dropdown no longer carries one.
-export function Footer() {
+export function Footer({ lang }: { lang: Lang }) {
+  const base = lang === 'es' ? '/es' : '';
   return (
     <footer className={styles.footer}>
       <div className={`wrap ${styles.inner}`}>
@@ -21,15 +23,15 @@ export function Footer() {
           <svg className={styles.mark} viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <path d="M15 2 L27 8.5 V21.5 L15 28 L3 21.5 V8.5 Z" stroke="#6F93A6" strokeWidth="1.6" fill="none" />
           </svg>
-          VRM Monitor by Pauly &amp; Co. — Atenas, Costa Rica
+          {t(lang, 'marketing_footer_tagline')}
         </div>
         <div className={styles.links}>
           <a href="mailto:proyectos@paulyco.com">proyectos@paulyco.com</a>
-          <Link href="/#how">How it works</Link>
-          <Link href="/whats-inside">What&apos;s inside</Link>
-          <Link href="/#pricing">Pricing</Link>
-          <Link href="/terms">Terms</Link>
-          <Link href="/privacy">Privacy</Link>
+          <Link href={`${base}/#how`}>{t(lang, 'marketing_nav_how')}</Link>
+          <Link href={`${base}/whats-inside`}>{t(lang, 'marketing_nav_whats_inside')}</Link>
+          <Link href={`${base}/#pricing`}>{t(lang, 'marketing_nav_pricing')}</Link>
+          <Link href={`${base}/terms`}>{t(lang, 'marketing_footer_terms')}</Link>
+          <Link href={`${base}/privacy`}>{t(lang, 'marketing_footer_privacy')}</Link>
         </div>
       </div>
     </footer>

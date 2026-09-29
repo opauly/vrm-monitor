@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Panel, SectionHead } from '@/components/ui';
+import { t, type Lang } from '@/lib/i18n/strings';
 import styles from './CapabilitiesTeaser.module.css';
 
 // Replaces two separate homepage sections, ModuleTeaser ("What's inside" —
@@ -13,43 +14,41 @@ import styles from './CapabilitiesTeaser.module.css';
 // signal, every report section, the real rendered PDF and the real live
 // chart) — the explicit, unsummarized version of both halves lives there
 // now, not here.
-export function CapabilitiesTeaser() {
+export function CapabilitiesTeaser({ lang }: { lang: Lang }) {
+  const base = lang === 'es' ? '/es' : '';
   return (
     <section id="capabilities" className="band">
       <div className="wrap">
-        <SectionHead
-          eyebrow="What's inside"
-          lede="Two connected views of the same Victron system — watch it update in real time, or get the story of the week in your inbox automatically."
-        >
-          Live dashboard.
+        <SectionHead eyebrow={t(lang, 'marketing_capabilities_eyebrow')} lede={t(lang, 'marketing_capabilities_lede')}>
+          {t(lang, 'marketing_capabilities_title_a')}
           <br />
-          Weekly report.
+          {t(lang, 'marketing_capabilities_title_b')}
         </SectionHead>
 
         <div className={styles.grid}>
           <Panel className={styles.card} variant="card" interactive led>
-            <span className={styles.tag}>Right now</span>
-            <h3>Live dashboard</h3>
+            <span className={styles.tag}>{t(lang, 'marketing_capabilities_tag_now')}</span>
+            <h3>{t(lang, 'marketing_capabilities_dash_title')}</h3>
             <ul className={styles.list}>
-              <li>Real-time solar, load, battery &amp; grid — every ~15 minutes</li>
-              <li>System &amp; Grid health scores, always current</li>
-              <li>AI Insights: 4 automatic checks per site</li>
+              <li>{t(lang, 'marketing_capabilities_dash_li1')}</li>
+              <li>{t(lang, 'marketing_capabilities_dash_li2')}</li>
+              <li>{t(lang, 'marketing_capabilities_dash_li3')}</li>
             </ul>
           </Panel>
 
           <Panel className={styles.card} variant="card" interactive led>
-            <span className={styles.tag}>Every period</span>
-            <h3>Weekly report</h3>
+            <span className={styles.tag}>{t(lang, 'marketing_capabilities_tag_period')}</span>
+            <h3>{t(lang, 'marketing_capabilities_report_title')}</h3>
             <ul className={styles.list}>
-              <li>Branded PDF with an AI-written narrative</li>
-              <li>16 possible sections — scoring, solar, battery, grid, safety</li>
-              <li>Delivered automatically, weekly or monthly</li>
+              <li>{t(lang, 'marketing_capabilities_report_li1')}</li>
+              <li>{t(lang, 'marketing_capabilities_report_li2')}</li>
+              <li>{t(lang, 'marketing_capabilities_report_li3')}</li>
             </ul>
           </Panel>
         </div>
 
-        <Link href="/whats-inside" className={styles.cta}>
-          See every signal and every report section
+        <Link href={`${base}/whats-inside`} className={styles.cta}>
+          {t(lang, 'marketing_capabilities_cta')}
           <span aria-hidden="true"> →</span>
         </Link>
       </div>

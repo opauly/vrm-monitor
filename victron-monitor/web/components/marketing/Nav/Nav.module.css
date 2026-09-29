@@ -209,6 +209,32 @@
   padding-top: 16px;
 }
 
+/* The /es language toggle (2026-09-27) — a plain Link to the sibling
+   page's other-language URL, not a state-changing button: each language
+   is its own literal route (app/(marketing)/es/**), so navigating IS the
+   whole mechanism, no client state/cookie involved. Styled as a small
+   pill rather than a plain text link so it doesn't read as just another
+   nav item pointing at a section of THIS page. */
+.langToggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--paper-dim);
+  text-decoration: none;
+  transition: color 0.15s, border-color 0.15s;
+}
+.langToggle:hover,
+.langToggle:focus-visible {
+  color: var(--victron-glow);
+  border-color: var(--victron-glow);
+}
+
 @media (max-width: 920px) {
   .links {
     display: none;

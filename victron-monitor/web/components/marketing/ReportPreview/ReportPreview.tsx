@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import { Button, Eyebrow } from '@/components/ui';
+import { t, type Lang } from '@/lib/i18n/strings';
 import styles from './ReportPreview.module.css';
 
 // public/sample_report.png is 1819x2573 (landing-page/assets/sample_report.png,
@@ -17,35 +18,31 @@ import styles from './ReportPreview.module.css';
 const SHOT_WIDTH = 1819;
 const SHOT_HEIGHT = 2573;
 
-export function ReportPreview() {
+export function ReportPreview({ lang }: { lang: Lang }) {
   return (
     <section id="preview" className="band">
       <div className={`wrap ${styles.grid}`}>
         <div>
-          <Eyebrow>Sample report</Eyebrow>
-          <h2>The weekly report, in detail.</h2>
-          <p style={{ marginTop: 16 }}>
-            This is page one of an actual report, rendered by the same pipeline that generates every
-            customer&apos;s PDF: real health scoring, a real AI narrative, real savings math against live tariff
-            tables. Only the household is invented.
-          </p>
+          <Eyebrow>{t(lang, 'marketing_report_eyebrow')}</Eyebrow>
+          <h2>{t(lang, 'marketing_report_title')}</h2>
+          <p style={{ marginTop: 16 }}>{t(lang, 'marketing_report_body')}</p>
           <ul className={styles.miniList}>
             <li>
-              Format <b>PDF, 2 pages</b>
+              {t(lang, 'marketing_report_li_format_label')} <b>{t(lang, 'marketing_report_li_format_value')}</b>
             </li>
             <li>
-              Cadence <b>Weekly or Monthly Overview</b>
+              {t(lang, 'marketing_report_li_cadence_label')} <b>{t(lang, 'marketing_report_li_cadence_value')}</b>
             </li>
             <li>
-              Languages <b>ES / EN</b>
+              {t(lang, 'marketing_report_li_languages_label')} <b>{t(lang, 'marketing_report_li_languages_value')}</b>
             </li>
             <li>
-              Delivery <b>Automatic, branded</b>
+              {t(lang, 'marketing_report_li_delivery_label')} <b>{t(lang, 'marketing_report_li_delivery_value')}</b>
             </li>
           </ul>
           <span className={styles.badge}>
             <span className={styles.badgeDot} aria-hidden="true" />
-            Synthetic household — no customer data shown
+            {t(lang, 'marketing_report_badge')}
           </span>
         </div>
 
@@ -59,7 +56,7 @@ export function ReportPreview() {
           <div className={styles.shotWrap}>
             <Image
               src="/sample_report.png"
-              alt="Sample weekly report PDF, page 1: Casa Modelo, health score 86 out of 100, 264.7 kWh solar generated, 94.0% grid independence, an AI-written narrative paragraph, a daily solar-versus-consumption bar chart, and an energy-mix donut chart."
+              alt={t(lang, 'marketing_report_image_alt')}
               width={SHOT_WIDTH}
               height={SHOT_HEIGHT}
               className={styles.shot}
@@ -67,7 +64,7 @@ export function ReportPreview() {
             />
           </div>
           <div className={styles.shotFoot}>
-            <span>Page 1 of 2</span>
+            <span>{t(lang, 'marketing_report_page_of')}</span>
             {/* Was a mailto ("Request the full sample" — PLAN_PHASE16.md §8
                 Step 5.5's original reasoning: not a signup, so not
                 /signup). Changed 2026-09-08 (Oscar's decision): now that
@@ -80,7 +77,7 @@ export function ReportPreview() {
                 longer exists to compare against at all; that whole tier
                 is hidden as of 2026-09-23, see Pricing.tsx's own comment. */}
             <Button href="/signup" variant="ghost" style={{ padding: '9px 16px' }}>
-              Start free trial
+              {t(lang, 'marketing_cta_start_trial')}
             </Button>
           </div>
         </div>

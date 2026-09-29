@@ -25,10 +25,17 @@ import styles from './auth.module.css';
 // sibling routes with no single route param key to name, and the generated
 // type is only as current as the last `next build`/`next dev` typegen pass
 // anyway.
+// `lang="en"`/`altHref="/es"` fixed here (2026-09-27, marketing-site
+// Spanish rollout): these auth routes themselves aren't translated yet —
+// only app/(marketing) is — so Nav always renders in English here, and its
+// language toggle takes a visitor to the Spanish marketing home page
+// rather than a (nonexistent) Spanish login page. A real Spanish /login
+// would need its own /es/login route, same pattern as the marketing pages;
+// out of scope for this pass.
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <>
-      <Nav />
+      <Nav lang="en" altHref="/es" />
       <main className={styles.shell}>
         <div className={styles.inner}>{children}</div>
       </main>

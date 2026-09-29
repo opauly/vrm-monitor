@@ -11,10 +11,13 @@
 // "is someone signed in."
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { NavAuthArea } from './NavAuthArea';
 import styles from './Nav.module.css';
 
-export function MobileMenu() {
+export function MobileMenu({ lang, altHref }: { lang: Lang; altHref: string }) {
+  const base = lang === 'es' ? '/es' : '';
+  const altLabel = lang === 'es' ? 'English' : 'Español';
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const close = () => setOpen(false);
@@ -47,7 +50,7 @@ export function MobileMenu() {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={open ? 'Close menu' : 'Open menu'}
+        aria-label={open ? t(lang, 'marketing_nav_close_menu') : t(lang, 'marketing_nav_open_menu')}
       >
         <span className={styles.hamburgerBar} aria-hidden="true" />
         <span className={styles.hamburgerBar} aria-hidden="true" />
@@ -55,24 +58,27 @@ export function MobileMenu() {
       </button>
       {open && (
         <div className={styles.mobilePanel} role="menu">
-          <div className={styles.mobileGroupLabel}>How it works</div>
-          <Link href="/#how" role="menuitem" onClick={close}>
-            Overview
+          <div className={styles.mobileGroupLabel}>{t(lang, 'marketing_nav_how')}</div>
+          <Link href={`${base}/#how`} role="menuitem" onClick={close}>
+            {t(lang, 'marketing_nav_how_overview')}
           </Link>
-          <Link href="/#integrator" role="menuitem" onClick={close}>
-            Why Victron-recommended
+          <Link href={`${base}/#integrator`} role="menuitem" onClick={close}>
+            {t(lang, 'marketing_nav_how_integrator')}
           </Link>
-          <Link href="/#capabilities" role="menuitem" onClick={close}>
-            Dashboard &amp; reports
+          <Link href={`${base}/#capabilities`} role="menuitem" onClick={close}>
+            {t(lang, 'marketing_nav_how_capabilities')}
           </Link>
-          <Link href="/whats-inside" role="menuitem" className={styles.mobileTopLink} onClick={close}>
-            What&apos;s inside
+          <Link href={`${base}/whats-inside`} role="menuitem" className={styles.mobileTopLink} onClick={close}>
+            {t(lang, 'marketing_nav_whats_inside')}
           </Link>
-          <Link href="/#pricing" role="menuitem" className={styles.mobileTopLink} onClick={close}>
-            Pricing
+          <Link href={`${base}/#pricing`} role="menuitem" className={styles.mobileTopLink} onClick={close}>
+            {t(lang, 'marketing_nav_pricing')}
+          </Link>
+          <Link href={altHref} role="menuitem" className={styles.mobileTopLink} onClick={close}>
+            {altLabel}
           </Link>
           <div className={styles.mobileAuth}>
-            <NavAuthArea />
+            <NavAuthArea lang={lang} />
           </div>
         </div>
       )}
