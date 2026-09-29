@@ -758,6 +758,7 @@ def send_trial_ending_reminders() -> dict:
     never partial exception state.
     """
     from jinja2 import Environment, FileSystemLoader, select_autoescape
+    from victron import email_i18n
     from victron.mailer import MailerError
     from victron.mailer import send as mailer_send
 
@@ -808,15 +809,23 @@ def send_trial_ending_reminders() -> dict:
         template_name = "trial_ending_with_card_email.html" if has_card else "trial_ending_no_card_email.html"
         amount = sub.get("amount_minor")
         amount_label = f"{(amount or 0) / 100:.2f} {sub.get('currency') or 'USD'}"
+        trial_end_date = trial_end.date().isoformat()
+
+        lang = (customer.get("ui_language") or "en").lower()
+        t = email_i18n.get(lang)
+        body1 = (t["trial_card_body1"].replace("{date}", trial_end_date).replace("{amount}", amount_label)
+                if has_card else t["trial_nocard_body1"].replace("{date}", trial_end_date))
 
         try:
             html = env.get_template(template_name).render(
-                trial_end_date=trial_end.date().isoformat(),
+                lang=lang,
+                t=t,
+                body1=body1,
+                trial_end_date=trial_end_date,
                 amount=amount_label,
                 billing_interval=sub.get("billing_interval") or "month",
             )
-            subject = ("Your trial ends tomorrow" if has_card
-                      else "Your trial ends tomorrow — add a payment method to keep access")
+            subject = t["trial_title"]
             mailer_send(to, subject, html)
         except MailerError as exc:
             logger.warning("billing.trial_reminder: could not email customer %s: %s", customer_id, exc)

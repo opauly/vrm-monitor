@@ -17,6 +17,7 @@ import { getCustomer } from './db/customers';
 import { sendEmail } from './resend';
 import { renderActivationEmail } from './emailTemplates';
 import { SITE_URL } from '@/lib/site';
+import { t, type Lang } from '@/lib/i18n/strings';
 
 export type LinkType = 'invite' | 'recovery' | 'magiclink';
 
@@ -204,11 +205,12 @@ export async function sendInvite(customerId: string): Promise<SendInviteResult> 
   const customer = await getCustomer(customerId);
   if (!customer.auth_email) return { ok: false, reason: 'no_login_email' };
   const email = customer.auth_email;
+  const lang: Lang = customer.ui_language === 'es' ? 'es' : 'en';
 
   const result = await createOrLinkAuthUser(email, customerId);
   if (!result.ok) return result;
 
-  return finishSendInvite(customerId, email, result.userId, result.hashedToken, result.linkType, result.linkedExistingLogin);
+  return finishSendInvite(customerId, email, result.userId, result.hashedToken, result.linkType, result.linkedExistingLogin, lang);
 }
 
 async function finishSendInvite(
@@ -218,19 +220,21 @@ async function finishSendInvite(
   hashedToken: string,
   linkType: LinkType,
   linkedExistingLogin: boolean,
+  lang: Lang,
 ): Promise<SendInviteResult> {
   const ctaUrl = buildActivationUrl(hashedToken, linkType);
   const html = renderActivationEmail({
-    heading: 'Activate your VRM Monitor account',
-    intro: `You've been invited to VRM Monitor. Click the button below to set your password and get started.`,
-    ctaLabel: 'Set your password',
+    heading: t(lang, 'email_invite_heading'),
+    intro: t(lang, 'email_invite_intro'),
+    ctaLabel: t(lang, 'email_invite_cta'),
     ctaUrl,
-    footerNote: "This link is single-use and expires after a while — if it's already expired, ask Pauly & Co. for a new one.",
+    footerNote: t(lang, 'email_invite_footer'),
+    lang,
   });
 
   let messageId: string;
   try {
-    messageId = await sendEmail({ to: email, subject: 'Activate your VRM Monitor account', html });
+    messageId = await sendEmail({ to: email, subject: t(lang, 'email_invite_subject'), html });
   } catch {
     return { ok: false, reason: 'send_failed' };
   }
@@ -265,6 +269,7 @@ export async function resendInvite(customerId: string): Promise<ResendInviteResu
   const customer = await getCustomer(customerId);
   if (!customer.auth_email) return { ok: false, reason: 'no_login_email' };
   const email = customer.auth_email;
+  const lang: Lang = customer.ui_language === 'es' ? 'es' : 'en';
 
   const admin = getSupabaseAdmin();
   let linkType: LinkType = 'recovery';
@@ -280,15 +285,16 @@ export async function resendInvite(customerId: string): Promise<ResendInviteResu
 
   const ctaUrl = buildActivationUrl(hashedToken, linkType);
   const html = renderActivationEmail({
-    heading: 'Activate your VRM Monitor account',
-    intro: `Here's a new activation link for your VRM Monitor account. Click the button below to set your password.`,
-    ctaLabel: 'Set your password',
+    heading: t(lang, 'email_invite_heading'),
+    intro: t(lang, 'email_resend_intro'),
+    ctaLabel: t(lang, 'email_invite_cta'),
     ctaUrl,
-    footerNote: "This link is single-use and expires after a while — if it's already expired, ask Pauly & Co. for a new one.",
+    footerNote: t(lang, 'email_invite_footer'),
+    lang,
   });
 
   try {
-    await sendEmail({ to: email, subject: 'Your VRM Monitor activation link', html });
+    await sendEmail({ to: email, subject: t(lang, 'email_resend_subject'), html });
   } catch {
     return { ok: false, reason: 'send_failed' };
   }
@@ -324,12 +330,13 @@ export async function sendPasswordReset(email: string): Promise<void> {
   const { data, error } = await getSupabaseAdmin()
     .schema('vrm')
     .from('customers')
-    .select('id, auth_user_id, active')
+    .select('id, auth_user_id, active, ui_language')
     .ilike('auth_email', trimmed)
     .limit(1);
   if (error) throw error;
-  const customer = (data?.[0] as { id: string; auth_user_id: string | null; active: boolean } | undefined) ?? undefined;
+  const customer = (data?.[0] as { id: string; auth_user_id: string | null; active: boolean; ui_language: string | null } | undefined) ?? undefined;
   if (!customer || !customer.auth_user_id || !customer.active) return;
+  const lang: Lang = customer.ui_language === 'es' ? 'es' : 'en';
 
   const admin = getSupabaseAdmin();
   let linkType: LinkType = 'recovery';
@@ -345,15 +352,16 @@ export async function sendPasswordReset(email: string): Promise<void> {
 
   const ctaUrl = buildActivationUrl(hashedToken, linkType);
   const html = renderActivationEmail({
-    heading: 'Reset your VRM Monitor password',
-    intro: 'Click the button below to set a new password for your VRM Monitor account.',
-    ctaLabel: 'Reset password',
+    heading: t(lang, 'email_reset_heading'),
+    intro: t(lang, 'email_reset_intro'),
+    ctaLabel: t(lang, 'email_reset_cta'),
     ctaUrl,
-    footerNote: "If you didn't request this, you can safely ignore this email — your password won't change unless you click the link above.",
+    footerNote: t(lang, 'email_reset_footer'),
+    lang,
   });
 
   try {
-    await sendEmail({ to: trimmed, subject: 'Reset your VRM Monitor password', html });
+    await sendEmail({ to: trimmed, subject: t(lang, 'email_reset_subject'), html });
   } catch {
     // Swallowed on purpose — see the function docstring. A Resend outage
     // must not turn into a response difference an attacker could probe for.

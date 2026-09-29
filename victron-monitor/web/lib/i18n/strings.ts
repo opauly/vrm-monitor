@@ -29,6 +29,38 @@ export const STRINGS = {
     // `/unsubscribe` (2026-09-29) — no pre-existing i18n infrastructure at
     // all here, unlike login/signup/forgot/activate (built already
     // wrapped in `t('en', ...)`, just hardcoded to that one language).
+    // Transactional emails (2026-09-30) — `lib/server/emailTemplates.ts`'s
+    // `renderActivationEmail()` shell + its 5 callers (signup verification,
+    // "you already have an account," invite, resend invite, password
+    // reset). Every call site already has the recipient's own `ui_language`
+    // in scope (the signup form's own field for the brand-new verification
+    // email; the customer's already-stored column for the other four) — see
+    // this feature's own session notes for the full trace; nothing here
+    // needed a new place to capture a language choice.
+    email_link_fallback: "If the button above doesn't work, copy and paste this link:",
+    email_verify_heading: 'Confirm your email',
+    email_verify_intro: 'Click the button below to verify your email and finish setting up your VRM Monitor account.',
+    email_verify_cta: 'Verify email',
+    email_verify_footer: "This link is single-use and expires in 24 hours. If you didn't try to sign up, you can safely ignore this email.",
+    email_verify_subject: 'Verify your email — VRM Monitor',
+    email_existing_heading: 'You already have a VRM Monitor account',
+    email_existing_intro:
+      'An account already exists for {email}. Sign in below — or use "Forgot your password?" on that page if you don\'t remember it.',
+    email_existing_cta: 'Sign in',
+    email_existing_footer: "If you didn't just try to sign up, you can safely ignore this email — nothing changed on your account.",
+    email_existing_subject: 'You already have a VRM Monitor account',
+    email_invite_heading: 'Activate your VRM Monitor account',
+    email_invite_intro: "You've been invited to VRM Monitor. Click the button below to set your password and get started.",
+    email_invite_cta: 'Set your password',
+    email_invite_footer: "This link is single-use and expires after a while — if it's already expired, ask Pauly & Co. for a new one.",
+    email_invite_subject: 'Activate your VRM Monitor account',
+    email_resend_intro: "Here's a new activation link for your VRM Monitor account. Click the button below to set your password.",
+    email_resend_subject: 'Your VRM Monitor activation link',
+    email_reset_heading: 'Reset your VRM Monitor password',
+    email_reset_intro: 'Click the button below to set a new password for your VRM Monitor account.',
+    email_reset_cta: 'Reset password',
+    email_reset_footer: "If you didn't request this, you can safely ignore this email — your password won't change unless you click the link above.",
+    email_reset_subject: 'Reset your VRM Monitor password',
     unsubscribe_invalid_title: 'Invalid link',
     unsubscribe_invalid_body: 'This unsubscribe link is invalid.',
     unsubscribe_title: 'Stop receiving this report?',
@@ -1905,6 +1937,30 @@ export const STRINGS = {
     marketing_terms_s13_post: '.',
   },
   es: {
+    email_link_fallback: 'Si el botón de arriba no funciona, copiá y pegá este enlace:',
+    email_verify_heading: 'Confirmá tu correo',
+    email_verify_intro: 'Hacé clic en el botón de abajo para verificar tu correo y terminar de configurar tu cuenta de VRM Monitor.',
+    email_verify_cta: 'Verificar correo',
+    email_verify_footer: 'Este enlace es de un solo uso y vence en 24 horas. Si no intentaste registrarte, podés ignorar este correo con confianza.',
+    email_verify_subject: 'Verificá tu correo — VRM Monitor',
+    email_existing_heading: 'Ya tenés una cuenta de VRM Monitor',
+    email_existing_intro:
+      'Ya existe una cuenta para {email}. Iniciá sesión abajo — o usá "¿Olvidaste tu contraseña?" en esa página si no la recordás.',
+    email_existing_cta: 'Iniciar sesión',
+    email_existing_footer: 'Si no intentaste registrarte recién, podés ignorar este correo con confianza — no cambió nada en tu cuenta.',
+    email_existing_subject: 'Ya tenés una cuenta de VRM Monitor',
+    email_invite_heading: 'Activá tu cuenta de VRM Monitor',
+    email_invite_intro: 'Te invitaron a VRM Monitor. Hacé clic en el botón de abajo para configurar tu contraseña y comenzar.',
+    email_invite_cta: 'Configurar tu contraseña',
+    email_invite_footer: 'Este enlace es de un solo uso y vence después de un tiempo — si ya venció, pedile a Pauly & Co. uno nuevo.',
+    email_invite_subject: 'Activá tu cuenta de VRM Monitor',
+    email_resend_intro: 'Aquí tenés un nuevo enlace de activación para tu cuenta de VRM Monitor. Hacé clic en el botón de abajo para configurar tu contraseña.',
+    email_resend_subject: 'Tu enlace de activación de VRM Monitor',
+    email_reset_heading: 'Restablecé tu contraseña de VRM Monitor',
+    email_reset_intro: 'Hacé clic en el botón de abajo para configurar una nueva contraseña para tu cuenta de VRM Monitor.',
+    email_reset_cta: 'Restablecer contraseña',
+    email_reset_footer: 'Si no solicitaste esto, podés ignorar este correo con confianza — tu contraseña no cambiará a menos que hagas clic en el enlace de arriba.',
+    email_reset_subject: 'Restablecé tu contraseña de VRM Monitor',
     unsubscribe_invalid_title: 'Enlace inválido',
     unsubscribe_invalid_body: 'Este enlace para darte de baja no es válido.',
     unsubscribe_title: '¿Dejar de recibir este reporte?',

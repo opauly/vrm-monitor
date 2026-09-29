@@ -1,5 +1,6 @@
 import 'server-only';
 import { SITE_URL } from '@/lib/site';
+import { t, type Lang } from '@/lib/i18n/strings';
 
 // The activation/invite email's HTML, rendered directly in TypeScript.
 //
@@ -24,6 +25,11 @@ export type ActivationEmailInput = {
   ctaLabel: string;
   ctaUrl: string;
   footerNote: string;
+  /** Drives `<html lang>` and this template's own one hardcoded sentence
+   * (the "copy and paste this link" fallback) — every OTHER string here is
+   * a plain prop the caller already translated via `t(lang, ...)` before
+   * calling this function, same as before this field existed. */
+  lang: Lang;
 };
 
 // #0789d4 — the shipped `--victron` token (styles/tokens.css), not the
@@ -64,9 +70,9 @@ function siteHomeUrl(): string {
   return siteBase();
 }
 
-export function renderActivationEmail({ heading, intro, ctaLabel, ctaUrl, footerNote }: ActivationEmailInput): string {
+export function renderActivationEmail({ heading, intro, ctaLabel, ctaUrl, footerNote, lang }: ActivationEmailInput): string {
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${lang}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -128,7 +134,7 @@ export function renderActivationEmail({ heading, intro, ctaLabel, ctaUrl, footer
             <tr>
               <td style="padding:16px 32px 0 32px;">
                 <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11px; line-height:1.6; color:#6f93a6; word-break:break-all;">
-                  If the button above doesn't work, copy and paste this link:<br />
+                  ${escapeHtml(t(lang, 'email_link_fallback'))}<br />
                   <a href="${escapeAttr(ctaUrl)}" style="color:#4fc8ec;">${escapeHtml(ctaUrl)}</a>
                 </p>
               </td>

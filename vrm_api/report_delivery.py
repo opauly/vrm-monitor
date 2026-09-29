@@ -27,6 +27,7 @@ import re
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from victron import email_i18n, report_i18n
 from victron.mailer import MailerError
 from victron.mailer import send as mailer_send
 
@@ -118,16 +119,38 @@ def _render_email(*, customer: dict, site: dict, branding: dict, summary: dict,
         site_url = os.environ.get("SITE_URL")
         if token and site_url:
             unsubscribe_url = f"{site_url.rstrip('/')}/unsubscribe?token={token}"
+
+    # Same field `victron/weekly_report.py` already reads for the PDF
+    # itself (2026-09-30) — the email wrapper and its attachment now always
+    # agree on which language they're in.
+    lang = (site.get("report_language") or "en").lower()
+    t = email_i18n.get(lang)
+    site_name = site.get("display_name") or site["site_id"]
+    company_name = branding.get("company_name")
+    dates = f"{period_start} – {period_end}"
+    # `healthStatus` on `summary` is the raw, untranslated status key
+    # (`report_svg.py`/`weekly_report.py`'s own convention — translation
+    # happens at render time, not storage time); reuses report_i18n's own
+    # `healthStatus` map rather than keeping a second copy of it here.
+    raw_status = summary.get("healthStatus")
+    health_status = report_i18n.get(lang).get("healthStatus", {}).get(raw_status, raw_status)
+
     template = _env.get_template("report_email.html")
     return template.render(
-        company_name=branding.get("company_name"),
+        lang=lang,
+        t=t,
+        page_title=t["report_page_title"].replace("{site}", site_name),
+        preheader=t["report_preheader"].replace("{site}", site_name).replace("{start}", period_start).replace("{end}", period_end),
+        intro=t["report_intro"].replace("{site}", site_name).replace("{start}", period_start).replace("{end}", period_end),
+        sent_by=t["report_sent_by"].replace("{company}", company_name or ""),
+        company_name=company_name,
         primary_color=branding.get("primary_color"),
         contact_email=branding.get("contact_email"),
-        site_name=site.get("display_name") or site["site_id"],
+        site_name=site_name,
         period_start=period_start,
         period_end=period_end,
         avg_health=summary.get("avgHealth"),
-        health_status=summary.get("healthStatus"),
+        health_status=health_status,
         score_color=score_color, badge_bg=badge_bg, badge_text=badge_text,
         pv_kwh=(summary.get("totals") or {}).get("pv"),
         load_kwh=(summary.get("totals") or {}).get("load"),
@@ -231,8 +254,13 @@ def notify_cap_reached_once(customer: dict, cap: int, cap_period_end: str) -> No
             # doesn't (never both).
             return
 
-        html = _env.get_template("cap_reached_email.html").render(cap=cap, period_end=cap_period_end)
-        mailer_send(to, "Scheduled report limit reached", html)
+        lang = (customer.get("ui_language") or "en").lower()
+        t = email_i18n.get(lang)
+        body1 = t["cap_body1"].replace("{cap}", str(cap)).replace("{period_end}", cap_period_end)
+        html = _env.get_template("cap_reached_email.html").render(
+            lang=lang, t=t, body1=body1, cap=cap, period_end=cap_period_end,
+        )
+        mailer_send(to, t["cap_title"], html)
     except MailerError as exc:
         logger.warning("report_delivery: could not send the cap-reached notice for customer %s: %s", customer.get("id"), exc)
     except Exception:  # noqa: BLE001 — see module docstring

@@ -42,7 +42,9 @@ import { createOrLinkAuthUser, stampInvited } from './invites';
 import { renderActivationEmail } from './emailTemplates';
 import { sendEmail } from './resend';
 import { captureServerEvent } from './analytics';
+import { getSupabaseAdmin } from './supabase';
 import { SITE_URL } from '@/lib/site';
+import { t } from '@/lib/i18n/strings';
 import type { AccountType, Lang } from './db/types';
 
 // PLAN_PHASE16.md §6.6's rate-limit table, verbatim — one exported constant
@@ -116,18 +118,19 @@ async function clientMeta(): Promise<{ ipHash: string | null; userAgent: string 
   };
 }
 
-async function sendVerificationEmail(email: string, token: string): Promise<void> {
+async function sendVerificationEmail(email: string, token: string, lang: Lang): Promise<void> {
   const url = new URL('/signup/verify', SITE_URL);
   url.searchParams.set('token', token);
   const html = renderActivationEmail({
-    heading: 'Confirm your email',
-    intro: 'Click the button below to verify your email and finish setting up your VRM Monitor account.',
-    ctaLabel: 'Verify email',
+    heading: t(lang, 'email_verify_heading'),
+    intro: t(lang, 'email_verify_intro'),
+    ctaLabel: t(lang, 'email_verify_cta'),
     ctaUrl: url.toString(),
-    footerNote: "This link is single-use and expires in 24 hours. If you didn't try to sign up, you can safely ignore this email.",
+    footerNote: t(lang, 'email_verify_footer'),
+    lang,
   });
   try {
-    await sendEmail({ to: email, subject: 'Verify your email — VRM Monitor', html });
+    await sendEmail({ to: email, subject: t(lang, 'email_verify_subject'), html });
   } catch (err) {
     // Swallowed on purpose, same rule as `sendPasswordReset()` — the
     // caller (`submitSignup`) has already committed to returning the
@@ -146,16 +149,30 @@ async function sendVerificationEmail(email: string, token: string): Promise<void
  * account holder gets a useful email if it was actually them.
  */
 async function sendExistingAccountEmail(email: string): Promise<void> {
+  // The real account holder's OWN stored preference, not whatever language
+  // this particular (failed) signup attempt's page happened to be in —
+  // they're not creating a new account here, so their existing setting is
+  // the more correct signal. A fresh small lookup rather than extending
+  // `customerExistsByEmail()`'s boolean contract for its one caller.
+  const { data } = await getSupabaseAdmin()
+    .schema('vrm')
+    .from('customers')
+    .select('ui_language')
+    .ilike('auth_email', email)
+    .limit(1);
+  const lang: Lang = data?.[0]?.ui_language === 'es' ? 'es' : 'en';
+
   const url = new URL('/login', SITE_URL);
   const html = renderActivationEmail({
-    heading: 'You already have a VRM Monitor account',
-    intro: `An account already exists for ${email}. Sign in below — or use "Forgot your password?" on that page if you don't remember it.`,
-    ctaLabel: 'Sign in',
+    heading: t(lang, 'email_existing_heading'),
+    intro: t(lang, 'email_existing_intro').replace('{email}', email),
+    ctaLabel: t(lang, 'email_existing_cta'),
     ctaUrl: url.toString(),
-    footerNote: "If you didn't just try to sign up, you can safely ignore this email — nothing changed on your account.",
+    footerNote: t(lang, 'email_existing_footer'),
+    lang,
   });
   try {
-    await sendEmail({ to: email, subject: 'You already have a VRM Monitor account', html });
+    await sendEmail({ to: email, subject: t(lang, 'email_existing_subject'), html });
   } catch (err) {
     console.error('submitSignup: existing-account email failed to send', err);
   }
@@ -260,7 +277,7 @@ export async function submitSignup(input: SubmitSignupInput): Promise<void> {
 
     // Never log `token` — it is the same class of single-use secret as an
     // emailed invite link (§11).
-    await sendVerificationEmail(email, token);
+    await sendVerificationEmail(email, token, input.uiLanguage);
   } catch (err) {
     console.error('submitSignup: unexpected failure', err);
   }
