@@ -122,6 +122,8 @@ from vrm_api import billing, onvo, tenancy
 from vrm_api.deps import require_pipeline_key
 from vrm_api.schemas import (
     BillingAddressRequest,
+    BillingBetaOut,
+    BillingBetaSweepOut,
     BillingCancelRequest,
     BillingChangeRequest,
     BillingInvoiceOut,
@@ -252,6 +254,7 @@ def _read_only_state(customer_id: str) -> dict:
     staleness bound). Reads only what a PRIOR reconcile already wrote."""
     customer = tenancy.get_customer(customer_id)
     sub = _current_live_subscription_row(customer_id) or _most_recent_subscription_row(customer_id)
+    grant = billing.get_beta_grant(customer_id)
     return {
         "customer_id": customer_id,
         "plan": customer.get("plan"),
@@ -260,6 +263,12 @@ def _read_only_state(customer_id: str) -> dict:
         "provisioning_state": customer.get("provisioning_state"),
         "subscription": sub,
         "billing_customer": _billing_customer_row(customer_id),
+        "beta": {
+            "tier": grant["tier"],
+            "status": grant["status"],
+            "expires_at": grant.get("expires_at"),
+            "price_variant": grant.get("price_variant"),
+        } if grant is not None else None,
     }
 
 
@@ -281,6 +290,24 @@ def _needs_staleness_refresh(customer_id: str) -> bool:
     return last_synced is None or (datetime.now(timezone.utc) - last_synced) > _STALE_AFTER
 
 
+def _beta_needs_lazy_reconcile(customer_id: str) -> bool:
+    """PLAN_BETA_PROGRAM.md § Phase 2's lazy check — an `active` `free_until`
+    grant already past its `expires_at` needs one reconcile before this
+    response is trusted, same reasoning `_needs_staleness_refresh()` above
+    already applies to a stale ONVO mirror: up to ~24h of lag from the
+    daily beta sweep alone is acceptable (§3 A4), but a page load that
+    KNOWS the grant is stale should not just wait for tomorrow's sweep to
+    say so. A free-tier customer has no `vrm.billing_customers` row at all
+    (§2.4), so `_needs_staleness_refresh()` above always returns False for
+    them regardless — this is the beta-specific equivalent of that check,
+    not a replacement for it."""
+    grant = billing.get_beta_grant(customer_id)
+    if grant is None or grant.get("status") != "active" or grant.get("tier") != "free_until":
+        return False
+    expires_at = _parse_ts(grant.get("expires_at"))
+    return expires_at is not None and datetime.now(timezone.utc) > expires_at
+
+
 def _status_response(state: dict) -> BillingStatusOut:
     """Builds `BillingStatusOut` from a state dict shaped like
     `billing.reconcile_customer()`'s return value (or `_read_only_state()`
@@ -296,14 +323,18 @@ def _status_response(state: dict) -> BillingStatusOut:
     over_limit = site_limit is not None and active_sites > site_limit
     plan_key = state.get("plan")
     billing_status = state.get("billing_status")
-    # `billing.apply_entitlements()`'s `trial_expired` billing_status
-    # (2026-08-29 fix) is a LOCAL classification — ONVO's own mirrored
-    # `sub["status"]` never changes to reflect it (ONVO still reports
-    # "trialing" forever for a subscription it never got a card to
-    # charge). Reporting the raw ONVO status here regardless would put the
-    # customer-facing "Trial" badge right back to lying about what's
-    # actually true — the exact bug this fix exists to close.
-    reported_status = "trial_expired" if billing_status == "trial_expired" else sub.get("status")
+    # `billing.apply_entitlements()`'s LOCAL-only billing_status values
+    # (`trial_expired`, 2026-08-29; `beta`/`beta_ended`,
+    # PLAN_BETA_PROGRAM.md §5) never show up in ONVO's own mirrored
+    # `sub["status"]` — a beta customer commonly has no subscription row at
+    # all (§2.4), and `trial_expired` is ONVO still reporting "trialing"
+    # forever for a subscription it never got a card to charge. Reporting
+    # the raw ONVO status here regardless would put the customer-facing
+    # status badge right back to lying about (or simply omitting) what's
+    # actually true — the exact bug the `trial_expired` fix exists to
+    # close, extended to the two new values.
+    reported_status = billing_status if billing_status in ("trial_expired", "beta", "beta_ended") else sub.get("status")
+    beta = state.get("beta")
     return BillingStatusOut(
         customer_id=customer_id,
         plan_key=plan_key,
@@ -325,6 +356,7 @@ def _status_response(state: dict) -> BillingStatusOut:
         site_limit=site_limit,
         active_sites=active_sites,
         over_limit=over_limit,
+        beta=BillingBetaOut(**beta) if beta else None,
     )
 
 
@@ -335,7 +367,16 @@ def _validate_target_plan(customer: dict, plan_id: str) -> dict:
     (never subscribed) is additionally restricted to `self_serve` plans —
     an ALREADY-`active` customer changing/adding a plan is NOT restricted
     by `self_serve` (§3.1's own note: Oscar can hand-place an existing
-    customer on Fleet and this must not block that)."""
+    customer on Fleet and this must not block that).
+
+    PLAN_BETA_PROGRAM.md §2.4/Phase 2: a non-`'standard'` `price_variant`
+    row (a `beta_pct_NN` discount) is buyable ONLY by the customer holding
+    the matching active `discounted` grant — every other customer is
+    refused outright for any such row, self_serve or not. That customer is
+    then EXEMPT from the self_serve/pending check below for this one row
+    (§ Phase 2's own wording: "exempt... for that variant only") — a brand
+    new discounted invite is `pending_subscription` by design (§4.3), and
+    must still be able to buy the very discount it was invited for."""
     mode = _onvo_mode()
     rows = (
         _t("plans").select("*")
@@ -348,6 +389,26 @@ def _validate_target_plan(customer: dict, plan_id: str) -> dict:
     account_types = plan_row.get("account_types") or []
     if customer.get("account_type") not in account_types:
         raise HTTPException(status_code=403, detail={"code": "plan_not_available"})
+
+    price_variant = plan_row.get("price_variant") or "standard"
+    if price_variant != "standard":
+        # price_variant alone does not identify one plan/interval — 'beta_
+        # pct_30' exists for every base plan/interval (Phase 1's seeding),
+        # so plan_key + billing_interval must ALSO match this grant's own
+        # access_plan_key/billing_interval, not just its discount level
+        # (found live, Phase 2 testing, 2026-09-29 — same gap
+        # vrm_beta_program.sql's billing_interval column comment covers).
+        grant = billing.get_beta_grant(customer["id"])
+        if (
+            grant is None or grant.get("status") != "active"
+            or grant.get("tier") != "discounted"
+            or grant.get("price_variant") != price_variant
+            or grant.get("access_plan_key") != plan_row.get("plan_key")
+            or grant.get("billing_interval") != plan_row.get("billing_interval")
+        ):
+            raise HTTPException(status_code=403, detail={"code": "plan_not_available"})
+        return plan_row
+
     if customer.get("provisioning_state") == "pending_subscription" and not plan_row.get("self_serve"):
         raise HTTPException(status_code=403, detail={"code": "plan_not_available"})
     return plan_row
@@ -482,7 +543,7 @@ def _mark_site_limit_tracks_plan(customer: dict) -> None:
 @router.get("/status", response_model=BillingStatusOut)
 def get_status(customer_id: str = Query(...)) -> BillingStatusOut:
     tenancy.get_customer(customer_id)
-    if _needs_staleness_refresh(customer_id):
+    if _needs_staleness_refresh(customer_id) or _beta_needs_lazy_reconcile(customer_id):
         try:
             state = billing.reconcile_customer(customer_id)
         except onvo.OnvoError as exc:
@@ -501,9 +562,13 @@ def get_status(customer_id: str = Query(...)) -> BillingStatusOut:
 def get_plans(customer_id: str = Query(...)) -> BillingPlansOut:
     customer = tenancy.get_customer(customer_id)
     mode = _onvo_mode()
+    # PLAN_BETA_PROGRAM.md §2.4/Phase 2: 'standard' only by default — a
+    # beta_pct_NN row must never appear for a customer who wasn't
+    # specifically granted that discount (§10's "variant price leakage"
+    # risk this filter exists to close).
     rows = (
         _t("plans").select("*")
-        .eq("active", True).eq("mode", mode)
+        .eq("active", True).eq("mode", mode).eq("price_variant", "standard")
         .contains("account_types", [customer.get("account_type")])
         .order("sort_order")
         .execute().data
@@ -512,6 +577,37 @@ def get_plans(customer_id: str = Query(...)) -> BillingPlansOut:
         # §3.1: a not-yet-paying customer may only see/subscribe to a
         # self-serve plan. An already-active customer is not filtered here.
         rows = [r for r in rows if r.get("self_serve")]
+
+    grant = billing.get_beta_grant(customer_id)
+    if (
+        grant is not None and grant.get("status") == "active"
+        and grant.get("tier") == "discounted" and grant.get("price_variant")
+    ):
+        # Swap in this customer's OWN discounted rows in place of the
+        # matching standard ones — never additive (§ Phase 2: "instead of
+        # the standard rows for the same (plan_key, interval, currency)"),
+        # so the customer sees one price per plan/interval, not two.
+        # Scoped by plan_key + billing_interval, NOT price_variant alone —
+        # 'beta_pct_30' exists for EVERY base plan/interval (Phase 1's
+        # seeding creates one per combination), so filtering on price_variant
+        # by itself would hand this customer their discount on every plan,
+        # not just the one they were actually granted it for (found live,
+        # Phase 2 testing, 2026-09-29 — see vrm_beta_program.sql's
+        # billing_interval column comment for the full story).
+        variant_rows = (
+            _t("plans").select("*")
+            .eq("active", True).eq("mode", mode)
+            .eq("plan_key", grant["access_plan_key"])
+            .eq("billing_interval", grant["billing_interval"])
+            .eq("price_variant", grant["price_variant"])
+            .contains("account_types", [customer.get("account_type")])
+            .execute().data
+        ) or []
+        if variant_rows:
+            variant_keys = {(r["plan_key"], r["billing_interval"], r["currency"]) for r in variant_rows}
+            rows = [r for r in rows if (r["plan_key"], r["billing_interval"], r["currency"]) not in variant_keys]
+            rows = sorted(rows + variant_rows, key=lambda r: r.get("sort_order") or 0)
+
     current_plan_key = customer.get("plan")
     return BillingPlansOut(plans=[
         BillingPlanOut(
@@ -606,14 +702,24 @@ def post_subscription(body: BillingSubscribeRequest) -> BillingSubscribeOut:
     try:
         billing_row = _ensure_billing_customer(customer)
         onvo_customer_id = billing_row["onvo_customer_id"]
+        # PLAN_BETA_PROGRAM.md §5/§11 Q6+Q13: no standard trial for a
+        # customer with beta grant history (active/expired/revoked) —
+        # charged today, whether this is an early conversion during an
+        # active free/discounted grant or a reactivation after
+        # expiry/revocation. `has_beta_grant_history()`'s own docstring
+        # covers why a `'converted'` grant is excluded (that customer
+        # already completed one full cycle through this mechanism).
+        trial_period_days = 0 if billing.has_beta_grant_history(body.customer_id) else 7
         try:
             sub = onvo.create_subscription(
                 customer_id=onvo_customer_id, price_id=plan_row["onvo_price_id"],
                 payment_method_id=None,
                 payment_behavior="allow_incomplete",
-                trial_period_days=7,  # Q2, final: 7-day trial — comes back `trialing`
+                trial_period_days=trial_period_days,  # Q2, final: 7-day trial for an
+                                       # ordinary signup — comes back `trialing`
                                        # immediately (not `incomplete`, see this
-                                       # function's own docstring), no card yet
+                                       # function's own docstring), no card yet. 0
+                                       # instead for any beta-linked customer (above).
                 metadata={"vrm_customer_id": customer["id"], "plan_key": plan_row["plan_key"], "env": _onvo_mode()},
             )
         except onvo.OnvoError as exc:
@@ -938,6 +1044,21 @@ def post_trial_reminders() -> BillingTrialRemindersOut:
     just the HTTP door into it.
     """
     return BillingTrialRemindersOut(**billing.send_trial_ending_reminders())
+
+
+@router.post("/beta-sweep", response_model=BillingBetaSweepOut)
+def post_beta_sweep() -> BillingBetaSweepOut:
+    """The daily beta-program sweep (PLAN_BETA_PROGRAM.md § Phase 2/3) —
+    same shape as `trial-reminders`/`reconcile-due` above: no `customer_id`,
+    pipeline-key only, meant to be called once a day by a GitHub Actions
+    `cron:` step (a new step in `.github/workflows/billing-reconcile.yml`,
+    placed before "Reconcile every due subscription" — a free beta customer
+    has no `vrm.billing_customers` row at all, §2.4, so nothing else ever
+    naturally reconciles them). All the actual logic lives in
+    `vrm_api/billing.py:run_beta_sweep()` — this endpoint is just the HTTP
+    door into it.
+    """
+    return BillingBetaSweepOut(**billing.run_beta_sweep())
 
 
 @router.post("/prune-signups", response_model=BillingPruneSignupsOut)

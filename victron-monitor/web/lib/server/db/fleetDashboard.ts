@@ -21,7 +21,9 @@ import type { CustomerRecord } from './types';
 // comment on why (two independent implementations of the same one-sentence
 // rule, not a shared import that could silently drift for one feature but
 // not the other).
-const NOT_ENTITLED_STATUSES = new Set(['incomplete', 'unpaid', 'canceled', 'trial_expired']);
+//
+// 'beta_ended' (PLAN_BETA_PROGRAM.md §5) added the same way.
+const NOT_ENTITLED_STATUSES = new Set(['incomplete', 'unpaid', 'canceled', 'trial_expired', 'beta_ended']);
 
 function isEntitled(customer: CustomerRecord): boolean {
   if (!customer.active) return false;

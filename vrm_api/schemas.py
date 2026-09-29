@@ -530,6 +530,23 @@ class BillingStatusOut(BaseModel):
     site_limit: int | None = None
     active_sites: int = 0
     over_limit: bool = False
+    # PLAN_BETA_PROGRAM.md §5/Phase 2. `None` for a customer with no beta
+    # grant history at all (the common case).
+    beta: BillingBetaOut | None = None
+
+
+class BillingBetaOut(BaseModel):
+    """The customer's most relevant `vrm.beta_grants` row (`get_beta_grant()`'s
+    own "active, else most recent" rule) — regardless of its own status, so
+    the portal can show "your beta access ended" even after the grant
+    itself is no longer active. Never `onvo_price_id`, same reasoning
+    `BillingPlanOut` already gives for leaving ONVO ids out of every
+    customer-facing shape."""
+
+    tier: str
+    status: str
+    expires_at: str | None = None
+    price_variant: str | None = None
 
 
 class BillingPlanOut(BaseModel):
@@ -785,6 +802,18 @@ class BillingTrialRemindersOut(BaseModel):
     checked: int
     sent: int
     skipped: int
+    failed: int
+
+
+class BillingBetaSweepOut(BaseModel):
+    """`POST /v1/billing/beta-sweep`'s response (PLAN_BETA_PROGRAM.md §
+    Phase 2/3) — the daily beta-program sweep (`vrm_api/billing.py:
+    run_beta_sweep()`). Counts only, same reasoning `BillingPruneSignupsOut`
+    gives for its own shape. `sent`/`skipped` are added in Phase 3 once this
+    also sends reminder/ended emails; for now this is the reconcile-only
+    half."""
+
+    checked: int
     failed: int
 
 

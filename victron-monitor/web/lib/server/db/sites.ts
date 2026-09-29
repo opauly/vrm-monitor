@@ -187,7 +187,11 @@ const REPORT_MODULES_SET = new Set<string>(REPORT_MODULES);
 // no card on file was correctly demoted (plan/site_limit) but this
 // denylist not knowing the new status meant module selection stayed
 // entitled.
-const NOT_ENTITLED_STATUSES = new Set(['incomplete', 'unpaid', 'canceled', 'trial_expired']);
+//
+// 'beta_ended' (vrm_api/billing.py, PLAN_BETA_PROGRAM.md §5) added the same
+// way — an ended free-tier beta grant with no entitled paid subscription
+// must lose module access too, not just plan/site_limit.
+const NOT_ENTITLED_STATUSES = new Set(['incomplete', 'unpaid', 'canceled', 'trial_expired', 'beta_ended']);
 
 /** Whether `/app/sites`' per-site edit form should show the module
  * checklist (`true`) or hide it entirely (`false`) for this customer — and

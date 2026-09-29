@@ -125,6 +125,21 @@ _STATUS_ENTITLEMENT: dict[str, bool] = {
 #   'canceled'   — ONVO status `canceled` OR `incomplete_expired` — from a
 #                  support/UI point of view both mean "this subscription is
 #                  over, there is no access," so they share one bucket here.
+#   'beta'       — PLAN_BETA_PROGRAM.md §5. A `vrm.beta_grants` row is
+#                  `active`, tier `free_lifetime`/`free_until`, not past its
+#                  expiry, and there is no entitled paid subscription with a
+#                  card on file taking over instead. Entitled — not in
+#                  NOT_ENTITLED_BILLING_STATUSES below. Written and cleared
+#                  ONLY by apply_entitlements()'s beta branch, never by the
+#                  ONVO-status mapping above (a beta customer has no ONVO
+#                  subscription at all — see §2.4).
+#   'beta_ended' — §5 row 4. That customer's most recent free-tier grant is
+#                  `expired`/`revoked` and there is still no entitled paid
+#                  subscription. NOT entitled — see NOT_ENTITLED_BILLING_
+#                  STATUSES below. This is what stops the plain
+#                  `subscription is None` branch from silently resetting an
+#                  ended beta customer back to `'none'` on the next
+#                  reconcile (§2.2's own trap).
 # An unrecognized ONVO status leaves billing_status untouched (§4.5 rule 2's
 # "hold" behaviour applies to this column too, not just plan/site_limit).
 _BILLING_STATUS_FOR_ONVO_STATUS: dict[str, str] = {
@@ -162,7 +177,13 @@ _BILLING_STATUS_FOR_ONVO_STATUS: dict[str, str] = {
 # of keeping its own copy — a status added here is instantly correct
 # everywhere, with no possibility of one file silently falling behind the
 # others.
-NOT_ENTITLED_BILLING_STATUSES = frozenset({"incomplete", "unpaid", "canceled", "trial_expired"})
+#
+# 'beta_ended' added here for PLAN_BETA_PROGRAM.md §5/§11 — the SAME
+# denylist is duplicated again on the TypeScript side (`lib/server/db/
+# sites.ts`, `branding.ts`, `fleetDashboard.ts`); all three TS copies must
+# get 'beta_ended' too, in the same phase, or an ended beta tester keeps one
+# feature the others correctly block.
+NOT_ENTITLED_BILLING_STATUSES = frozenset({"incomplete", "unpaid", "canceled", "trial_expired", "beta_ended"})
 
 
 def _t(name: str):
@@ -309,7 +330,7 @@ def _resolve_plan_row(onvo_price_id: str | None, mode: str) -> dict | None:
     if not onvo_price_id:
         return None
     rows = (
-        _t("plans").select("plan_key, site_limit, billing_interval, currency, amount_minor")
+        _t("plans").select("plan_key, site_limit, billing_interval, currency, amount_minor, price_variant")
         .eq("onvo_price_id", onvo_price_id).eq("mode", mode).limit(1).execute().data
     )
     return rows[0] if rows else None
@@ -522,6 +543,62 @@ def _classify_status(status: str | None) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# Beta program (PLAN_BETA_PROGRAM.md §5) — helpers used by apply_entitlements()
+# ═══════════════════════════════════════════════════════════════════════
+
+def get_beta_grant(customer_id: str) -> dict | None:
+    """The customer's `active` `vrm.beta_grants` row if one exists, else
+    their most recently created grant of any status, else `None`. At most
+    one `active` row per customer is enforced by a partial unique index
+    (§4.1), so ordering only matters for the fallback."""
+    active = (
+        _t("beta_grants").select("*").eq("customer_id", customer_id)
+        .eq("status", "active").limit(1).execute().data
+    )
+    if active:
+        return active[0]
+    rows = (
+        _t("beta_grants").select("*").eq("customer_id", customer_id)
+        .order("created_at", desc=True).limit(1).execute().data
+    )
+    return rows[0] if rows else None
+
+
+def has_beta_grant_history(customer_id: str) -> bool:
+    """True iff this customer has an `active`, `expired`, or `revoked`
+    beta grant — §5's "no standard ONVO trial on a beta-linked conversion"
+    rule (§11 Q6+Q13), consulted by `routers/billing.py:post_subscription()`
+    before it decides `trial_period_days`. Deliberately excludes
+    `'converted'`: that customer already completed one full subscribe cycle
+    through this mechanism (§5 row 1/5), so a LATER, unrelated resubscribe
+    (after canceling) is just an ordinary customer again, with an ordinary
+    trial."""
+    rows = (
+        _t("beta_grants").select("id").eq("customer_id", customer_id)
+        .in_("status", ["active", "expired", "revoked"]).limit(1).execute().data
+    )
+    return bool(rows)
+
+
+def _has_entitled_subscription_with_card(customer_id: str, subscription: dict | None) -> bool:
+    """"Entitled subscription with a card" (S_ok, §5) — the current mirror
+    subscription's raw ONVO status is entitled-shaped AND a payment method
+    is on file for this customer. Deliberately does NOT call
+    `_classify_status()` (which logs an error for an unrecognized status):
+    this is consulted BEFORE the existing subscription-classification logic
+    in `apply_entitlements()` runs, and must not double-log the same
+    finding that code encounters a few lines later. An unrecognized status
+    is simply not S_ok here — consistent with "hold rather than guess,"
+    since an ambiguous status should never count as a paid subscription
+    taking over from a beta grant."""
+    if subscription is None:
+        return False
+    if not _STATUS_ENTITLEMENT.get(subscription.get("status"), False):
+        return False
+    return bool((_billing_customer_row(customer_id) or {}).get("default_payment_method_id"))
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # apply_entitlements — the only path from money to plan/site_limit (§4.5)
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -543,7 +620,114 @@ def apply_entitlements(customer_id: str) -> None:
             updates[field] = new_value
             changed.append(f"{field}: {old_value!r} -> {new_value!r}")
 
-    if subscription is None:
+    def _transition_grant(grant_id: str, from_status: str, to_status: str, extra: dict | None = None) -> bool:
+        """CAS-style grant status transition, conditional on the CURRENT
+        status — same discipline `send_trial_ending_reminders()`'s
+        `trial_reminder_sent_at` gate uses, so two concurrent reconciles for
+        the same customer can't double-transition the same grant."""
+        updated = (
+            _t("beta_grants").update({"status": to_status, **(extra or {})})
+            .eq("id", grant_id).eq("status", from_status)
+            .execute().data
+        )
+        if updated:
+            logger.info(
+                "billing.beta_grant_transition customer_id=%s grant=%s %s->%s",
+                customer_id, grant_id, from_status, to_status,
+            )
+        return bool(updated)
+
+    # ═══════════════════════════════════════════════════════════════════
+    # Beta program branch (PLAN_BETA_PROGRAM.md §5) — runs BEFORE the
+    # existing subscription logic below, and can pre-empt it entirely
+    # (rows 2/4 set skip_existing_logic instead of returning early, so
+    # every write still goes through the ONE shared `updates`/log/analytics
+    # block at the end of this function, per §5's own coding rule).
+    # ═══════════════════════════════════════════════════════════════════
+    grant = get_beta_grant(customer_id)
+    s_ok = _has_entitled_subscription_with_card(customer_id, subscription)
+    now = datetime.now(timezone.utc)
+    skip_existing_logic = False
+
+    if grant is not None and grant["tier"] in ("free_lifetime", "free_until") and grant["status"] == "active":
+        expires_at = _parse_ts(grant.get("expires_at"))
+        not_expired = grant["tier"] == "free_lifetime" or (expires_at is not None and now < expires_at)
+
+        if not_expired and s_ok:
+            # Row 1 — paid while still an active free grant: forfeit the
+            # rest of the free period (§11 Q6) and let the grant become
+            # history. The EXISTING subscription logic below (unchanged)
+            # takes over entitlement from here on — same as any other
+            # customer with a real subscription.
+            _transition_grant(grant["id"], "active", "converted", {"converted_at": now.isoformat()})
+            grant = None
+        elif not_expired and not s_ok:
+            # Row 2 — the grant IS the entitlement, regardless of
+            # site_limit_source (the grant is the source of truth while
+            # it's active, not the customer's own hand-negotiated limit).
+            _set("billing_status", "beta")
+            _set("plan", grant["access_plan_key"])
+            _set("site_limit", grant.get("site_limit"))
+            if customer.get("provisioning_state") == "pending_subscription":
+                _set("provisioning_state", "active")
+            skip_existing_logic = True
+        else:
+            # Row 3 — free_until, past its expiry: close the grant now and
+            # re-evaluate as row 4 in this SAME call, so a customer's very
+            # first stale reconcile after expiry both closes the grant AND
+            # demotes them immediately, rather than needing two reconciles.
+            _transition_grant(grant["id"], "active", "expired", {"expired_at": now.isoformat()})
+            grant = dict(grant, status="expired")
+
+    if (
+        not skip_existing_logic and grant is not None
+        and grant["tier"] in ("free_lifetime", "free_until")
+        and grant["status"] in ("expired", "revoked")
+        and not s_ok
+    ):
+        # Row 4 — a free-tier grant has ended and there's no entitled paid
+        # subscription to fall back on. This is what stops the plain
+        # `subscription is None` branch below from silently clobbering this
+        # back to billing_status='none' on the next reconcile (§2.2's own
+        # trap — a free beta customer has no vrm.billing_customers row, so
+        # nothing else naturally re-triggers a reconcile for them; the
+        # daily beta sweep, § Phase 2/3, is what does). provisioning_state
+        # is deliberately never touched here — promotion is one-way (rule
+        # 8 below), and an ended free tester is not "pending" again.
+        _set("billing_status", "beta_ended")
+        _set("plan", "trial")
+        _set("site_limit", 0)
+        skip_existing_logic = True
+
+    if (
+        not skip_existing_logic and grant is not None
+        and grant["tier"] == "discounted" and grant["status"] == "active"
+        and s_ok and subscription is not None
+    ):
+        # Row 5 — a discounted grant has NO entitlement effect of its own;
+        # the existing subscription logic below is what actually entitles
+        # this customer, unchanged. This only marks the grant `converted`
+        # once that subscription is real (S_ok) AND actually on the exact
+        # discounted price this grant was for — a customer could in theory
+        # cancel their discounted subscription and buy a full-price one
+        # instead, which must NOT be read as "the discount grant succeeded."
+        # price_variant alone is not enough to confirm "the exact price" —
+        # it's shared across every base plan/interval at that discount
+        # level (§2.4) — so plan_key/billing_interval must match too (same
+        # gap _validate_target_plan()'s own comment covers, found live
+        # during Phase 2 testing, 2026-09-29).
+        price_row = _resolve_plan_row(subscription.get("onvo_price_id"), subscription.get("mode"))
+        if (
+            price_row is not None
+            and price_row.get("price_variant") == grant.get("price_variant")
+            and price_row.get("plan_key") == grant.get("access_plan_key")
+            and price_row.get("billing_interval") == grant.get("billing_interval")
+        ):
+            _transition_grant(grant["id"], "active", "converted", {"converted_at": now.isoformat()})
+
+    if skip_existing_logic:
+        pass
+    elif subscription is None:
         # §4.5's "not entitled and never was" case: no subscription row
         # found at all — a legacy/manually-managed customer, or a signup
         # that hasn't reached checkout. plan/site_limit are NEVER touched
@@ -691,34 +875,40 @@ def apply_entitlements(customer_id: str) -> None:
                 updates.get("site_limit", customer.get("site_limit")),
             )
             # `subscription_started` — the analytics counterpart to the log
-            # line above, and deliberately hung on the SAME guard, for the
-            # same reason: `updates.get("provisioning_state") == "active"`
-            # is only ever true on the one reconcile call whose `_set()`
-            # above actually staged that write (line ~669's own `if
-            # customer.get("provisioning_state") == "pending_subscription"`
-            # gate), and after this UPDATE lands, `provisioning_state` is
-            # `"active"` from then on — so no later reconcile (a webhook
-            # retry, the daily reconcile-due sweep, another subscribe/
-            # cancel/change call) ever sees `"pending_subscription"` again
-            # to re-stage it. That one-way promotion (§4.5 rule 8) is what
-            # makes this safe to fire here at all, unlike almost anywhere
-            # else in this function — see vrm_api/analytics.py's own
-            # module docstring for the full reasoning, and this event's
-            # sibling `trial_started` (Next.js `lib/server/signup.ts`) for
-            # the earlier half of the same funnel. Known gap, not
-            # attempted here: a customer who cancels and later
-            # re-subscribes already has `provisioning_state == "active"`
-            # from their first subscription, so this specific guard does
-            # not fire a second time for that win-back case.
-            capture_server_event(
-                customer.get("contact_email") or customer.get("auth_email") or customer_id,
-                "subscription_started",
-                {
-                    "customer_id": customer_id,
-                    "plan": updates.get("plan", customer.get("plan")),
-                    "site_limit": updates.get("site_limit", customer.get("site_limit")),
-                },
-            )
+            # line above, and deliberately hung on the SAME guard PLUS
+            # `not skip_existing_logic`, for the same reason: without that
+            # second guard, a free beta grant's own promotion (§5 row 2,
+            # which also sets provisioning_state='active' but involves no
+            # money and no ONVO subscription at all) would fire an event
+            # literally named "subscription_started" and corrupt revenue
+            # funnel analytics. `updates.get("provisioning_state") ==
+            # "active"` is only ever true on the one reconcile call whose
+            # `_set()` above actually staged that write (line ~669's own
+            # `if customer.get("provisioning_state") ==
+            # "pending_subscription"` gate), and after this UPDATE lands,
+            # `provisioning_state` is `"active"` from then on — so no later
+            # reconcile (a webhook retry, the daily reconcile-due sweep,
+            # another subscribe/cancel/change call) ever sees
+            # `"pending_subscription"` again to re-stage it. That one-way
+            # promotion (§4.5 rule 8) is what makes this safe to fire here
+            # at all, unlike almost anywhere else in this function — see
+            # vrm_api/analytics.py's own module docstring for the full
+            # reasoning, and this event's sibling `trial_started` (Next.js
+            # `lib/server/signup.ts`) for the earlier half of the same
+            # funnel. Known gap, not attempted here: a customer who cancels
+            # and later re-subscribes already has `provisioning_state ==
+            # "active"` from their first subscription, so this specific
+            # guard does not fire a second time for that win-back case.
+            if not skip_existing_logic:
+                capture_server_event(
+                    customer.get("contact_email") or customer.get("auth_email") or customer_id,
+                    "subscription_started",
+                    {
+                        "customer_id": customer_id,
+                        "plan": updates.get("plan", customer.get("plan")),
+                        "site_limit": updates.get("site_limit", customer.get("site_limit")),
+                    },
+                )
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -859,6 +1049,84 @@ def send_trial_ending_reminders() -> dict:
     return {"checked": len(candidates), "sent": sent, "skipped": skipped, "failed": failed}
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# run_beta_sweep — the daily beta-program sweep (PLAN_BETA_PROGRAM.md §5/
+# Phase 2-3)
+# ═══════════════════════════════════════════════════════════════════════
+# Needed because a free-tier beta customer has no `vrm.billing_customers`
+# row at all (§2.4 — free tiers bypass ONVO entirely), so nothing else in
+# this file's existing staleness machinery (`_needs_staleness_refresh()` in
+# routers/billing.py, `post_reconcile_due()`'s subscription-staleness scan)
+# ever naturally reconciles them. Two cases need a sweep of their own:
+#   (a) an `active` `free_until` grant whose `expires_at` has already
+#       passed — needs one `reconcile_customer()` call to run §5 row 3/4
+#       and actually demote the customer.
+#   (b) a customer whose most recent grant is already `expired`/`revoked`
+#       but whose `billing_status` isn't `beta_ended` yet — covers a
+#       customer who was never reconciled even once after their grant
+#       ended (e.g. the admin revoked it and nobody has loaded a page for
+#       that customer since).
+# Reminder/"your access has ended" emails are added in Phase 3, inside this
+# same function — this is deliberately the reconcile-only half for now.
+def run_beta_sweep() -> dict:
+    """Meant to run once a day (a new step in `.github/workflows/
+    billing-reconcile.yml`, alongside the existing reconcile-due/
+    trial-reminders steps). One customer's failure never aborts the sweep
+    for the rest — same posture `routers/billing.py:post_reconcile_due()`
+    already takes, for the same reason."""
+    now = datetime.now(timezone.utc)
+
+    expiring = (
+        _t("beta_grants").select("customer_id")
+        .eq("status", "active").eq("tier", "free_until")
+        .lt("expires_at", now.isoformat())
+        .execute().data
+    ) or []
+
+    ended_grants = (
+        _t("beta_grants").select("customer_id")
+        .in_("status", ["expired", "revoked"])
+        .execute().data
+    ) or []
+    ended_customer_ids = sorted({row["customer_id"] for row in ended_grants})
+    not_yet_ended: list[dict] = []
+    if ended_customer_ids:
+        # Filtered in Python, not with `.neq("billing_status", "beta_ended")`
+        # — SQL's `<>` against a NULL `billing_status` (every never-
+        # reconciled customer's starting value) evaluates to NULL, not
+        # true, so a PostgREST `.neq()` would silently EXCLUDE exactly the
+        # customers this sweep most needs to catch (found live, Phase 2
+        # testing, 2026-09-29: a fresh revoked-grant customer who was never
+        # reconciled even once was skipped by the sweep entirely).
+        candidates = (
+            _t("customers").select("id, billing_status")
+            .in_("id", ended_customer_ids)
+            .execute().data
+        ) or []
+        not_yet_ended = [row for row in candidates if row.get("billing_status") != "beta_ended"]
+
+    due_customer_ids = sorted(
+        {row["customer_id"] for row in expiring} | {row["id"] for row in not_yet_ended}
+    )
+
+    failed = 0
+    for customer_id in due_customer_ids:
+        try:
+            # reconcile_customer() (not apply_entitlements() directly) —
+            # its own docstring already covers exactly this case: "safe to
+            # call for a customer who has never touched billing at all," no
+            # ONVO calls made, just runs the entitlement writer. Using the
+            # same entry point every other sweep uses means a beta customer
+            # who DID also touch ONVO (a discounted grant, or one who
+            # separately subscribed) still gets a correct, full reconcile.
+            reconcile_customer(customer_id)
+        except Exception as exc:  # noqa: BLE001 — one customer's failure must not abort the sweep
+            failed += 1
+            logger.warning("billing.beta_sweep: reconcile failed for customer_id=%s — %s", customer_id, exc)
+
+    return {"checked": len(due_customer_ids), "failed": failed}
+
+
 def _billing_state(customer_id: str) -> dict:
     """A small, typed-enough summary for a caller (a router in Step 3, or
     this step's own validation script) — never a raw ONVO payload (§4.3
@@ -866,6 +1134,7 @@ def _billing_state(customer_id: str) -> dict:
     customer = tenancy.get_customer(customer_id)
     subscription = _current_mirror_subscription(customer_id)
     billing_row = _billing_customer_row(customer_id)
+    grant = get_beta_grant(customer_id)
     return {
         "customer_id": customer_id,
         "plan": customer.get("plan"),
@@ -875,4 +1144,16 @@ def _billing_state(customer_id: str) -> dict:
         "provisioning_state": customer.get("provisioning_state"),
         "subscription": subscription,
         "billing_customer": billing_row,
+        # PLAN_BETA_PROGRAM.md §5/Phase 2 — None for a customer with no beta
+        # grant history at all (the common case); otherwise the most
+        # relevant one (`get_beta_grant()`'s own "active, else most
+        # recent" rule), regardless of its status, so `_status_response()`
+        # can show "your beta access ended" even after the grant itself is
+        # no longer active.
+        "beta": {
+            "tier": grant["tier"],
+            "status": grant["status"],
+            "expires_at": grant.get("expires_at"),
+            "price_variant": grant.get("price_variant"),
+        } if grant is not None else None,
     }

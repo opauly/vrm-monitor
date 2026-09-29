@@ -266,3 +266,91 @@ export type IngestionLogRecord = {
   warnings: unknown;
   uploaded_at: string;
 };
+
+export type BetaGrantTier = 'free_lifetime' | 'free_until' | 'discounted';
+export type BetaGrantStatus = 'active' | 'expired' | 'revoked' | 'converted';
+
+/** One `vrm.beta_grants` row (PLAN_BETA_PROGRAM.md §4.1). At most one
+ * `status='active'` row per `customer_id` (a partial unique index enforces
+ * it — see that migration's own comment). Entitlement for `free_lifetime`/
+ * `free_until` is applied ONLY by `vrm_api/billing.py:apply_entitlements()`
+ * (§5) — this record is read by `/admin/beta` for display/editing and by
+ * that Python entitlement writer, never used directly to gate access from
+ * this app's own request handlers. */
+export type BetaGrantRecord = {
+  id: string;
+  customer_id: string;
+  tier: BetaGrantTier;
+  access_plan_key: string;
+  /** `null` = unlimited, same convention as `CustomerRecord.site_limit`.
+   * Ignored for `tier='discounted'`. */
+  site_limit: number | null;
+  /** Set iff `tier='free_until'` (DB CHECK). */
+  expires_at: string | null;
+  /** Set iff `tier='discounted'` (DB CHECK) — which of the base plan's two
+   * intervals this discount applies to. Added after `price_variant` alone
+   * was found ambiguous across plan_key/interval (every base plan/interval
+   * has its own row at the same discount level) — `access_plan_key` +
+   * `billing_interval` + `price_variant` together identify the exact
+   * `vrm.plans` row this grant is for. */
+  billing_interval: 'month' | 'year' | null;
+  /** Set iff `tier='discounted'` (DB CHECK) — one of the pre-seeded
+   * `vrm.plans.price_variant` rows (`'beta_pct_10'`..`'beta_pct_90'`, §2.4).
+   * NOT unique to one plan_key/interval by itself — see
+   * `billing_interval`'s own comment. */
+  price_variant: string | null;
+  status: BetaGrantStatus;
+  invited_by_email: string;
+  notes: string | null;
+  expiry_reminder_sent_at: string | null;
+  ended_notice_sent_at: string | null;
+  expired_at: string | null;
+  revoked_at: string | null;
+  converted_at: string | null;
+  revoked_by_email: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FeedbackKind = 'bug' | 'suggestion';
+export type FeedbackSeverity = 'low' | 'medium' | 'high' | 'blocker';
+export type FeedbackStatus = 'new' | 'triaged' | 'in_progress' | 'resolved' | 'wont_fix' | 'duplicate';
+export type FeedbackPriority = 'p1' | 'p2' | 'p3';
+
+/** One `vrm.feedback` row (PLAN_BETA_PROGRAM.md §4.5). Open to every
+ * customer, not just beta testers (§11 Q10). The submitter never reads
+ * `status`/`admin_priority`/`admin_notes` back (§11 Q14 — no "My feedback"
+ * page); those three fields exist for `/admin/feedback` only. */
+export type FeedbackRecord = {
+  id: string;
+  customer_id: string | null;
+  auth_user_id: string | null;
+  submitter_email: string;
+  kind: FeedbackKind;
+  severity: FeedbackSeverity | null;
+  title: string;
+  body: string;
+  page_path: string | null;
+  site_id: string | null;
+  ui_language: Lang | null;
+  user_agent: string | null;
+  app_version: string | null;
+  screenshot_path: string | null;
+  status: FeedbackStatus;
+  admin_priority: FeedbackPriority | null;
+  admin_notes: string | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+};
+
+/** One `vrm.app_settings` row (PLAN_BETA_PROGRAM.md §4.6). Small,
+ * admin-editable key/value settings — first use is `'feedback_notify_email'`
+ * (§11 Q11), but this type is deliberately generic, not
+ * beta-program-specific. */
+export type AppSettingRecord = {
+  key: string;
+  value: string;
+  updated_at: string;
+  updated_by_email: string | null;
+};

@@ -534,6 +534,15 @@ export type BillingStatusOut = {
   site_limit: number | null;
   active_sites: number;
   over_limit: boolean;
+  /** PLAN_BETA_PROGRAM.md §5/Phase 2 — mirrors `vrm_api/schemas.py:
+   * BillingBetaOut`. `null` for a customer with no beta grant history at
+   * all (the common case). */
+  beta: {
+    tier: 'free_lifetime' | 'free_until' | 'discounted';
+    status: 'active' | 'expired' | 'revoked' | 'converted';
+    expires_at: string | null;
+    price_variant: string | null;
+  } | null;
 };
 
 export async function billingStatus(customerId: string): Promise<BillingStatusOut> {

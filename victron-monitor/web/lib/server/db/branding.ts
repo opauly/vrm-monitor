@@ -26,7 +26,9 @@ import type { CustomerRecord } from './types';
 // 'trial_expired' (vrm_api/billing.py, migration 030, 2026-08-29) added
 // alongside the other four restatements of this exact denylist — see
 // sites.ts's own comment for the full reasoning.
-const NOT_ENTITLED_STATUSES = new Set(['incomplete', 'unpaid', 'canceled', 'trial_expired']);
+//
+// 'beta_ended' (PLAN_BETA_PROGRAM.md §5) added the same way.
+const NOT_ENTITLED_STATUSES = new Set(['incomplete', 'unpaid', 'canceled', 'trial_expired', 'beta_ended']);
 
 /** The shape of `vrm.customers.branding` (PLAN_PHASE17.md §4.1) — the Zod
  * half of the "three places, one shape" documentation `vrm_api/schemas.py:
