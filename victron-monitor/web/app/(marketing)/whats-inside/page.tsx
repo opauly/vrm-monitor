@@ -98,7 +98,7 @@ export default function WhatsInsidePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
-      <Nav lang={lang} altHref="/es/whats-inside" />
+      <Nav lang={lang} toggle={{ kind: 'href', href: '/es/whats-inside' }} />
 
       <header className={`wrap ${styles.intro}`}>
         <Link href="/#capabilities" className={styles.backLink}>

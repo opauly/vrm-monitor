@@ -18,7 +18,7 @@ const lang = 'es' as const;
 export default function TermsPageEs() {
   return (
     <>
-      <Nav lang={lang} altHref="/terms" />
+      <Nav lang={lang} toggle={{ kind: 'href', href: '/terms' }} />
       <div className="wrap">
         <div className={styles.page}>
           <header className={styles.header}>

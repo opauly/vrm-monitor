@@ -3,7 +3,15 @@ import Link from 'next/link';
 import { t, type Lang } from '@/lib/i18n/strings';
 import { NavAuthArea } from './NavAuthArea';
 import { MobileMenu } from './MobileMenu';
+import { CookieLangToggle } from './CookieLangToggle';
 import styles from './Nav.module.css';
+
+// The language toggle's two modes: `href` links straight to a sibling
+// page's own URL (marketing's /es pairs); `cookie` writes a cookie and
+// refreshes in place ((auth)'s pages — one URL each, no sibling to link
+// to). See CookieLangToggle.tsx's own comment for why auth needs a
+// different mechanism than marketing.
+export type NavLangToggle = { kind: 'href'; href: string } | { kind: 'cookie'; cookieName: string };
 
 // public/pauly_logo.png is 567x156 (landing-page/assets/pauly_logo.png,
 // copied not moved — see PLAN_PHASE14.md §6.2). Referenced by URL string
@@ -60,11 +68,11 @@ const LOGO_HEIGHT = 156;
 // visitor who already has a session sees an account menu instead, rather
 // than buttons for an action they've already taken. See that component's
 // own header comment for why this couldn't just be decided here.
-export function Nav({ lang, altHref }: { lang: Lang; altHref: string }) {
+export function Nav({ lang, toggle }: { lang: Lang; toggle: NavLangToggle }) {
   // `/es` prefix on this page's own in-page anchors/routes only — never on
-  // /signup, /login, mailto, or the language toggle's own `altHref` (that
-  // one IS the other language's full path already, computed by the
-  // caller — see each page.tsx's own header comment).
+  // /signup, /login, mailto, or the language toggle itself (that's either
+  // already the other language's full path, or not a URL at all — see
+  // `NavLangToggle`'s own comment).
   const base = lang === 'es' ? '/es' : '';
   const altLabel = lang === 'es' ? 'EN' : 'ES';
 
@@ -99,12 +107,22 @@ export function Nav({ lang, altHref }: { lang: Lang; altHref: string }) {
           </div>
           <Link href={`${base}/whats-inside`}>{t(lang, 'marketing_nav_whats_inside')}</Link>
           <Link href={`${base}/#pricing`}>{t(lang, 'marketing_nav_pricing')}</Link>
-          <Link href={altHref} className={styles.langToggle} aria-label={t(lang, 'marketing_lang_toggle_label')}>
-            {altLabel}
-          </Link>
+          {toggle.kind === 'href' ? (
+            <Link href={toggle.href} className={styles.langToggle} aria-label={t(lang, 'marketing_lang_toggle_label')}>
+              {altLabel}
+            </Link>
+          ) : (
+            <CookieLangToggle
+              lang={lang}
+              cookieName={toggle.cookieName}
+              label={t(lang, 'marketing_lang_toggle_label')}
+              displayText={altLabel}
+              className={styles.langToggle}
+            />
+          )}
           <NavAuthArea lang={lang} />
         </div>
-        <MobileMenu lang={lang} altHref={altHref} />
+        <MobileMenu lang={lang} toggle={toggle} />
       </div>
     </nav>
   );

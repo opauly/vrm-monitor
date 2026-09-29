@@ -1,16 +1,16 @@
 'use client';
 
 // The `/signup` client half (PLAN_PHASE16.md §5.5 Step 1 / §8 Step 5.5).
-// Always rendered with `t('en', ...)` — same convention `/login`,
-// `/forgot`, and `/activate` already follow (their own comments: a
-// visitor's `ui_language` preference isn't known/enforced until AFTER they
-// have a `vrm.customers` row, which doesn't exist yet at this point in the
-// flow). The `ui_language` <select> below is the visitor's PREFERENCE for
-// their future account, not a switch for this page's own copy.
+// `lang` (2026-09-29) drives this PAGE's own copy, via the `auth_lang`
+// cookie every (auth) page.tsx reads — see lib/server/authLang.ts's own
+// comment. The separate `ui_language` <select> below is a different thing
+// entirely: the visitor's PREFERENCE for their future account's reports,
+// stored on the `vrm.customers` row this form creates, independent of
+// which language they filled out this form in.
 import { useActionState, useState } from 'react';
 import Link from 'next/link';
 import { Button, Field, Input, ModeToggle, Select } from '@/components/ui';
-import { t } from '@/lib/i18n/strings';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { planLabel } from '@/lib/plans';
 import type { AccountType } from '@/lib/server/db/types';
 import type { SelfServePlanOut } from '@/lib/server/db/signup';
@@ -23,6 +23,7 @@ export type SignupFormProps = {
   plansByAccountType: Record<AccountType, SelfServePlanOut[]>;
   initialAccountType: AccountType;
   initialPlanId: string | null;
+  lang: Lang;
 };
 
 function formatMoney(amountMinor: number, currency: string): string {
@@ -55,7 +56,7 @@ function annualSavingsPct(plan: SelfServePlanOut, allPlans: SelfServePlanOut[]):
   return Math.round((savings / annualizedMonthly) * 100);
 }
 
-export function SignupForm({ plansByAccountType, initialAccountType, initialPlanId }: SignupFormProps) {
+export function SignupForm({ plansByAccountType, initialAccountType, initialPlanId, lang }: SignupFormProps) {
   const [state, formAction, pending] = useActionState(signUpAction, INITIAL_STATE);
   const [accountType, setAccountType] = useState<AccountType>(initialAccountType);
   const [planId, setPlanId] = useState<string | null>(() => {
@@ -81,10 +82,10 @@ export function SignupForm({ plansByAccountType, initialAccountType, initialPlan
   if (state.submitted) {
     return (
       <div>
-        <h1 className={styles.title}>{t('en', 'signup_title')}</h1>
-        <p className={styles.confirmation}>{t('en', 'signup_confirmation').replace('{email}', state.email ?? '')}</p>
+        <h1 className={styles.title}>{t(lang, 'signup_title')}</h1>
+        <p className={styles.confirmation}>{t(lang, 'signup_confirmation').replace('{email}', state.email ?? '')}</p>
         <Link href="/login" className={styles.backLink}>
-          {t('en', 'signup_back_to_login')}
+          {t(lang, 'signup_back_to_login')}
         </Link>
       </div>
     );
@@ -92,12 +93,12 @@ export function SignupForm({ plansByAccountType, initialAccountType, initialPlan
 
   return (
     <form action={formAction} className={styles.form} noValidate>
-      <h1 className={styles.title}>{t('en', 'signup_title')}</h1>
+      <h1 className={styles.title}>{t(lang, 'signup_title')}</h1>
       <div className={styles.trialBanner}>
         <span className={styles.trialBannerDot} aria-hidden="true" />
-        {t('en', 'signup_trial_banner')}
+        {t(lang, 'signup_trial_banner')}
       </div>
-      <p className={styles.subtitle}>{t('en', 'signup_subtitle')}</p>
+      <p className={styles.subtitle}>{t(lang, 'signup_subtitle')}</p>
 
       {/* The honeypot (§6.6) — a real visitor never tabs into or sees this
           (aria-hidden + tabIndex=-1 + off-screen CSS); a naive bot filling
@@ -108,47 +109,52 @@ export function SignupForm({ plansByAccountType, initialAccountType, initialPlan
         <input id="signup-website" name="website" type="text" tabIndex={-1} autoComplete="off" />
       </div>
 
-      <Field label={t('en', 'signup_name')} htmlFor="signup-name" required>
+      <Field label={t(lang, 'signup_name')} htmlFor="signup-name" required>
         <Input id="signup-name" name="name" autoComplete="name" required maxLength={120} disabled={pending} />
       </Field>
 
-      <Field label={t('en', 'signup_email')} htmlFor="signup-email" required>
+      <Field label={t(lang, 'signup_email')} htmlFor="signup-email" required>
         <Input id="signup-email" name="email" type="email" autoComplete="email" required maxLength={254} disabled={pending} />
       </Field>
 
-      <Field label={t('en', 'signup_account_type_label')} htmlFor="signup-account-type" className={styles.accountTypeField}>
+      <Field label={t(lang, 'signup_account_type_label')} htmlFor="signup-account-type" className={styles.accountTypeField}>
         <input type="hidden" name="account_type" value={accountType} />
         <ModeToggle
-          aria-label={t('en', 'signup_account_type_label')}
+          aria-label={t(lang, 'signup_account_type_label')}
           value={accountType}
           onChange={handleAccountTypeChange}
           options={[
-            { value: 'installer', label: t('en', 'signup_account_type_installer') },
-            { value: 'owner', label: t('en', 'signup_account_type_owner') },
+            { value: 'installer', label: t(lang, 'signup_account_type_installer') },
+            { value: 'owner', label: t(lang, 'signup_account_type_owner') },
           ]}
         />
       </Field>
 
-      <Field label={t('en', 'signup_language_label')} htmlFor="signup-language">
-        <Select id="signup-language" name="ui_language" defaultValue="en" disabled={pending}>
-          <option value="en">{t('en', 'lang_en')}</option>
-          <option value="es">{t('en', 'lang_es')}</option>
+      <Field label={t(lang, 'signup_language_label')} htmlFor="signup-language">
+        {/* Defaults to match this form's own page language (2026-09-29) —
+            a reasonable starting guess for a report-language preference,
+            not a claim that the two are the same setting; the visitor can
+            still pick either option regardless of which language they're
+            reading this form in. */}
+        <Select id="signup-language" name="ui_language" defaultValue={lang} disabled={pending}>
+          <option value="en">{t(lang, 'lang_en')}</option>
+          <option value="es">{t(lang, 'lang_es')}</option>
         </Select>
       </Field>
 
       <div className={styles.plans}>
-        <span className={styles.plansLabel}>{t('en', 'signup_plan_label')}</span>
+        <span className={styles.plansLabel}>{t(lang, 'signup_plan_label')}</span>
         <input type="hidden" name="plan_id" value={planId ?? ''} />
         {plans.length === 0 ? (
-          <p className={styles.status}>{t('en', 'signup_plan_none')}</p>
+          <p className={styles.status}>{t(lang, 'signup_plan_none')}</p>
         ) : (
           <div className={styles.planGrid}>
             {plans.map((plan) => {
               const perKey = intervalKey(plan.billing_interval);
               const sitesLabel =
                 plan.site_limit === null
-                  ? t('en', 'billing_plan_sites_unlimited')
-                  : t('en', 'billing_plan_sites_up_to').replace('{limit}', String(plan.site_limit));
+                  ? t(lang, 'billing_plan_sites_unlimited')
+                  : t(lang, 'billing_plan_sites_up_to').replace('{limit}', String(plan.site_limit));
               const selected = plan.id === planId;
               const savingsPct = annualSavingsPct(plan, plans);
               return (
@@ -165,10 +171,10 @@ export function SignupForm({ plansByAccountType, initialAccountType, initialPlan
                   <span className={styles.planPrice}>
                     <span className={styles.planPriceAmount}>
                       {formatMoney(plan.amount_minor, plan.currency)}
-                      {perKey && <span className={styles.planPer}>{t('en', perKey)}</span>}
+                      {perKey && <span className={styles.planPer}>{t(lang, perKey)}</span>}
                     </span>
                     {savingsPct !== null && (
-                      <span className={styles.planSavings}>{t('en', 'billing_plan_annual_savings').replace('{pct}', String(savingsPct))}</span>
+                      <span className={styles.planSavings}>{t(lang, 'billing_plan_annual_savings').replace('{pct}', String(savingsPct))}</span>
                     )}
                   </span>
                 </button>
@@ -187,22 +193,22 @@ export function SignupForm({ plansByAccountType, initialAccountType, initialPlan
           disabled={pending}
         />
         <span>
-          {t('en', 'signup_agree_prefix')}{' '}
+          {t(lang, 'signup_agree_prefix')}{' '}
           <Link href="/terms" target="_blank">
-            {t('en', 'signup_agree_terms')}
+            {t(lang, 'signup_agree_terms')}
           </Link>{' '}
-          {t('en', 'signup_agree_and')}{' '}
+          {t(lang, 'signup_agree_and')}{' '}
           <Link href="/privacy" target="_blank">
-            {t('en', 'signup_agree_privacy')}
+            {t(lang, 'signup_agree_privacy')}
           </Link>
         </span>
       </label>
 
       <Button type="submit" disabled={pending || !agreed} className={styles.submit}>
-        {pending ? t('en', 'signup_submitting') : t('en', 'signup_submit')}
+        {pending ? t(lang, 'signup_submitting') : t(lang, 'signup_submit')}
       </Button>
       <Link href="/login" className={styles.backLink}>
-        {t('en', 'signup_have_account')}
+        {t(lang, 'signup_have_account')}
       </Link>
     </form>
   );

@@ -9,21 +9,21 @@
 import { useActionState } from 'react';
 import Link from 'next/link';
 import { Button, Field, Input } from '@/components/ui';
-import { t } from '@/lib/i18n/strings';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { signInAction, type LoginFormState } from './actions';
 import styles from './login.module.css';
 
 const INITIAL_STATE: LoginFormState = {};
 
-export function LoginForm() {
+export function LoginForm({ lang }: { lang: Lang }) {
   const [state, formAction, pending] = useActionState(signInAction, INITIAL_STATE);
 
   return (
     <form action={formAction} className={styles.form} noValidate>
-      <Field label={t('en', 'login_email')} htmlFor="login-email" required>
+      <Field label={t(lang, 'login_email')} htmlFor="login-email" required>
         <Input id="login-email" name="email" type="email" autoComplete="email" required disabled={pending} />
       </Field>
-      <Field label={t('en', 'login_password')} htmlFor="login-password" required>
+      <Field label={t(lang, 'login_password')} htmlFor="login-password" required>
         <Input
           id="login-password"
           name="password"
@@ -41,15 +41,15 @@ export function LoginForm() {
       )}
 
       <Button type="submit" disabled={pending} className={styles.submit}>
-        {pending ? '…' : t('en', 'login_submit')}
+        {pending ? '…' : t(lang, 'login_submit')}
       </Button>
 
       <Link href="/forgot" className={styles.forgot}>
-        {t('en', 'login_forgot_password')}
+        {t(lang, 'login_forgot_password')}
       </Link>
       <p className={styles.signupPrompt}>
-        {t('en', 'login_no_account')}{' '}
-        <Link href="/signup">{t('en', 'login_sign_up_link')}</Link>
+        {t(lang, 'login_no_account')}{' '}
+        <Link href="/signup">{t(lang, 'login_sign_up_link')}</Link>
       </p>
     </form>
   );

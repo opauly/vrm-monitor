@@ -64,7 +64,7 @@ export default async function MarketingPageEs() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(SOFTWARE_JSON_LD) }}
       />
-      <Nav lang={lang} altHref="/" />
+      <Nav lang={lang} toggle={{ kind: 'href', href: '/' }} />
       {stats && (
         <StatsBanner
           sitesMonitored={stats.sitesMonitored}

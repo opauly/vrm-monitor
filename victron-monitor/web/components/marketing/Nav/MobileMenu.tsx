@@ -13,9 +13,11 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { t, type Lang } from '@/lib/i18n/strings';
 import { NavAuthArea } from './NavAuthArea';
+import { CookieLangToggle } from './CookieLangToggle';
+import type { NavLangToggle } from './Nav';
 import styles from './Nav.module.css';
 
-export function MobileMenu({ lang, altHref }: { lang: Lang; altHref: string }) {
+export function MobileMenu({ lang, toggle }: { lang: Lang; toggle: NavLangToggle }) {
   const base = lang === 'es' ? '/es' : '';
   const altLabel = lang === 'es' ? 'English' : 'Español';
   const [open, setOpen] = useState(false);
@@ -74,9 +76,19 @@ export function MobileMenu({ lang, altHref }: { lang: Lang; altHref: string }) {
           <Link href={`${base}/#pricing`} role="menuitem" className={styles.mobileTopLink} onClick={close}>
             {t(lang, 'marketing_nav_pricing')}
           </Link>
-          <Link href={altHref} role="menuitem" className={styles.mobileTopLink} onClick={close}>
-            {altLabel}
-          </Link>
+          {toggle.kind === 'href' ? (
+            <Link href={toggle.href} role="menuitem" className={styles.mobileTopLink} onClick={close}>
+              {altLabel}
+            </Link>
+          ) : (
+            <CookieLangToggle
+              lang={lang}
+              cookieName={toggle.cookieName}
+              label={t(lang, 'marketing_lang_toggle_label')}
+              displayText={altLabel}
+              className={styles.mobileTopLink}
+            />
+          )}
           <div className={styles.mobileAuth}>
             <NavAuthArea lang={lang} />
           </div>

@@ -184,17 +184,31 @@
   text-transform: uppercase;
   color: var(--paper-dim);
 }
-.mobilePanel a {
+/* `button` alongside `a` (2026-09-29) — CookieLangToggle renders a
+   <button> for (auth)'s own cookie-mode toggle, styled to match every
+   other row in this panel; the element-type selector otherwise only ever
+   matched <Link>'s own <a>. */
+.mobilePanel a,
+.mobilePanel button {
+  display: block;
+  width: 100%;
   padding: 12px 4px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  font: inherit;
   font-family: var(--font-mono);
   font-size: 14px;
   letter-spacing: 0.03em;
   color: var(--paper-dim);
   text-decoration: none;
-  border-bottom: 1px solid var(--line);
+  text-align: left;
+  cursor: pointer;
 }
 .mobilePanel a:hover,
-.mobilePanel a:focus-visible {
+.mobilePanel a:focus-visible,
+.mobilePanel button:hover,
+.mobilePanel button:focus-visible {
   color: var(--victron-glow);
 }
 .mobileTopLink {
@@ -209,24 +223,31 @@
   padding-top: 16px;
 }
 
-/* The /es language toggle (2026-09-27) — a plain Link to the sibling
-   page's other-language URL, not a state-changing button: each language
-   is its own literal route (app/(marketing)/es/**), so navigating IS the
-   whole mechanism, no client state/cookie involved. Styled as a small
-   pill rather than a plain text link so it doesn't read as just another
-   nav item pointing at a section of THIS page. */
+/* The language toggle — either a plain Link to a sibling page's own URL
+   (marketing's /es pairs, 2026-09-27: each language is its own literal
+   route, so navigating IS the whole mechanism, no client state/cookie
+   involved) or a button that writes a cookie and refreshes ((auth)'s own
+   pages, 2026-09-29: one URL, no sibling page to link to — see
+   CookieLangToggle.tsx). Same look either way — a small pill rather than
+   a plain text link, so it doesn't read as just another nav item.
+   Explicit `background`/`font`/`cursor` reset here since the button
+   variant would otherwise inherit the browser's default button chrome,
+   which the anchor variant never had to override. */
 .langToggle {
   display: inline-flex;
   align-items: center;
   padding: 6px 11px;
+  background: transparent;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
+  font: inherit;
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--paper-dim);
   text-decoration: none;
+  cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
 }
 .langToggle:hover,

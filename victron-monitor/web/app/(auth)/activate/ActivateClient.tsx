@@ -14,7 +14,7 @@
 // ability to ask the server to redeem it once.
 import { startTransition, useActionState, useEffect, useRef, useState } from 'react';
 import { Button, Field, Input } from '@/components/ui';
-import { t } from '@/lib/i18n/strings';
+import { t, type Lang } from '@/lib/i18n/strings';
 import type { SetPasswordState, VerifyResult } from './actions';
 import styles from './activate.module.css';
 
@@ -25,9 +25,11 @@ type SetPasswordAction = (prevState: SetPasswordState, formData: FormData) => Pr
 export function ActivateClient({
   verifyAction,
   setPasswordAction,
+  lang,
 }: {
   verifyAction: () => Promise<VerifyResult>;
   setPasswordAction: SetPasswordAction;
+  lang: Lang;
 }) {
   const [phase, setPhase] = useState<Phase>('verifying');
   // `verify_otp` is single-use server-side — calling it twice for the same
@@ -72,27 +74,27 @@ export function ActivateClient({
   }, []);
 
   if (phase === 'verifying') {
-    return <p className={styles.status}>{t('en', 'activate_verifying')}</p>;
+    return <p className={styles.status}>{t(lang, 'activate_verifying')}</p>;
   }
 
   if (phase === 'expired') {
     return (
       <div>
-        <h2 className={styles.subtitle}>{t('en', 'activate_expired_title')}</h2>
-        <p className={styles.body}>{t('en', 'activate_expired_body')}</p>
+        <h2 className={styles.subtitle}>{t(lang, 'activate_expired_title')}</h2>
+        <p className={styles.body}>{t(lang, 'activate_expired_body')}</p>
       </div>
     );
   }
 
-  return <SetPasswordForm action={setPasswordAction} />;
+  return <SetPasswordForm action={setPasswordAction} lang={lang} />;
 }
 
-function SetPasswordForm({ action }: { action: SetPasswordAction }) {
+function SetPasswordForm({ action, lang }: { action: SetPasswordAction; lang: Lang }) {
   const [state, formAction, pending] = useActionState<SetPasswordState, FormData>(action, {});
 
   return (
     <form action={formAction} className={styles.form} noValidate>
-      <Field label={t('en', 'activate_password')} htmlFor="activate-password" required>
+      <Field label={t(lang, 'activate_password')} htmlFor="activate-password" required>
         {/* `pattern` mirrors actions.ts's own `isPasswordStrongEnough()`
             exactly (letter + digit + symbol, 8+ chars) — a same-rule UX
             hint only, `noValidate` is already set on the <form> below so
@@ -105,13 +107,13 @@ function SetPasswordForm({ action }: { action: SetPasswordAction }) {
           autoComplete="new-password"
           minLength={8}
           pattern="(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
-          title={t('en', 'activate_password_hint')}
+          title={t(lang, 'activate_password_hint')}
           required
           disabled={pending}
         />
-        <p className={styles.hint}>{t('en', 'activate_password_hint')}</p>
+        <p className={styles.hint}>{t(lang, 'activate_password_hint')}</p>
       </Field>
-      <Field label={t('en', 'activate_confirm_password')} htmlFor="activate-confirm" required>
+      <Field label={t(lang, 'activate_confirm_password')} htmlFor="activate-confirm" required>
         <Input
           id="activate-confirm"
           name="confirm_password"
@@ -128,7 +130,7 @@ function SetPasswordForm({ action }: { action: SetPasswordAction }) {
         </p>
       )}
       <Button type="submit" disabled={pending} className={styles.submit}>
-        {pending ? t('en', 'activate_setting') : t('en', 'activate_submit')}
+        {pending ? t(lang, 'activate_setting') : t(lang, 'activate_submit')}
       </Button>
     </form>
   );

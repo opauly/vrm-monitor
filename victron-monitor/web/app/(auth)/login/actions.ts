@@ -35,29 +35,30 @@ import 'server-only';
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/server/supabase';
 import { NotLinked, resolveRole } from '@/lib/server/auth';
+import { getAuthLang } from '@/lib/server/authLang';
 import { t } from '@/lib/i18n/strings';
 
 export type LoginFormState = { error?: string };
 
-// The login screen is always English — the app's default UI language,
-// same reasoning as `vrm_portal/views/login.py`'s `_LANG = "en"`: a
-// customer's own `ui_language` preference isn't known until *after* they've
-// signed in and their `vrm.customers` row has been resolved.
-const LANG = 'en' as const;
-
 export async function signInAction(_prevState: LoginFormState, formData: FormData): Promise<LoginFormState> {
+  // Same `auth_lang` cookie `(auth)/layout.tsx`/every (auth) page.tsx reads
+  // for this request's own static copy (2026-09-29) — a Server Action can
+  // read `cookies()` too, so the error text this returns matches whatever
+  // language the form itself was already showing, rather than reverting to
+  // English the moment something goes wrong.
+  const lang = await getAuthLang();
   const email = String(formData.get('email') ?? '').trim();
   const password = String(formData.get('password') ?? '');
 
   if (!email || !password) {
-    return { error: t(LANG, 'login_missing_fields') };
+    return { error: t(lang, 'login_missing_fields') };
   }
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error || !data.user) {
-    return { error: t(LANG, 'login_error') };
+    return { error: t(lang, 'login_error') };
   }
 
   let redirectTo: '/admin' | '/app';
@@ -67,7 +68,7 @@ export async function signInAction(_prevState: LoginFormState, formData: FormDat
   } catch (err) {
     if (err instanceof NotLinked) {
       await supabase.auth.signOut();
-      return { error: t(LANG, 'not_linked_error') };
+      return { error: t(lang, 'not_linked_error') };
     }
     throw err;
   }

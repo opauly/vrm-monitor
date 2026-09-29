@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Nav } from '@/components/marketing/Nav/Nav';
+import { getAuthLang } from '@/lib/server/authLang';
 import styles from './auth.module.css';
 
 // Shared chrome for /login, /signup, /activate, /forgot — a route group,
@@ -25,17 +26,19 @@ import styles from './auth.module.css';
 // sibling routes with no single route param key to name, and the generated
 // type is only as current as the last `next build`/`next dev` typegen pass
 // anyway.
-// `lang="en"`/`altHref="/es"` fixed here (2026-09-27, marketing-site
-// Spanish rollout): these auth routes themselves aren't translated yet —
-// only app/(marketing) is — so Nav always renders in English here, and its
-// language toggle takes a visitor to the Spanish marketing home page
-// rather than a (nonexistent) Spanish login page. A real Spanish /login
-// would need its own /es/login route, same pattern as the marketing pages;
-// out of scope for this pass.
-export default function AuthLayout({ children }: { children: ReactNode }) {
+// `getAuthLang()`/cookie-mode toggle (2026-09-29, auth-pages Spanish
+// rollout): unlike marketing's /es URL pairs (needed there to keep the
+// ISR-cached homepage cacheable — see Nav.tsx's own comment), these routes
+// are already dynamically rendered per request, so a cookie read here costs
+// nothing extra. Nav itself only needs `lang` for its own chrome
+// (the "How it works"/"Pricing" labels, its anchors' `/es` prefix) — each
+// (auth) page.tsx independently reads the same cookie for its own content,
+// since a layout can't pass props down into its `children`.
+export default async function AuthLayout({ children }: { children: ReactNode }) {
+  const lang = await getAuthLang();
   return (
     <>
-      <Nav lang="en" altHref="/es" />
+      <Nav lang={lang} toggle={{ kind: 'cookie', cookieName: 'auth_lang' }} />
       <main className={styles.shell}>
         <div className={styles.inner}>{children}</div>
       </main>

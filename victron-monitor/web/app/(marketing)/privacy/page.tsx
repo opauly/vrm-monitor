@@ -23,7 +23,7 @@ const lang = 'en' as const;
 export default function PrivacyPage() {
   return (
     <>
-      <Nav lang={lang} altHref="/es/privacy" />
+      <Nav lang={lang} toggle={{ kind: 'href', href: '/es/privacy' }} />
       <div className="wrap">
         <div className={styles.page}>
           <header className={styles.header}>

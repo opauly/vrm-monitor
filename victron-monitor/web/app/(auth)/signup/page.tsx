@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Panel } from '@/components/ui';
 import { getSessionContext } from '@/lib/server/auth';
+import { getAuthLang } from '@/lib/server/authLang';
 import { listSelfServePlans, type SelfServePlanOut } from '@/lib/server/db/signup';
 import type { AccountType } from '@/lib/server/db/types';
 import { t } from '@/lib/i18n/strings';
@@ -34,6 +35,7 @@ export default async function SignupPage({
 
   const params = await searchParams;
   const status = typeof params.status === 'string' ? params.status : null;
+  const lang = await getAuthLang();
 
   // §5.5 Step 2: a redeemed/expired/tampered token all land here with the
   // SAME status — one friendly message with links to /login and /forgot,
@@ -42,14 +44,14 @@ export default async function SignupPage({
   if (status === 'link_used') {
     return (
       <Panel variant="readout" hairline className={styles.card}>
-        <h1 className={styles.title}>{t('en', 'signup_link_used_title')}</h1>
-        <p className={styles.body}>{t('en', 'signup_link_used_body')}</p>
+        <h1 className={styles.title}>{t(lang, 'signup_link_used_title')}</h1>
+        <p className={styles.body}>{t(lang, 'signup_link_used_body')}</p>
         <div className={styles.linkRow}>
           <Link href="/login" className={styles.backLink}>
-            {t('en', 'signup_link_used_login')}
+            {t(lang, 'signup_link_used_login')}
           </Link>
           <Link href="/forgot" className={styles.backLink}>
-            {t('en', 'signup_link_used_forgot')}
+            {t(lang, 'signup_link_used_forgot')}
           </Link>
         </div>
       </Panel>
@@ -67,10 +69,10 @@ export default async function SignupPage({
   if (installerPlans.length === 0 && ownerPlans.length === 0) {
     return (
       <Panel variant="readout" hairline className={styles.card}>
-        <h1 className={styles.title}>{t('en', 'signup_closed_title')}</h1>
-        <p className={styles.body}>{t('en', 'signup_closed_body')}</p>
+        <h1 className={styles.title}>{t(lang, 'signup_closed_title')}</h1>
+        <p className={styles.body}>{t(lang, 'signup_closed_body')}</p>
         <a href="mailto:proyectos@paulyco.com?subject=VRM%20Monitor%20-%20Sign%20up" className={styles.backLink}>
-          {t('en', 'signup_closed_cta')}
+          {t(lang, 'signup_closed_cta')}
         </a>
       </Panel>
     );
@@ -99,7 +101,7 @@ export default async function SignupPage({
           branch on that client-side state, so both views' heading copy
           moved into the one component that actually knows which is showing
           (Oscar's request, 2026-08-21). */}
-      <SignupForm plansByAccountType={plansByAccountType} initialAccountType={initialAccountType} initialPlanId={initialPlanId} />
+      <SignupForm plansByAccountType={plansByAccountType} initialAccountType={initialAccountType} initialPlanId={initialPlanId} lang={lang} />
     </Panel>
   );
 }

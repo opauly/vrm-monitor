@@ -24,6 +24,7 @@ import { redirect } from 'next/navigation';
 import type { EmailOtpType } from '@supabase/supabase-js';
 import { createSupabaseServerClient } from '@/lib/server/supabase';
 import { getCustomerByAuthUserId, markActivated } from '@/lib/server/invites';
+import { getAuthLang } from '@/lib/server/authLang';
 import { t } from '@/lib/i18n/strings';
 
 const ALLOWED_TYPES: readonly string[] = ['invite', 'recovery', 'magiclink'];
@@ -89,11 +90,15 @@ export type SetPasswordState = { error?: string };
  * validation before being caught and fixed by moving the function out.
  */
 export async function setActivationPasswordAction(nextPath: string, _prevState: SetPasswordState, formData: FormData): Promise<SetPasswordState> {
+  // Same `auth_lang` cookie `(auth)/layout.tsx`/every (auth) page.tsx reads
+  // (2026-09-29) — see login/actions.ts's own comment on why a Server
+  // Action reads this itself rather than receiving it as a prop.
+  const lang = await getAuthLang();
   const password = String(formData.get('password') ?? '');
   const confirm = String(formData.get('confirm_password') ?? '');
 
-  if (!isPasswordStrongEnough(password)) return { error: t('en', 'activate_error_short') };
-  if (password !== confirm) return { error: t('en', 'activate_error_mismatch') };
+  if (!isPasswordStrongEnough(password)) return { error: t(lang, 'activate_error_short') };
+  if (password !== confirm) return { error: t(lang, 'activate_error_mismatch') };
 
   const supabase = await createSupabaseServerClient();
 
@@ -105,10 +110,10 @@ export async function setActivationPasswordAction(nextPath: string, _prevState: 
     data: { user },
     error: userError,
   } = await supabase.auth.getUser();
-  if (userError || !user) return { error: t('en', 'activate_error_generic') };
+  if (userError || !user) return { error: t(lang, 'activate_error_generic') };
 
   const { error: updateError } = await supabase.auth.updateUser({ password });
-  if (updateError) return { error: t('en', 'activate_error_generic') };
+  if (updateError) return { error: t(lang, 'activate_error_generic') };
 
   const customer = await getCustomerByAuthUserId(user.id);
   if (customer) {

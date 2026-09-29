@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Panel } from '@/components/ui';
 import { getSessionContext } from '@/lib/server/auth';
+import { getAuthLang } from '@/lib/server/authLang';
 import { t } from '@/lib/i18n/strings';
 import { LoginForm } from './LoginForm';
 import styles from './login.module.css';
@@ -21,12 +22,13 @@ export default async function LoginPage() {
   if (session !== null) {
     redirect(session.role === 'admin' ? '/admin' : '/app');
   }
+  const lang = await getAuthLang();
 
   return (
     <Panel variant="readout" hairline className={styles.card}>
-      <h1 className={styles.title}>{t('en', 'login_title')}</h1>
-      <p className={styles.subtitle}>{t('en', 'login_subtitle')}</p>
-      <LoginForm />
+      <h1 className={styles.title}>{t(lang, 'login_title')}</h1>
+      <p className={styles.subtitle}>{t(lang, 'login_subtitle')}</p>
+      <LoginForm lang={lang} />
     </Panel>
   );
 }

@@ -26,6 +26,18 @@ export type Lang = 'en' | 'es';
 
 export const STRINGS = {
   en: {
+    // `/unsubscribe` (2026-09-29) — no pre-existing i18n infrastructure at
+    // all here, unlike login/signup/forgot/activate (built already
+    // wrapped in `t('en', ...)`, just hardcoded to that one language).
+    unsubscribe_invalid_title: 'Invalid link',
+    unsubscribe_invalid_body: 'This unsubscribe link is invalid.',
+    unsubscribe_title: 'Stop receiving this report?',
+    unsubscribe_body_after_email:
+      ' will no longer receive scheduled reports for this site. This does not affect anyone else who receives it.',
+    unsubscribe_confirmed: "You've been removed from this report's recipient list.",
+    unsubscribe_result_invalid: 'This link is invalid.',
+    unsubscribe_removing: 'Removing…',
+    unsubscribe_button: 'Stop receiving this report',
     login_title: 'VRM Monitor',
     login_subtitle: 'Sign in to your account',
     login_email: 'Email',
@@ -1893,6 +1905,15 @@ export const STRINGS = {
     marketing_terms_s13_post: '.',
   },
   es: {
+    unsubscribe_invalid_title: 'Enlace inválido',
+    unsubscribe_invalid_body: 'Este enlace para darte de baja no es válido.',
+    unsubscribe_title: '¿Dejar de recibir este reporte?',
+    unsubscribe_body_after_email:
+      ' dejará de recibir los reportes programados de este sitio. Esto no afecta a nadie más que también los reciba.',
+    unsubscribe_confirmed: 'Te removimos de la lista de destinatarios de este reporte.',
+    unsubscribe_result_invalid: 'Este enlace no es válido.',
+    unsubscribe_removing: 'Removiendo…',
+    unsubscribe_button: 'Dejar de recibir este reporte',
     login_title: 'VRM Monitor',
     login_subtitle: 'Iniciá sesión en tu cuenta',
     login_email: 'Correo electrónico',

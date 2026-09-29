@@ -8,10 +8,11 @@
 // page from being that GET request in disguise.
 import { startTransition, useState } from 'react';
 import { Button } from '@/components/ui';
+import { t, type Lang } from '@/lib/i18n/strings';
 import type { UnsubscribeResult } from './actions';
 import styles from './unsubscribe.module.css';
 
-export function UnsubscribeClient({ confirmAction }: { confirmAction: () => Promise<UnsubscribeResult> }) {
+export function UnsubscribeClient({ confirmAction, lang }: { confirmAction: () => Promise<UnsubscribeResult>; lang: Lang }) {
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<UnsubscribeResult | null>(null);
 
@@ -29,15 +30,15 @@ export function UnsubscribeClient({ confirmAction }: { confirmAction: () => Prom
     // action is idempotent (`removeReportRecipient()`'s own "wasn't there"
     // early-return), so a second click looks and reads identically to the
     // first, never a confusing "already done" error.
-    return <p className={styles.body}>You&rsquo;ve been removed from this report&rsquo;s recipient list.</p>;
+    return <p className={styles.body}>{t(lang, 'unsubscribe_confirmed')}</p>;
   }
   if (result && !result.ok) {
-    return <p className={styles.error}>This link is invalid.</p>;
+    return <p className={styles.error}>{t(lang, 'unsubscribe_result_invalid')}</p>;
   }
 
   return (
     <Button type="button" onClick={handleClick} disabled={pending}>
-      {pending ? 'Removing…' : 'Stop receiving this report'}
+      {pending ? t(lang, 'unsubscribe_removing') : t(lang, 'unsubscribe_button')}
     </Button>
   );
 }

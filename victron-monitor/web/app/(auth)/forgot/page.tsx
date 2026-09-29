@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Panel } from '@/components/ui';
 import { getSessionContext } from '@/lib/server/auth';
+import { getAuthLang } from '@/lib/server/authLang';
 import { t } from '@/lib/i18n/strings';
 import { ForgotForm } from './ForgotForm';
 import styles from './forgot.module.css';
@@ -17,12 +18,13 @@ export default async function ForgotPage() {
   if (session !== null) {
     redirect(session.role === 'admin' ? '/admin' : '/app');
   }
+  const lang = await getAuthLang();
 
   return (
     <Panel variant="readout" hairline className={styles.card}>
-      <h1 className={styles.title}>{t('en', 'forgot_title')}</h1>
-      <p className={styles.subtitle}>{t('en', 'forgot_subtitle')}</p>
-      <ForgotForm />
+      <h1 className={styles.title}>{t(lang, 'forgot_title')}</h1>
+      <p className={styles.subtitle}>{t(lang, 'forgot_subtitle')}</p>
+      <ForgotForm lang={lang} />
     </Panel>
   );
 }

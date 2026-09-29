@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Panel } from '@/components/ui';
+import { getAuthLang } from '@/lib/server/authLang';
 import { t } from '@/lib/i18n/strings';
 import { setActivationPasswordAction, verifyActivationTokenAction } from './actions';
 import { ActivateClient } from './ActivateClient';
@@ -58,12 +59,13 @@ export default async function ActivatePage({ searchParams }: { searchParams: Pro
   // invites, resends, password resets) has no `next` at all and falls back
   // to `/app`, unchanged from before this step.
   const nextPath = sanitizeNextPath(typeof params.next === 'string' ? params.next : null);
+  const lang = await getAuthLang();
 
   if (!tokenHash || !type) {
     return (
       <Panel variant="readout" hairline className={styles.card}>
-        <h1 className={styles.title}>{t('en', 'activate_invalid_title')}</h1>
-        <p className={styles.body}>{t('en', 'activate_invalid_body')}</p>
+        <h1 className={styles.title}>{t(lang, 'activate_invalid_title')}</h1>
+        <p className={styles.body}>{t(lang, 'activate_invalid_body')}</p>
       </Panel>
     );
   }
@@ -73,9 +75,9 @@ export default async function ActivatePage({ searchParams }: { searchParams: Pro
 
   return (
     <Panel variant="readout" hairline className={styles.card}>
-      <h1 className={styles.title}>{t('en', 'activate_title')}</h1>
-      <p className={styles.subtitleIntro}>{t('en', 'activate_subtitle')}</p>
-      <ActivateClient verifyAction={boundVerify} setPasswordAction={boundSetPassword} />
+      <h1 className={styles.title}>{t(lang, 'activate_title')}</h1>
+      <p className={styles.subtitleIntro}>{t(lang, 'activate_subtitle')}</p>
+      <ActivateClient verifyAction={boundVerify} setPasswordAction={boundSetPassword} lang={lang} />
     </Panel>
   );
 }

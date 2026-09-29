@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { Panel } from '@/components/ui';
 import { verifyUnsubscribeToken } from '@/lib/server/reportUnsubscribe';
+import { getAuthLang } from '@/lib/server/authLang';
+import { t } from '@/lib/i18n/strings';
 import { confirmUnsubscribeAction } from './actions';
 import { UnsubscribeClient } from './UnsubscribeClient';
 import styles from './unsubscribe.module.css';
@@ -35,12 +37,13 @@ export default async function UnsubscribePage({
   const params = await searchParams;
   const token = typeof params.token === 'string' ? params.token : null;
   const target = token ? verifyUnsubscribeToken(token) : null;
+  const lang = await getAuthLang();
 
   if (!token || !target) {
     return (
       <Panel variant="readout" hairline className={styles.card}>
-        <h1 className={styles.title}>Invalid link</h1>
-        <p className={styles.body}>This unsubscribe link is invalid.</p>
+        <h1 className={styles.title}>{t(lang, 'unsubscribe_invalid_title')}</h1>
+        <p className={styles.body}>{t(lang, 'unsubscribe_invalid_body')}</p>
       </Panel>
     );
   }
@@ -49,12 +52,12 @@ export default async function UnsubscribePage({
 
   return (
     <Panel variant="readout" hairline className={styles.card}>
-      <h1 className={styles.title}>Stop receiving this report?</h1>
+      <h1 className={styles.title}>{t(lang, 'unsubscribe_title')}</h1>
       <p className={styles.body}>
-        <strong>{target.email}</strong> will no longer receive scheduled reports for this site. This does not
-        affect anyone else who receives it.
+        <strong>{target.email}</strong>
+        {t(lang, 'unsubscribe_body_after_email')}
       </p>
-      <UnsubscribeClient confirmAction={boundConfirm} />
+      <UnsubscribeClient confirmAction={boundConfirm} lang={lang} />
     </Panel>
   );
 }
