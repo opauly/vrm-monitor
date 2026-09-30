@@ -2,22 +2,24 @@ from __future__ import annotations
 """
 Strings for the transactional emails this repo's Python side renders and
 sends (2026-09-30) — `report_email.html`, `cap_reached_email.html`,
-`trial_ending_with_card_email.html`, `trial_ending_no_card_email.html`. A
-separate, flat dict from `report_i18n.py` on purpose: that module's
-`get(lang, num_days, is_overview)` period/overview-variant machinery exists
-for the PDF report body, which these emails aren't — every key here is
-period-neutral, so a plain `t(lang, key)` is all any of them need.
+`trial_ending_with_card_email.html`, `trial_ending_no_card_email.html`, and
+(PLAN_BETA_PROGRAM.md § Phase 3) `beta_ending_email.html`,
+`beta_ended_email.html`. A separate, flat dict from `report_i18n.py` on
+purpose: that module's `get(lang, num_days, is_overview)` period/overview-
+variant machinery exists for the PDF report body, which these emails
+aren't — every key here is period-neutral, so a plain `t(lang, key)` is
+all any of them need.
 
-Every one of this module's four callers (`vrm_api/report_delivery.py`'s
+Every one of this module's callers (`vrm_api/report_delivery.py`'s
 `send_report_email()`/`notify_cap_reached_once()`, `vrm_api/billing.py`'s
-`send_trial_ending_reminders()`) already has the recipient's own stored
-language in scope by the time it renders — `site.get("report_language")`
-for the report email (the exact field `weekly_report.py` already reads for
-the PDF itself), `customer.get("ui_language")` for the other three
-(account-level notices, not tied to one site). Nothing here needed a new
-place to capture a language choice, same finding as the TypeScript-side
-transactional emails this mirrors (`victron-monitor/web/lib/server/
-emailTemplates.ts`).
+`send_trial_ending_reminders()`/`run_beta_sweep()`) already has the
+recipient's own stored language in scope by the time it renders —
+`site.get("report_language")` for the report email (the exact field
+`weekly_report.py` already reads for the PDF itself), `customer.get(
+"ui_language")` for everything else (account-level notices, not tied to
+one site). Nothing here needed a new place to capture a language choice,
+same finding as the TypeScript-side transactional emails this mirrors
+(`victron-monitor/web/lib/server/emailTemplates.ts`).
 
 Interpolated strings use the same `{token}`-and-`.replace()` shape the
 TypeScript side's `lib/i18n/strings.ts` already established for its own
@@ -58,6 +60,19 @@ EN = {
                           "reports and the dashboard won't be available until you add a card and subscribe.",
     "trial_nocard_body2": "Add a payment method from the Billing page in your account to keep your access "
                           "without interruption.",
+
+    "beta_ending_title": "Your beta access ends in a week",
+    "beta_ending_body1": "Your free beta access ends on {date}. After that, reports, the dashboard, and "
+                        "branding won't be available until you subscribe.",
+    "beta_ending_body2": "You can subscribe any time before then from the Billing page in your account — your "
+                        "data and sites stay exactly as they are either way.",
+    "beta_ending_footer": "Sent once, a week before your beta access ends. This is a one-time notice.",
+    "beta_ended_title": "Your beta access has ended",
+    "beta_ended_body1": "Your free beta access has ended. Your data and sites are safe, but reports, the "
+                        "dashboard, and branding won't be available until you subscribe.",
+    "beta_ended_body2": "Subscribe any time from the Billing page in your account to pick up right where "
+                        "you left off.",
+    "beta_ended_footer": "Sent once, when your beta access ended. This is a one-time notice.",
 }
 
 ES = dict(EN, **{
@@ -97,6 +112,21 @@ ES = dict(EN, **{
                           "una tarjeta y te suscribas.",
     "trial_nocard_body2": "Agregá un método de pago desde la página de Facturación de tu "
                           "cuenta para mantener tu acceso sin interrupciones.",
+
+    "beta_ending_title": "Tu acceso beta termina en una semana",
+    "beta_ending_body1": "Tu acceso beta gratuito termina el {date}. Después de esa fecha, los reportes, "
+                        "el panel y la marca personalizada no estarán disponibles hasta que te suscribas.",
+    "beta_ending_body2": "Podés suscribirte en cualquier momento antes de esa fecha desde la página de "
+                        "Facturación de tu cuenta — tus datos y sitios se mantienen igual de cualquier forma.",
+    "beta_ending_footer": "Enviado una sola vez, una semana antes de que termine tu acceso beta. Este es un "
+                        "aviso único.",
+    "beta_ended_title": "Tu acceso beta terminó",
+    "beta_ended_body1": "Tu acceso beta gratuito terminó. Tus datos y sitios están a salvo, pero los "
+                        "reportes, el panel y la marca personalizada no estarán disponibles hasta que "
+                        "te suscribas.",
+    "beta_ended_body2": "Suscribite en cualquier momento desde la página de Facturación de tu cuenta para "
+                        "continuar justo donde lo dejaste.",
+    "beta_ended_footer": "Enviado una sola vez, cuando terminó tu acceso beta. Este es un aviso único.",
 })
 
 TRANSLATIONS = {"en": EN, "es": ES}

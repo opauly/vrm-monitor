@@ -42,6 +42,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   // dashboard rather than its own top-level tab.
   const navItems: AppNavItem[] = [
     { href: '/admin/customers', label: t(lang, 'admin_nav_customers') },
+    { href: '/admin/beta', label: t(lang, 'admin_nav_beta') },
     { href: '/admin/sites', label: t(lang, 'admin_nav_sites') },
     { href: '/admin/upload', label: t(lang, 'admin_nav_upload') },
     { href: '/admin/reports', label: t(lang, 'admin_nav_reports') },

@@ -3,7 +3,7 @@
 import { useActionState, useEffect } from 'react';
 import { Button, Field, Input, Select, Textarea } from '@/components/ui';
 import type { AdminCustomerRow } from '@/lib/server/db/admin';
-import { PLANS, type PlanKey } from '@/lib/plans';
+import { PLANS, planLabel, type PlanKey } from '@/lib/plans';
 import { COUNTRIES } from '@/lib/countries';
 import { t, type Lang } from '@/lib/i18n/strings';
 import { updateCustomerAction, type UpdateCustomerState } from './actions';
@@ -31,6 +31,12 @@ export function EditCustomerForm({
 }) {
   const boundAction = updateCustomerAction.bind(null, customer.id);
   const [state, formAction, pending] = useActionState<UpdateCustomerState, FormData>(boundAction, {});
+  // PLAN_BETA_PROGRAM.md § Phase 4 rule 2 — while an active beta grant
+  // exists, `apply_entitlements()`'s §5 row 2 owns `plan`/`site_limit`
+  // entirely; an edit here would just be silently overwritten on the next
+  // reconcile. Disabled rather than hidden, so it's still visible what the
+  // customer is currently on.
+  const betaLocked = Boolean(customer.activeBetaGrant);
 
   useEffect(() => {
     if (state.success) onDone();
@@ -53,14 +59,28 @@ export function EditCustomerForm({
 
       <div className={styles.fieldRow}>
         <Field label={t(lang, 'admin_customers_field_plan')} htmlFor={`ec-plan-${customer.id}`}>
-          <Select id={`ec-plan-${customer.id}`} name="plan" defaultValue={customer.plan} disabled={pending}>
-            {PLAN_KEYS.includes(customer.plan as PlanKey) ? null : <option value={customer.plan}>{customer.plan}</option>}
-            {PLAN_KEYS.map((key) => (
-              <option key={key} value={key}>
-                {PLANS[key].label}
-              </option>
-            ))}
-          </Select>
+          {betaLocked ? (
+            // A disabled <select>/<input> never submits its value at all —
+            // using `disabled` here would have dropped `plan` from the
+            // POST entirely and failed updateSchema's required check. A
+            // read-only display plus a hidden input carries the unchanged
+            // value through instead, same "disabled rather than hidden, so
+            // it's still visible what they're on" intent as betaLocked's
+            // own comment above, just submittable.
+            <>
+              <input type="hidden" name="plan" value={customer.plan} />
+              <Input id={`ec-plan-${customer.id}`} value={planLabel(customer.plan)} disabled readOnly />
+            </>
+          ) : (
+            <Select id={`ec-plan-${customer.id}`} name="plan" defaultValue={customer.plan} disabled={pending}>
+              {PLAN_KEYS.includes(customer.plan as PlanKey) ? null : <option value={customer.plan}>{customer.plan}</option>}
+              {PLAN_KEYS.map((key) => (
+                <option key={key} value={key}>
+                  {PLANS[key].label}
+                </option>
+              ))}
+            </Select>
+          )}
         </Field>
         <Field
           label={t(lang, 'admin_customers_field_site_limit')}
@@ -68,17 +88,26 @@ export function EditCustomerForm({
           optional
           optionalLabel={t(lang, 'admin_customers_site_limit_optional')}
         >
-          <Input
-            id={`ec-limit-${customer.id}`}
-            name="siteLimit"
-            type="number"
-            min="0"
-            step="1"
-            defaultValue={customer.site_limit ?? ''}
-            disabled={pending}
-          />
+          {betaLocked ? (
+            <>
+              <input type="hidden" name="siteLimit" value={customer.site_limit ?? ''} />
+              <Input id={`ec-limit-${customer.id}`} value={customer.site_limit ?? t(lang, 'admin_common_unlimited')} disabled readOnly />
+            </>
+          ) : (
+            <Input
+              id={`ec-limit-${customer.id}`}
+              name="siteLimit"
+              type="number"
+              min="0"
+              step="1"
+              defaultValue={customer.site_limit ?? ''}
+              disabled={pending}
+            />
+          )}
         </Field>
       </div>
+
+      {betaLocked && <p className={styles.subtle}>{t(lang, 'admin_customers_beta_locked_note')}</p>}
 
       <div className={styles.fieldRow}>
         <Field label={t(lang, 'admin_customers_field_country')} htmlFor={`ec-country-${customer.id}`}>

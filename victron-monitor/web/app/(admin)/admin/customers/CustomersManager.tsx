@@ -27,6 +27,10 @@ const TABLE_COLUMN_COUNT = 11;
 
 type OriginFilter = 'all' | 'admin' | 'self_serve';
 type ProvisioningFilter = 'all' | 'active' | 'pending_subscription';
+// PLAN_BETA_PROGRAM.md § Phase 4 — 'beta' means an ACTIVE grant, not "has
+// ever had one," same reasoning `AdminCustomerRow.activeBetaGrant`'s own
+// comment gives for why it's the active row and not full grant history.
+type BetaFilter = 'all' | 'beta' | 'not_beta';
 
 // PLAN_PHASE16.md §4.5's own vocabulary comment on `vrm.customers
 // .billing_status` — 'none' | 'trialing' | 'active' | 'past_due' |
@@ -104,6 +108,7 @@ export function CustomersManager({ customers, lang }: { customers: AdminCustomer
   // (this product has tens of customers, not thousands).
   const [originFilter, setOriginFilter] = useState<OriginFilter>('all');
   const [provisioningFilter, setProvisioningFilter] = useState<ProvisioningFilter>('all');
+  const [betaFilter, setBetaFilter] = useState<BetaFilter>('all');
   // Live-filters as the admin types (2026-09-26, Oscar's own request) —
   // same plain client-side approach as the Origin/Provisioning selects
   // above, over the same already-fetched `customers` prop. Matches on
@@ -118,6 +123,8 @@ export function CustomersManager({ customers, lang }: { customers: AdminCustomer
       customers.filter((c) => {
         if (originFilter !== 'all' && c.origin !== originFilter) return false;
         if (provisioningFilter !== 'all' && c.provisioning_state !== provisioningFilter) return false;
+        if (betaFilter === 'beta' && !c.activeBetaGrant) return false;
+        if (betaFilter === 'not_beta' && c.activeBetaGrant) return false;
         if (normalizedQuery) {
           const haystack = [c.name, c.slug, c.contact_name, c.contact_email, c.auth_email]
             .filter(Boolean)
@@ -127,7 +134,7 @@ export function CustomersManager({ customers, lang }: { customers: AdminCustomer
         }
         return true;
       }),
-    [customers, originFilter, provisioningFilter, normalizedQuery],
+    [customers, originFilter, provisioningFilter, betaFilter, normalizedQuery],
   );
 
   // Active customers are what you're managing day to day; a deactivated one
@@ -158,6 +165,7 @@ export function CustomersManager({ customers, lang }: { customers: AdminCustomer
         <tr>
           <td>
             {c.name}
+            {c.activeBetaGrant && <span className={styles.betaBadge}>{t(lang, 'admin_customers_beta_badge')}</span>}
             <div className={styles.subtle}>
               {c.slug} · {countryLabel(c.country)}
             </div>
@@ -304,6 +312,14 @@ export function CustomersManager({ customers, lang }: { customers: AdminCustomer
             <option value="all">{t(lang, 'admin_common_all')}</option>
             <option value="active">{t(lang, 'admin_customers_provisioning_active')}</option>
             <option value="pending_subscription">{t(lang, 'admin_customers_pending_signup')}</option>
+          </Select>
+        </label>
+        <label className={styles.filterLabel}>
+          {t(lang, 'admin_customers_filter_beta')}
+          <Select value={betaFilter} onChange={(e) => setBetaFilter(e.target.value as BetaFilter)}>
+            <option value="all">{t(lang, 'admin_common_all')}</option>
+            <option value="beta">{t(lang, 'admin_customers_beta_badge')}</option>
+            <option value="not_beta">{t(lang, 'admin_customers_filter_beta_not')}</option>
           </Select>
         </label>
         <Input

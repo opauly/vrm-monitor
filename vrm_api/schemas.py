@@ -809,11 +809,12 @@ class BillingBetaSweepOut(BaseModel):
     """`POST /v1/billing/beta-sweep`'s response (PLAN_BETA_PROGRAM.md §
     Phase 2/3) — the daily beta-program sweep (`vrm_api/billing.py:
     run_beta_sweep()`). Counts only, same reasoning `BillingPruneSignupsOut`
-    gives for its own shape. `sent`/`skipped` are added in Phase 3 once this
-    also sends reminder/ended emails; for now this is the reconcile-only
-    half."""
+    gives for its own shape. `checked` is the reconcile half (Phase 2);
+    `sent`/`skipped` are the reminder/ended-email half (Phase 3)."""
 
     checked: int
+    sent: int
+    skipped: int
     failed: int
 
 

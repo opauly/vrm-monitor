@@ -1,0 +1,55 @@
+<!--
+  Beta-access-ended notice — PLAN_BETA_PROGRAM.md § Phase 3. Sent once, when
+  a `vrm.beta_grants` row transitions to `expired` or `revoked` (the
+  `ended_notice_sent_at` CAS gate in vrm_api/billing.py:run_beta_sweep()
+  enforces "once"). See beta_ending_email.html's own header for the shared
+  reasoning (once per grant, never branded, Gmail-safe table layout) — this
+  is the "it already happened" half of that same pair, sent whether the
+  grant expired on its own or an admin revoked it (§11 Q3: both get this
+  notice).
+-->
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ t.beta_ended_title }}</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#0b2231; font-family:Helvetica, Arial, sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0b2231;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0"
+                 style="width:480px; max-width:100%; background-color:#12324a; border-radius:8px; overflow:hidden;">
+            <tr>
+              <td style="padding:28px 32px 0 32px;">
+                <span style="display:inline-block; font-family:Helvetica, Arial, sans-serif; font-weight:800;
+                             text-transform:uppercase; letter-spacing:1px; font-size:13px; color:#e9f2f6;">
+                  Pauly &amp; Co. &middot; VRM Monitor
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px 32px 4px 32px;">
+                <h1 style="margin:0 0 12px 0; font-size:18px; color:#ffffff;">{{ t.beta_ended_title }}</h1>
+                <p style="margin:0 0 12px 0; font-size:14px; line-height:1.6; color:#f2a93b;">
+                  {{ t.beta_ended_body1 }}
+                </p>
+                <p style="margin:0 0 20px 0; font-size:14px; line-height:1.6; color:#cfe3ee;">
+                  {{ t.beta_ended_body2 }}
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 32px 28px 32px;">
+                <p style="margin:0; font-size:12px; color:#7fa0b3;">
+                  {{ t.beta_ended_footer }}
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

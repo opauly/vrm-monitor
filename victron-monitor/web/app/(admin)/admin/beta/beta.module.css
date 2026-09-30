@@ -1,3 +1,9 @@
+/* Same class shapes as ../customers/customers.module.css — kept as an
+   independent copy rather than a shared import, matching that file's own
+   "two independent implementations of the same one-sentence rule" stance
+   (see e.g. fleetDashboard.ts's comment on why NOT_ENTITLED_STATUSES is
+   duplicated rather than shared). */
+
 .subtle {
   color: var(--mute);
   font-size: 12px;
@@ -33,34 +39,12 @@
   letter-spacing: 0.05em;
 }
 
-/* PLAN_BETA_PROGRAM.md § Phase 4 — a small inline badge next to the
-   customer's name, for an ACTIVE beta grant only (matches
-   `AdminCustomerRow.activeBetaGrant`'s own "active, not history" scope). */
-.betaBadge {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: var(--signal);
-  color: var(--paper);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  vertical-align: middle;
-}
-
 .actionsCell {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
 }
 
-/* Origin/provisioning filters (PLAN_PHASE16.md §8 Step 6) — a plain row
-   above the table, the same "label wraps its own control" shape
-   components/ui/Field/Field.tsx already establishes, restated inline here
-   since these two selects are filters, not form fields tied to a submit. */
 .filtersRow {
   display: flex;
   align-items: center;
@@ -82,10 +66,6 @@
   font-size: 12px;
   color: var(--mute);
 }
-/* Grows to fill whatever room the Selects/count leave in .filtersRow,
-   rather than sitting at the Input base component's own `width: 100%`
-   (which inside a flex row with no basis would otherwise fight the other
-   controls for space). */
 .searchBox {
   flex: 1 1 200px;
   min-width: 160px;
@@ -155,13 +135,4 @@
   color: var(--good);
   font-size: 14px;
   margin: 10px 0;
-}
-
-.deactivatedHeading {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--mute);
-  margin: 28px 0 10px;
 }

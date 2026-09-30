@@ -18,14 +18,52 @@ import { sendEmail } from './resend';
 import { renderActivationEmail } from './emailTemplates';
 import { SITE_URL } from '@/lib/site';
 import { t, type Lang } from '@/lib/i18n/strings';
+import type { BetaGrantTier } from './db/types';
 
 export type LinkType = 'invite' | 'recovery' | 'magiclink';
 
-function buildActivationUrl(tokenHash: string, type: LinkType): string {
+function buildActivationUrl(tokenHash: string, type: LinkType, next?: string): string {
   const url = new URL('/activate', SITE_URL);
   url.searchParams.set('token_hash', tokenHash);
   url.searchParams.set('type', type);
+  if (next) url.searchParams.set('next', next);
   return url.toString();
+}
+
+/**
+ * PLAN_BETA_PROGRAM.md § Phase 4 — carried by `sendInvite()`/`resendInvite()`
+ * to pick beta-specific email copy and (for `discounted`) land the tester
+ * straight on `/app/billing`. Deliberately a small, self-contained context
+ * rather than this module looking up `vrm.beta_grants` itself — `invites.ts`
+ * is used from `/forgot` (unauthenticated) too, and has no business knowing
+ * that table exists; the caller (an admin action, which already has the
+ * grant row in hand) passes exactly what's needed.
+ */
+export type BetaInviteContext = {
+  tier: BetaGrantTier;
+  /** Only meaningful for `tier: 'free_until'` — ISO date/timestamp, used to
+   * fill `{date}` in the tier-specific intro copy. */
+  expiresAt?: string | null;
+};
+
+function betaInviteCopy(lang: Lang, beta: BetaInviteContext): { heading: string; intro: string; footer: string; subject: string; next?: string } {
+  const heading = t(lang, 'email_beta_invite_heading');
+  const intro =
+    beta.tier === 'free_lifetime'
+      ? t(lang, 'email_beta_invite_intro_free_lifetime')
+      : beta.tier === 'free_until'
+        ? t(lang, 'email_beta_invite_intro_free_until').replace('{date}', beta.expiresAt ? beta.expiresAt.slice(0, 10) : '')
+        : t(lang, 'email_beta_invite_intro_discounted');
+  return {
+    heading,
+    intro,
+    footer: t(lang, 'email_beta_invite_footer'),
+    subject: t(lang, 'email_beta_invite_subject'),
+    // Only the discounted tier has a real destination worth jumping
+    // straight to — a free tester's first stop is just `/app` (the
+    // `sanitizeNextPath()` default in `app/(auth)/activate/page.tsx`).
+    next: beta.tier === 'discounted' ? '/app/billing' : undefined,
+  };
 }
 
 /**
@@ -201,7 +239,7 @@ export type SendInviteResult =
  * actual `generateLink()`-plus-fallback work; this function's own job is
  * just the customer lookup, the email send, and stamping the result.
  */
-export async function sendInvite(customerId: string): Promise<SendInviteResult> {
+export async function sendInvite(customerId: string, beta?: BetaInviteContext): Promise<SendInviteResult> {
   const customer = await getCustomer(customerId);
   if (!customer.auth_email) return { ok: false, reason: 'no_login_email' };
   const email = customer.auth_email;
@@ -210,7 +248,7 @@ export async function sendInvite(customerId: string): Promise<SendInviteResult> 
   const result = await createOrLinkAuthUser(email, customerId);
   if (!result.ok) return result;
 
-  return finishSendInvite(customerId, email, result.userId, result.hashedToken, result.linkType, result.linkedExistingLogin, lang);
+  return finishSendInvite(customerId, email, result.userId, result.hashedToken, result.linkType, result.linkedExistingLogin, lang, beta);
 }
 
 async function finishSendInvite(
@@ -221,20 +259,30 @@ async function finishSendInvite(
   linkType: LinkType,
   linkedExistingLogin: boolean,
   lang: Lang,
+  beta?: BetaInviteContext,
 ): Promise<SendInviteResult> {
-  const ctaUrl = buildActivationUrl(hashedToken, linkType);
+  const copy = beta
+    ? betaInviteCopy(lang, beta)
+    : {
+        heading: t(lang, 'email_invite_heading'),
+        intro: t(lang, 'email_invite_intro'),
+        footer: t(lang, 'email_invite_footer'),
+        subject: t(lang, 'email_invite_subject'),
+        next: undefined as string | undefined,
+      };
+  const ctaUrl = buildActivationUrl(hashedToken, linkType, copy.next);
   const html = renderActivationEmail({
-    heading: t(lang, 'email_invite_heading'),
-    intro: t(lang, 'email_invite_intro'),
+    heading: copy.heading,
+    intro: copy.intro,
     ctaLabel: t(lang, 'email_invite_cta'),
     ctaUrl,
-    footerNote: t(lang, 'email_invite_footer'),
+    footerNote: copy.footer,
     lang,
   });
 
   let messageId: string;
   try {
-    messageId = await sendEmail({ to: email, subject: t(lang, 'email_invite_subject'), html });
+    messageId = await sendEmail({ to: email, subject: copy.subject, html });
   } catch {
     return { ok: false, reason: 'send_failed' };
   }
@@ -265,7 +313,7 @@ export type ResendInviteResult = { ok: true } | { ok: false; reason: 'no_login_e
  * `recovery` errors, so the answer being "no" doesn't leave a customer with
  * no way back in.
  */
-export async function resendInvite(customerId: string): Promise<ResendInviteResult> {
+export async function resendInvite(customerId: string, beta?: BetaInviteContext): Promise<ResendInviteResult> {
   const customer = await getCustomer(customerId);
   if (!customer.auth_email) return { ok: false, reason: 'no_login_email' };
   const email = customer.auth_email;
@@ -283,18 +331,33 @@ export async function resendInvite(customerId: string): Promise<ResendInviteResu
   const hashedToken = result.data.properties?.hashed_token;
   if (!hashedToken) return { ok: false, reason: 'send_failed' };
 
-  const ctaUrl = buildActivationUrl(hashedToken, linkType);
+  // A beta resend reuses the SAME tier-specific intro as the original
+  // invite (no separate "beta resend" copy) — simpler, and a returning
+  // tester re-reading "you've been invited free" is not confusing the way
+  // a standard customer re-reading a first-invite intro on a resend would
+  // be (which is why the non-beta branch below keeps its own dedicated
+  // `email_resend_intro`).
+  const copy = beta
+    ? betaInviteCopy(lang, beta)
+    : {
+        heading: t(lang, 'email_invite_heading'),
+        intro: t(lang, 'email_resend_intro'),
+        footer: t(lang, 'email_invite_footer'),
+        subject: t(lang, 'email_resend_subject'),
+        next: undefined as string | undefined,
+      };
+  const ctaUrl = buildActivationUrl(hashedToken, linkType, copy.next);
   const html = renderActivationEmail({
-    heading: t(lang, 'email_invite_heading'),
-    intro: t(lang, 'email_resend_intro'),
+    heading: copy.heading,
+    intro: copy.intro,
     ctaLabel: t(lang, 'email_invite_cta'),
     ctaUrl,
-    footerNote: t(lang, 'email_invite_footer'),
+    footerNote: copy.footer,
     lang,
   });
 
   try {
-    await sendEmail({ to: email, subject: t(lang, 'email_resend_subject'), html });
+    await sendEmail({ to: email, subject: copy.subject, html });
   } catch {
     return { ok: false, reason: 'send_failed' };
   }

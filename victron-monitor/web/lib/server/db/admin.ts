@@ -20,6 +20,8 @@ import { slugify } from '@/lib/slug';
 import { planSiteLimit } from '@/lib/plans';
 import type {
   AccountType,
+  BetaGrantRecord,
+  BetaGrantTier,
   BillingEventRecord,
   CustomerRecord,
   Lang,
@@ -55,6 +57,15 @@ export type AdminCustomerRow = CustomerRecord & {
    * at all, since "no cancellation is pending" is the correct reading of
    * that case too. */
   cancelPending: boolean;
+  /** This customer's ACTIVE `vrm.beta_grants` row, if any — `null` for the
+   * overwhelming majority of customers who have never been a beta tester
+   * (PLAN_BETA_PROGRAM.md § Phase 4: "the same shape as its existing
+   * subscriptions join"). Drives the "Beta" badge/filter on
+   * `/admin/customers` and `EditCustomerForm.tsx`'s plan/site-limit
+   * disable — while this is set, `apply_entitlements()`'s §5 row 2 owns
+   * those two fields, and an edit here would just be silently overwritten
+   * on the next reconcile. */
+  activeBetaGrant: { id: string; tier: BetaGrantTier } | null;
 };
 
 /**
@@ -122,6 +133,21 @@ export async function listCustomers(): Promise<AdminCustomerRow[]> {
     ),
   );
 
+  // PLAN_BETA_PROGRAM.md § Phase 4 — at most one `active` row per
+  // customer_id (the partial unique index), so no tie-break needed here.
+  const { data: activeGrants, error: grantsError } = await admin
+    .schema('vrm')
+    .from('beta_grants')
+    .select('id, customer_id, tier')
+    .eq('status', 'active');
+  if (grantsError) throw grantsError;
+  const activeGrantByCustomer = new Map(
+    ((activeGrants ?? []) as { id: string; customer_id: string; tier: BetaGrantTier }[]).map((g) => [
+      g.customer_id,
+      { id: g.id, tier: g.tier },
+    ]),
+  );
+
   return ((customers ?? []) as CustomerRecord[]).map((c) => {
     const liveSub = liveSubByCustomer.get(c.id);
     return {
@@ -130,6 +156,7 @@ export async function listCustomers(): Promise<AdminCustomerRow[]> {
       lastUploadAt: lastUploadByCustomer.get(c.id) ?? null,
       nextRenewalAt: liveSub?.current_period_end ?? null,
       cancelPending: liveSub?.cancel_at_period_end ?? false,
+      activeBetaGrant: activeGrantByCustomer.get(c.id) ?? null,
     };
   });
 }
@@ -161,6 +188,19 @@ export type CreateCustomerFields = {
    * address at creation time, before Oscar has clicked "Enviar
    * invitación" and possibly confused two customers for a moment. */
   authEmail?: string | null;
+  /** PLAN_BETA_PROGRAM.md §4.3 — a beta-created customer's `site_limit_source`
+   * is always `'plan'` (not the column's own `'manual'` default), so a
+   * later REAL paid subscription can still raise their limit rather than
+   * being permanently frozen at whatever the grant handed them. Every
+   * other `createCustomer()` caller leaves this `undefined` and gets the
+   * column's own default. */
+  siteLimitSource?: 'manual' | 'plan';
+  /** PLAN_BETA_PROGRAM.md §4.3 — only a `discounted` beta invite needs this
+   * set to `'pending_subscription'` at creation (it has no entitlement
+   * until it actually subscribes, same as a self-serve signup); every
+   * other caller, including free-tier beta invites, leaves this
+   * `undefined` and gets the column's own `'active'` default. */
+  provisioningState?: 'pending_subscription' | 'active';
 };
 
 /**
@@ -191,6 +231,8 @@ export async function createCustomer(fields: CreateCustomerFields): Promise<Cust
       country: fields.country ?? null,
       ui_language: fields.uiLanguage ?? 'en',
       auth_email: fields.authEmail ?? null,
+      ...(fields.siteLimitSource !== undefined ? { site_limit_source: fields.siteLimitSource } : {}),
+      ...(fields.provisioningState !== undefined ? { provisioning_state: fields.provisioningState } : {}),
     })
     .select('*')
     .single();
@@ -573,4 +615,252 @@ export async function listAllReportRuns(limit = 100): Promise<ReportRunRecord[]>
     .limit(limit);
   if (error) throw error;
   return (data ?? []) as ReportRunRecord[];
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Beta program (PLAN_BETA_PROGRAM.md §4.1/Phase 4) — /admin/beta
+// ══════════════════════════════════════════════════════════════════════
+
+function onvoMode(): string {
+  return process.env.ONVO_MODE ?? 'test';
+}
+
+export type AdminBetaGrantRow = BetaGrantRecord & {
+  customerName: string;
+  customerSlug: string;
+  customerActive: boolean;
+  authEmail: string | null;
+  invitedAt: string | null;
+  activatedAt: string | null;
+  /** The customer's CURRENT `vrm.customers.plan` — not necessarily the
+   * same as `access_plan_key` once a grant has expired/converted (see
+   * `apply_entitlements()`'s own §5 branch). */
+  plan: string;
+  billingStatus: string | null;
+};
+
+/** Every `vrm.beta_grants` row, newest first, joined with just enough of
+ * its customer row for `/admin/beta`'s table — the same "joined once here,
+ * not N+1 queries per row" reasoning `listCustomers()` above already
+ * follows. */
+export async function listBetaGrants(): Promise<AdminBetaGrantRow[]> {
+  const admin = getSupabaseAdmin();
+
+  const { data: grants, error: grantsError } = await admin
+    .schema('vrm')
+    .from('beta_grants')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (grantsError) throw grantsError;
+
+  const customerIds = [...new Set((grants ?? []).map((g) => g.customer_id as string))];
+  if (customerIds.length === 0) return [];
+
+  const { data: customers, error: customersError } = await admin
+    .schema('vrm')
+    .from('customers')
+    .select('id, name, slug, active, auth_email, invited_at, activated_at, plan, billing_status')
+    .in('id', customerIds);
+  if (customersError) throw customersError;
+
+  type CustomerJoinRow = {
+    id: string;
+    name: string;
+    slug: string;
+    active: boolean;
+    auth_email: string | null;
+    invited_at: string | null;
+    activated_at: string | null;
+    plan: string;
+    billing_status: string | null;
+  };
+  const customerById = new Map(((customers ?? []) as CustomerJoinRow[]).map((c) => [c.id, c]));
+
+  return ((grants ?? []) as BetaGrantRecord[]).map((g) => {
+    const c = customerById.get(g.customer_id);
+    return {
+      ...g,
+      customerName: c?.name ?? '—',
+      customerSlug: c?.slug ?? '',
+      customerActive: c?.active ?? false,
+      authEmail: c?.auth_email ?? null,
+      invitedAt: c?.invited_at ?? null,
+      activatedAt: c?.activated_at ?? null,
+      plan: c?.plan ?? '—',
+      billingStatus: c?.billing_status ?? null,
+    };
+  });
+}
+
+/** The customer's own `active` grant, if any — used by `/admin/customers`'
+ * badge/disabled-fields logic and by `resendInviteAction` to decide
+ * whether a resend should carry beta copy (PLAN_BETA_PROGRAM.md § Phase 4:
+ * "must pick the beta variant automatically when the customer has a
+ * grant"). Deliberately only the ACTIVE grant — an expired/revoked/
+ * converted one is history, not something a resend or the customers-page
+ * badge should react to. */
+export async function getActiveBetaGrant(customerId: string): Promise<BetaGrantRecord | null> {
+  const { data, error } = await getSupabaseAdmin()
+    .schema('vrm')
+    .from('beta_grants')
+    .select('*')
+    .eq('customer_id', customerId)
+    .eq('status', 'active')
+    .limit(1);
+  if (error) throw error;
+  return (data?.[0] as BetaGrantRecord | undefined) ?? null;
+}
+
+export type CreateBetaGrantFields = {
+  tier: BetaGrantTier;
+  access_plan_key: string;
+  site_limit?: number | null;
+  expires_at?: string | null;
+  billing_interval?: 'month' | 'year' | null;
+  price_variant?: string | null;
+  notes?: string | null;
+};
+
+/**
+ * Inserts the customer row (§4.3's column values are the caller's job —
+ * see `app/(admin)/admin/beta/actions.ts` — this function just carries
+ * whatever `CreateCustomerFields` it's given straight through
+ * `createCustomer()`), then the grant. If the grant insert fails, the
+ * customer row is rolled back — mirrors `lib/server/db/signup.ts:
+ * deleteSelfServeCustomer()`'s own rollback style (best-effort, logged,
+ * never masks the original error).
+ */
+export async function createBetaCustomer(
+  customerFields: CreateCustomerFields,
+  grantFields: CreateBetaGrantFields,
+  invitedByEmail: string,
+): Promise<{ customer: CustomerRecord; grant: BetaGrantRecord }> {
+  const customer = await createCustomer(customerFields);
+
+  const { data, error } = await getSupabaseAdmin()
+    .schema('vrm')
+    .from('beta_grants')
+    .insert({
+      customer_id: customer.id,
+      tier: grantFields.tier,
+      access_plan_key: grantFields.access_plan_key,
+      site_limit: grantFields.site_limit ?? null,
+      expires_at: grantFields.expires_at ?? null,
+      billing_interval: grantFields.billing_interval ?? null,
+      price_variant: grantFields.price_variant ?? null,
+      notes: grantFields.notes ?? null,
+      invited_by_email: invitedByEmail,
+    })
+    .select('*')
+    .single();
+
+  if (error) {
+    const { error: rollbackError } = await getSupabaseAdmin().schema('vrm').from('customers').delete().eq('id', customer.id);
+    if (rollbackError) {
+      console.error('createBetaCustomer: rollback delete failed after grant insert error', rollbackError);
+    }
+    throw error;
+  }
+
+  return { customer, grant: data as BetaGrantRecord };
+}
+
+/** Revoke, CAS-guarded on `status='active'` — the same discipline
+ * `vrm_api/billing.py`'s own grant transitions use, so a double-click or a
+ * concurrent admin tab can't revoke twice. Throws if the grant is no
+ * longer active (already expired/revoked/converted) — the caller maps
+ * that to a translated "already handled" message rather than a raw
+ * Postgres error reaching the admin UI. */
+export async function revokeBetaGrant(grantId: string, adminEmail: string): Promise<BetaGrantRecord> {
+  const { data, error } = await getSupabaseAdmin()
+    .schema('vrm')
+    .from('beta_grants')
+    .update({ status: 'revoked', revoked_at: new Date().toISOString(), revoked_by_email: adminEmail })
+    .eq('id', grantId)
+    .eq('status', 'active')
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data as BetaGrantRecord;
+}
+
+export type UpdateBetaGrantFields = {
+  expires_at?: string | null;
+  site_limit?: number | null;
+  access_plan_key?: string;
+  notes?: string | null;
+};
+
+/**
+ * Edits an existing grant's free-tier fields. PLAN_BETA_PROGRAM.md § Phase
+ * 4: "extending an `expired` `free_until` grant re-activates it, provided
+ * there is no other active grant" — handled here as the one special case:
+ * setting a new `expires_at` on an already-`expired` `free_until` grant
+ * flips it back to `active` (and clears `expired_at`), but only after
+ * confirming the customer doesn't ALREADY have a different active grant
+ * (the partial unique index would reject it anyway; this check turns that
+ * into a clear error instead of a raw constraint violation).
+ */
+export async function updateBetaGrant(grantId: string, fields: UpdateBetaGrantFields): Promise<BetaGrantRecord> {
+  const { data: existingRows, error: fetchError } = await getSupabaseAdmin()
+    .schema('vrm')
+    .from('beta_grants')
+    .select('*')
+    .eq('id', grantId)
+    .limit(1);
+  if (fetchError) throw fetchError;
+  const existing = existingRows?.[0] as BetaGrantRecord | undefined;
+  if (!existing) throw new Error('beta grant not found');
+
+  const payload: Record<string, unknown> = { ...fields };
+
+  if (existing.status === 'expired' && existing.tier === 'free_until' && fields.expires_at) {
+    const { data: activeRows, error: activeError } = await getSupabaseAdmin()
+      .schema('vrm')
+      .from('beta_grants')
+      .select('id')
+      .eq('customer_id', existing.customer_id)
+      .eq('status', 'active')
+      .neq('id', grantId);
+    if (activeError) throw activeError;
+    if (activeRows && activeRows.length > 0) {
+      throw new Error('customer already has another active grant');
+    }
+    payload.status = 'active';
+    payload.expired_at = null;
+  }
+
+  const { data, error } = await getSupabaseAdmin().schema('vrm').from('beta_grants').update(payload).eq('id', grantId).select('*').single();
+  if (error) throw error;
+  return data as BetaGrantRecord;
+}
+
+/**
+ * Resolves an admin's (base plan, interval, discount %) choice to one of
+ * Phase 1's pre-seeded `vrm.plans` rows — NEVER trusts a client-resolved
+ * `price_variant` string alone (PLAN_BETA_PROGRAM.md § Phase 4:
+ * "resolves ... server-side too"). Returns `null` if that combination
+ * hasn't been seeded yet (a new base plan/interval added since
+ * `tools/seed_beta_discount_prices.py` last ran) — the caller 400s on
+ * `null` rather than inventing a variant that doesn't exist.
+ */
+export async function resolveBetaDiscountPriceVariant(
+  planKey: string,
+  billingInterval: 'month' | 'year',
+  discountPct: number,
+): Promise<{ priceVariant: string; planRowId: string } | null> {
+  const priceVariant = `beta_pct_${discountPct}`;
+  const { data, error } = await getSupabaseAdmin()
+    .schema('vrm')
+    .from('plans')
+    .select('id')
+    .eq('plan_key', planKey)
+    .eq('billing_interval', billingInterval)
+    .eq('price_variant', priceVariant)
+    .eq('mode', onvoMode())
+    .eq('active', true)
+    .limit(1);
+  if (error) throw error;
+  const row = data?.[0] as { id: string } | undefined;
+  return row ? { priceVariant, planRowId: row.id } : null;
 }

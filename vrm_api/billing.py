@@ -1066,14 +1066,24 @@ def send_trial_ending_reminders() -> dict:
 #       customer who was never reconciled even once after their grant
 #       ended (e.g. the admin revoked it and nobody has loaded a page for
 #       that customer since).
-# Reminder/"your access has ended" emails are added in Phase 3, inside this
-# same function — this is deliberately the reconcile-only half for now.
+# § Phase 3 adds the two reminder emails below, sent AFTER the reconcile
+# loop — so a `free_until` grant that expires today gets its "ended" notice
+# the same run it transitions, rather than waiting for tomorrow's sweep to
+# notice `status='expired'`.
+_BETA_ENDING_LOOKAHEAD = timedelta(days=7)
+
+
 def run_beta_sweep() -> dict:
     """Meant to run once a day (a new step in `.github/workflows/
     billing-reconcile.yml`, alongside the existing reconcile-due/
     trial-reminders steps). One customer's failure never aborts the sweep
-    for the rest — same posture `routers/billing.py:post_reconcile_due()`
-    already takes, for the same reason."""
+    for the rest — same posture `routers/billing.py:post_reconcile_due()`/
+    `send_trial_ending_reminders()` already take, for the same reason."""
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
+    from victron import email_i18n
+    from victron.mailer import MailerError
+    from victron.mailer import send as mailer_send
+
     now = datetime.now(timezone.utc)
 
     expiring = (
@@ -1124,7 +1134,97 @@ def run_beta_sweep() -> dict:
             failed += 1
             logger.warning("billing.beta_sweep: reconcile failed for customer_id=%s — %s", customer_id, exc)
 
-    return {"checked": len(due_customer_ids), "failed": failed}
+    # ── Reminder emails (§ Phase 3) — run AFTER the reconcile loop above,
+    # so a grant that just transitioned active->expired this same run
+    # already shows up in the "ended" query below. ─────────────────────
+    env = Environment(loader=FileSystemLoader(_trial_reminder_template_dir()),
+                      autoescape=select_autoescape(["html"]))
+    sent = 0
+    skipped = 0
+
+    def _send_beta_email(grant: dict, *, template_name: str, sent_at_column: str) -> None:
+        nonlocal sent, skipped, failed
+        customer_id = grant["customer_id"]
+        try:
+            customer = tenancy.get_customer(customer_id)
+        except Exception:  # noqa: BLE001 — a missing/broken customer row must not stop the sweep
+            logger.exception("billing.beta_sweep: could not load customer %s", customer_id)
+            failed += 1
+            return
+
+        to = customer.get("contact_email") or customer.get("auth_email")
+        if not to or not _EMAIL_RE.match(to):
+            skipped += 1
+            return
+
+        lang = (customer.get("ui_language") or "en").lower()
+        t = email_i18n.get(lang)
+
+        try:
+            if template_name == "beta_ending_email.html":
+                expires_at = _parse_ts(grant.get("expires_at"))
+                date_str = expires_at.date().isoformat() if expires_at else ""
+                body1 = t["beta_ending_body1"].replace("{date}", date_str)
+                html = env.get_template(template_name).render(lang=lang, t=t, body1=body1)
+                subject = t["beta_ending_title"]
+            else:
+                html = env.get_template(template_name).render(lang=lang, t=t)
+                subject = t["beta_ended_title"]
+            mailer_send(to, subject, html)
+        except MailerError as exc:
+            logger.warning("billing.beta_sweep: could not email customer %s: %s", customer_id, exc)
+            failed += 1
+            return
+        except Exception:  # noqa: BLE001 — see function docstring
+            logger.exception("billing.beta_sweep: unexpected error emailing customer %s", customer_id)
+            failed += 1
+            return
+
+        # CAS-style guard, same pattern trial_reminder_sent_at/
+        # report_cap_notified_period_end already use — only the sweep run
+        # whose UPDATE actually lands counts this as sent.
+        updated = (
+            _t("beta_grants").update({sent_at_column: now.isoformat()})
+            .eq("id", grant["id"]).is_(sent_at_column, "null").execute().data
+        )
+        if updated:
+            sent += 1
+            logger.info("billing.beta_email_sent customer_id=%s grant=%s template=%s",
+                       customer_id, grant["id"], template_name)
+        else:
+            skipped += 1
+
+    ending_horizon = now + _BETA_ENDING_LOOKAHEAD
+    ending_candidates = (
+        _t("beta_grants").select("*")
+        .eq("status", "active").eq("tier", "free_until")
+        .is_("expiry_reminder_sent_at", "null")
+        .not_.is_("expires_at", "null")
+        .lte("expires_at", ending_horizon.isoformat())
+        .execute().data
+    ) or []
+    for grant in ending_candidates:
+        expires_at = _parse_ts(grant.get("expires_at"))
+        # Same defensive re-check `send_trial_ending_reminders()` makes
+        # against its own DB-side coarse filter: a grant already past its
+        # expiry belongs to the "ended" notice below, not "ending soon" —
+        # the reconcile loop above should have already transitioned it out
+        # of `status='active'`, but never trust that alone.
+        if expires_at is None or expires_at <= now:
+            skipped += 1
+            continue
+        _send_beta_email(grant, template_name="beta_ending_email.html", sent_at_column="expiry_reminder_sent_at")
+
+    ended_candidates = (
+        _t("beta_grants").select("*")
+        .in_("status", ["expired", "revoked"])
+        .is_("ended_notice_sent_at", "null")
+        .execute().data
+    ) or []
+    for grant in ended_candidates:
+        _send_beta_email(grant, template_name="beta_ended_email.html", sent_at_column="ended_notice_sent_at")
+
+    return {"checked": len(due_customer_ids), "sent": sent, "skipped": skipped, "failed": failed}
 
 
 def _billing_state(customer_id: str) -> dict:
