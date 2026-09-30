@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { AppShell, type AppNavItem } from '@/components/app';
 import { requireCustomerAllowPending } from '@/lib/server/auth';
+import { getCustomer, listSites } from '@/lib/server/db';
 import { t } from '@/lib/i18n/strings';
 
 // First statement of the layout, per PLAN_PHASE14.md §1.2 rule 4 —
@@ -26,6 +27,16 @@ import { t } from '@/lib/i18n/strings';
 export default async function PortalLayout({ children }: { children: ReactNode }) {
   const session = await requireCustomerAllowPending();
 
+  // PLAN_BETA_PROGRAM.md §11 Q1 / § Phase 6 — two small, cheap `vrm.*`
+  // reads (not a `vrm_api` round trip), scoped to this session's own
+  // customer: `billing_status` for the BETA badge, and the customer's own
+  // sites for the feedback widget's site select (fetched once here, per
+  // the plan's own "the options list is passed from the layout" — never
+  // refetched by the widget itself).
+  const [customer, sites] = await Promise.all([getCustomer(session.customerId), listSites(session.customerId)]);
+  const badge = customer.billing_status === 'beta' ? t(session.uiLanguage, 'nav_beta_badge') : undefined;
+  const feedbackSites = sites.map((s) => ({ site_id: s.site_id, display_name: s.display_name }));
+
   const navItems: AppNavItem[] = [
     { href: '/app', label: t(session.uiLanguage, 'nav_reports') },
     { href: '/app/upload', label: t(session.uiLanguage, 'nav_upload') },
@@ -43,7 +54,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
   ];
 
   return (
-    <AppShell role="customer" email={session.email} navItems={navItems} lang={session.uiLanguage}>
+    <AppShell role="customer" email={session.email} navItems={navItems} lang={session.uiLanguage} badge={badge} feedbackSites={feedbackSites}>
       {children}
     </AppShell>
   );

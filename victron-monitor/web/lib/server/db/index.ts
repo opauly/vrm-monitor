@@ -54,6 +54,10 @@ export type {
 export { listReportRuns, getReportRunScoped } from './reportRuns';
 export type { ReportRunRecord } from './reportRuns';
 
+export { createFeedback } from './feedback';
+export type { CreateFeedbackFields } from './feedback';
+
 export { NotAuthorized } from './errors';
 
 export type { CustomerRecord, SiteRecord, IngestionLogRecord, Lang, AccountType, SystemType, ReportSchedule } from './types';
+export type { FeedbackRecord, FeedbackKind, FeedbackSeverity } from './types';

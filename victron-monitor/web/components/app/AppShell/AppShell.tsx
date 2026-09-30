@@ -5,6 +5,11 @@ import { AccountMenu } from '@/components/ui';
 import type { Lang } from '@/lib/i18n/strings';
 import { NavLink } from './NavLink';
 import { AdminLangSwitcher } from './AdminLangSwitcher';
+// Relative import, not `@/components/app` (the barrel) — that barrel also
+// exports AppShell itself, so importing it FROM here would be a circular
+// dependency (index.ts -> AppShell.tsx -> index.ts). Same reasoning
+// `./NavLink`/`./AdminLangSwitcher` above are already relative.
+import { FeedbackWidget, type FeedbackWidgetSite } from '../FeedbackWidget/FeedbackWidget';
 import styles from './AppShell.module.css';
 
 export type AppNavItem = {
@@ -38,6 +43,17 @@ export type AppShellProps = {
    * `AdminLangSwitcher` below (2026-09-24), which needs to know the
    * CURRENT language to render its own pressed state. */
   lang: Lang;
+  /** Pre-translated (`t()`) label for a small tag next to "VRM Monitor" in
+   * the brand row — same shape the existing admin-only tag already uses.
+   * PLAN_BETA_PROGRAM.md §11 Q1: a free-tier beta tester's own "BETA" tag.
+   * `undefined` for everyone else (every pre-existing caller, unchanged). */
+  badge?: string;
+  /** PLAN_BETA_PROGRAM.md § Phase 6 — the customer's own sites, for the
+   * feedback widget's site select. Server-fetched by `app/(portal)/app/
+   * layout.tsx`, never refetched here. `undefined`/empty for `role:
+   * 'admin'` (the widget never renders there at all) or a brand-new
+   * customer with no sites yet. */
+  feedbackSites?: FeedbackWidgetSite[];
   children: ReactNode;
 };
 
@@ -48,7 +64,7 @@ export type AppShellProps = {
 // itself — the account corner's avatar/dropdown interaction lives inside
 // `AccountMenu`, its own small Client Component, same split `NavAuthArea`
 // already uses on the marketing nav for the identical reason.
-export function AppShell({ role, email, navItems, lang, children }: AppShellProps) {
+export function AppShell({ role, email, navItems, lang, badge, feedbackSites, children }: AppShellProps) {
   // Two groups, not one — see `AppNavItem.personal`'s own doc comment.
   // `/app`'s customer nav never sets `personal` on anything, so
   // `personalItems` is always empty there and this renders exactly as
@@ -65,6 +81,7 @@ export function AppShell({ role, email, navItems, lang, children }: AppShellProp
             <span className={styles.divider} aria-hidden="true" />
             VRM Monitor
             {role === 'admin' && <span className={styles.adminTag}>Admin</span>}
+            {badge && <span className={styles.betaTag}>{badge}</span>}
           </Link>
         </div>
         <nav className={styles.nav}>
@@ -86,6 +103,7 @@ export function AppShell({ role, email, navItems, lang, children }: AppShellProp
         )}
         <div className={styles.account}>
           {role === 'admin' && <AdminLangSwitcher lang={lang} />}
+          {role === 'customer' && <FeedbackWidget lang={lang} sites={feedbackSites ?? []} />}
           <AccountMenu email={email} />
         </div>
       </header>

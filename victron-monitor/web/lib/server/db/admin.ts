@@ -24,6 +24,9 @@ import type {
   BetaGrantTier,
   BillingEventRecord,
   CustomerRecord,
+  FeedbackPriority,
+  FeedbackRecord,
+  FeedbackStatus,
   Lang,
   SiteRecord,
   IngestionLogRecord,
@@ -863,4 +866,90 @@ export async function resolveBetaDiscountPriceVariant(
   if (error) throw error;
   const row = data?.[0] as { id: string } | undefined;
   return row ? { priceVariant, planRowId: row.id } : null;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feedback triage + app settings (PLAN_BETA_PROGRAM.md § Phase 8) —
+// /admin/feedback
+// ══════════════════════════════════════════════════════════════════════
+
+export type AdminFeedbackRow = FeedbackRecord & {
+  customerName: string;
+};
+
+/** Every `vrm.feedback` row, newest first, joined with the customer's own
+ * name — same "fetch everything once, filter client-side" shape
+ * `listCustomers()`/`listBetaGrants()` above already use; `/admin/feedback`
+ * filters (kind, status, severity, customer, text search) all run in
+ * `FeedbackManager.tsx`, not here. */
+export async function listFeedback(): Promise<AdminFeedbackRow[]> {
+  const admin = getSupabaseAdmin();
+
+  const { data: rows, error: rowsError } = await admin
+    .schema('vrm')
+    .from('feedback')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (rowsError) throw rowsError;
+
+  const customerIds = [...new Set((rows ?? []).map((r) => r.customer_id as string | null).filter((id): id is string => id !== null))];
+  const customerNameById = new Map<string, string>();
+  if (customerIds.length > 0) {
+    const { data: customers, error: customersError } = await admin.schema('vrm').from('customers').select('id, name').in('id', customerIds);
+    if (customersError) throw customersError;
+    for (const c of (customers ?? []) as { id: string; name: string }[]) customerNameById.set(c.id, c.name);
+  }
+
+  return ((rows ?? []) as FeedbackRecord[]).map((r) => ({
+    ...r,
+    // A deleted customer (ON DELETE SET NULL, §4.5) leaves `customer_id`
+    // NULL — the feedback text itself is what outlives them, so this
+    // renders as a plain "—" rather than hiding or erroring the row.
+    customerName: r.customer_id ? (customerNameById.get(r.customer_id) ?? '—') : '—',
+  }));
+}
+
+export type UpdateFeedbackFields = {
+  status?: FeedbackStatus;
+  admin_priority?: FeedbackPriority | null;
+  admin_notes?: string | null;
+};
+
+const FEEDBACK_TERMINAL_STATUSES = new Set<FeedbackStatus>(['resolved', 'wont_fix', 'duplicate']);
+
+/** Edits the admin-owned half of a feedback row. `resolved_at` is stamped
+ * automatically the moment `status` moves INTO one of the three terminal
+ * values — never settable directly, and never cleared back to `null` if
+ * the status later moves again (a real, one-time "when was this closed"
+ * fact, not a live-editable field). */
+export async function updateFeedback(id: string, fields: UpdateFeedbackFields): Promise<FeedbackRecord> {
+  const payload: Record<string, unknown> = { ...fields };
+  if (fields.status && FEEDBACK_TERMINAL_STATUSES.has(fields.status)) {
+    payload.resolved_at = new Date().toISOString();
+  }
+  const { data, error } = await getSupabaseAdmin().schema('vrm').from('feedback').update(payload).eq('id', id).select('*').single();
+  if (error) throw error;
+  return data as FeedbackRecord;
+}
+
+/** `null` if the key has never been set — every reader (e.g.
+ * `lib/server/feedbackNotify.ts`) already has its own hardcoded/env-var
+ * fallback for exactly that case, per `vrm.app_settings`'s own migration
+ * comment ("a missing key is not an error"). */
+export async function getAppSetting(key: string): Promise<string | null> {
+  const { data, error } = await getSupabaseAdmin().schema('vrm').from('app_settings').select('value').eq('key', key).limit(1);
+  if (error) throw error;
+  const row = data?.[0] as { value: string } | undefined;
+  return row?.value ?? null;
+}
+
+/** Upsert, not update-only — the first time an admin ever sets a given key
+ * (or a fresh environment where the seed row was never inserted), there is
+ * no existing row to update yet. */
+export async function setAppSetting(key: string, value: string, adminEmail: string): Promise<void> {
+  const { error } = await getSupabaseAdmin()
+    .schema('vrm')
+    .from('app_settings')
+    .upsert({ key, value, updated_at: new Date().toISOString(), updated_by_email: adminEmail });
+  if (error) throw error;
 }

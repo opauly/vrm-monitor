@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { t, type Lang } from '@/lib/i18n/strings';
+import { daysUntil } from '@/lib/dates';
 import styles from './BillingBanners.module.css';
 
 /** The subset of `BillingStatusOut` (`lib/server/pipeline.ts`) this banner
@@ -12,6 +13,11 @@ export type BillingBannerStatus = {
   over_limit: boolean;
   active_sites: number;
   site_limit: number | null;
+  /** PLAN_BETA_PROGRAM.md §5 Phase 5 — both existing callers already pass
+   * a full `BillingStatusOut` (`getBillingStatus()`'s own return type),
+   * which has carried this field since Phase 2, so neither call site
+   * needed a change to satisfy this. */
+  beta: { tier: string; status: string; expires_at: string | null } | null;
 };
 
 export type BillingBannersProps = {
@@ -39,7 +45,23 @@ export type BillingBannersProps = {
 export function BillingBanners({ status, lang }: BillingBannersProps) {
   const showPastDue = status.billing_status === 'past_due';
   const showOverLimit = status.over_limit;
-  if (!showPastDue && !showOverLimit) return null;
+
+  // PLAN_BETA_PROGRAM.md §5 Phase 5 — a free-tier grant approaching its
+  // expiry, mirroring the "ending soon" email (§ Phase 3) as an on-page
+  // reminder. `free_lifetime` has no `expires_at` at all (never a real
+  // date to warn about); a grant already past its expiry is
+  // `billing_status='beta_ended'` by the time anything reads this (§5 row
+  // 3/4), not `status: 'active'` any more, so a negative day count here
+  // would mean this rendered from stale data — guarded out rather than
+  // shown as "-1 days left."
+  const betaExpiresAt =
+    status.beta?.status === 'active' && (status.beta.tier === 'free_lifetime' || status.beta.tier === 'free_until')
+      ? status.beta.expires_at
+      : null;
+  const daysLeft = betaExpiresAt ? daysUntil(betaExpiresAt) : null;
+  const showBetaEnding = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
+
+  if (!showPastDue && !showOverLimit && !showBetaEnding) return null;
 
   return (
     <div className={styles.wrap}>
@@ -57,6 +79,11 @@ export function BillingBanners({ status, lang }: BillingBannersProps) {
               .replace('{active}', String(status.active_sites))
               .replace('{limit}', status.site_limit === null ? '—' : String(status.site_limit))}
           </p>
+        </div>
+      )}
+      {showBetaEnding && (
+        <div className={styles.banner} role="alert">
+          <p>{t(lang, 'billing_beta_ending_banner').replace('{days}', String(daysLeft))}</p>
         </div>
       )}
     </div>

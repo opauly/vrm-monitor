@@ -46,6 +46,13 @@ const STATUS_LABEL_KEY: Record<string, StringKey> = {
   // genuinely expired with no card on file (vrm_api/routers/billing.py:
   // _status_response()'s own override).
   trial_expired: 'billing_status_trial_expired',
+  // Two more LOCAL-only values (PLAN_BETA_PROGRAM.md §5) — same reasoning
+  // as `trial_expired` above. `beta` is only ever reached via the early
+  // return below (the free-tier "Beta access" panel never renders this
+  // badge at all); `beta_ended` DOES render here, in the normal status
+  // panel, once a free grant has actually ended.
+  beta: 'billing_status_beta',
+  beta_ended: 'billing_status_beta_ended',
 };
 
 function statusLabel(lang: Lang, status: string | null): string {
@@ -55,8 +62,8 @@ function statusLabel(lang: Lang, status: string | null): string {
 }
 
 function statusBadgeClass(status: string | null): string {
-  if (status === 'active' || status === 'trialing') return styles.badgeGood;
-  if (status === 'past_due' || status === 'unpaid' || status === 'incomplete' || status === 'trial_expired') return styles.badgeWarn;
+  if (status === 'active' || status === 'trialing' || status === 'beta') return styles.badgeGood;
+  if (status === 'past_due' || status === 'unpaid' || status === 'incomplete' || status === 'trial_expired' || status === 'beta_ended') return styles.badgeWarn;
   return styles.badgeNeutral;
 }
 
@@ -436,6 +443,39 @@ export function BillingManager({ status: initialStatus, lang, firstRun, initialP
     );
   }
 
+  // ── Free-tier beta grant, still active: status-only, no billing UI at
+  // all (PLAN_BETA_PROGRAM.md §5/§11 Q8, resolved stricter than the
+  // original default) ───────────────────────────────────────────────────
+  // Placed after the transitioning/first-run returns above (a free-tier
+  // grant sets provisioning_state='active' at creation time, §4.3, so
+  // `trackedFirstRun` is never true for these customers — this is where
+  // they actually land) and before the Normal branch below, which this
+  // replaces entirely: no status panel, no Change/Cancel, no payment
+  // method, no address, no invoices. A `discounted` grant is deliberately
+  // NOT handled here — it falls through to the Normal branch below
+  // completely unchanged, behaving exactly like any other
+  // pending_subscription/active-subscription customer (§ Phase 2's own
+  // `get_plans()` filtering is what scopes it to their own price_variant).
+  if (status.beta?.status === 'active' && (status.beta.tier === 'free_lifetime' || status.beta.tier === 'free_until')) {
+    return (
+      <div>
+        <h1>{t(lang, 'billing_title')}</h1>
+        <BillingBanners status={status} lang={lang} />
+        <div className={styles.panel}>
+          <h2>{t(lang, 'billing_status_title')}</h2>
+          <p className={styles.status}>
+            {status.beta.tier === 'free_lifetime'
+              ? t(lang, 'billing_beta_free_lifetime')
+              : t(lang, 'billing_beta_free_until').replace(
+                  '{date}',
+                  status.beta.expires_at ? formatDate(status.beta.expires_at, DATE_LOCALE[lang]) : '—',
+                )}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // ── Normal: an already-provisioned account ────────────────────────────
   const perKey = intervalKey(status.billing_interval);
   // A subscription ONVO isn't actively going to renew without the customer
@@ -452,7 +492,12 @@ export function BillingManager({ status: initialStatus, lang, firstRun, initialP
   // Only the 'trial_expired' branch of this has been exercised against a
   // real subscription; 'unpaid'/'incomplete' are extended by symmetry, not
   // independently live-tested — flag if either looks wrong in practice.
-  const isNotEntitledSubscription = status.status === 'trial_expired' || status.status === 'unpaid' || status.status === 'incomplete';
+  // 'beta_ended' (PLAN_BETA_PROGRAM.md §5) added the same way — a free
+  // grant that has ended has no subscription at all (amount_minor/
+  // current_period_end are null), so "Renew Plan" is the only sane action,
+  // same as the other three.
+  const isNotEntitledSubscription =
+    status.status === 'trial_expired' || status.status === 'unpaid' || status.status === 'incomplete' || status.status === 'beta_ended';
   const renewsDate = isNotEntitledSubscription
     ? null
     : status.cancel_at_period_end

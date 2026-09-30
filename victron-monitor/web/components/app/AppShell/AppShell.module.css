@@ -48,6 +48,19 @@
   padding: 2px 6px;
   border-radius: var(--radius-sm);
 }
+/* PLAN_BETA_PROGRAM.md §11 Q1 — same shape as .adminTag above (this app's
+   own small-tag-next-to-the-logo convention), never rendered alongside it
+   (badge is only ever computed for a customer-role session). */
+.betaTag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--signal);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
 
 .nav {
   display: flex;

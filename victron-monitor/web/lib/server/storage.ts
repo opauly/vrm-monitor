@@ -44,3 +44,15 @@ export async function createBrandingLogoUrl(storagePath: string): Promise<string
   if (error || !data) return null;
   return data.signedUrl;
 }
+
+// Same short-TTL shape `createReportDownloadUrl()` uses above — a feedback
+// screenshot opened from `/admin/feedback` (PLAN_BETA_PROGRAM.md § Phase 8)
+// is a one-click "view it" action, not something left open in a rendered
+// page the way a branding preview is.
+const FEEDBACK_SCREENSHOT_URL_TTL_SECONDS = 120;
+
+export async function createFeedbackScreenshotUrl(storagePath: string): Promise<string | null> {
+  const { data, error } = await getSupabaseAdmin().storage.from(BUCKET).createSignedUrl(storagePath, FEEDBACK_SCREENSHOT_URL_TTL_SECONDS);
+  if (error || !data) return null;
+  return data.signedUrl;
+}

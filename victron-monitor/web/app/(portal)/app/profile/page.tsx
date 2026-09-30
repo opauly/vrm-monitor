@@ -29,6 +29,9 @@ const BILLING_STATUS_LABEL_KEY: Record<string, StringKey> = {
   // See BillingManager.tsx's own comment — a local-only value, never an
   // ONVO status.
   trial_expired: 'billing_status_trial_expired',
+  // Two more local-only values (PLAN_BETA_PROGRAM.md §5) — same reasoning.
+  beta: 'billing_status_beta',
+  beta_ended: 'billing_status_beta_ended',
 };
 
 export const metadata: Metadata = {

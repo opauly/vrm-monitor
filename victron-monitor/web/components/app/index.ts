@@ -12,5 +12,8 @@ export type { BillingBannersProps, BillingBannerStatus } from './BillingBanners/
 
 export { PendingSubscriptionUpsell } from './PendingSubscriptionUpsell/PendingSubscriptionUpsell';
 
+export { FeedbackWidget } from './FeedbackWidget/FeedbackWidget';
+export type { FeedbackWidgetProps, FeedbackWidgetSite } from './FeedbackWidget/FeedbackWidget';
+
 export { DataSourceDiagram } from './HelpDiagrams/DataSourceDiagram';
 export { ScoreLegend } from './HelpDiagrams/ScoreLegend';

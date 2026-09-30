@@ -55,6 +55,22 @@ SITE_URL=http://localhost:3000 # lib/site.ts — overrides the prod-domain-place
 `lib/server/invites.ts` doesn't call `victron/mailer.py` (the Python
 counterpart Phase 12 will import unchanged) even though both exist.
 
+PLAN_BETA_PROGRAM.md § Phase 6 addition (`lib/server/feedbackNotify.ts`):
+
+```bash
+FEEDBACK_NOTIFY_EMAIL=info@paulyco.com  # bootstrap default only — see below
+FEEDBACK_NOTIFY_LANG=en                 # 'en' or 'es'; default 'en' if unset
+```
+
+`FEEDBACK_NOTIFY_EMAIL` is only the fallback used before an admin has ever
+set `vrm.app_settings.feedback_notify_email` from `/admin/feedback` — once
+that row exists, it's the real address and this env var is never read
+again. `FEEDBACK_NOTIFY_LANG` has no equivalent admin-editable override:
+the feedback notification is an internal notice to whoever reads that
+inbox, not addressed to any one customer, so there's no per-recipient
+language to read from `vrm.customers` the way every other email in this
+app does.
+
 Phase 16 Step 4 addition (`app/api/webhooks/onvo/route.ts`):
 
 ```bash

@@ -26,6 +26,15 @@ export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 export const LOGO_MAX_BYTES = 1_000_000;
 export const LOGO_ALLOWED_EXTENSIONS = ['.png', '.jpg', '.jpeg'];
 
+// Feedback screenshot cap (PLAN_BETA_PROGRAM.md § Phase 7) — same
+// "sign route (server) and the widget (client, rejects an oversized file
+// before ever asking for a signed URL) both need the identical number"
+// reasoning as LOGO_MAX_BYTES above. 5 MB, not the 1 MB logo cap — a real
+// screen capture of a full dashboard is routinely bigger than a small
+// brand logo.
+export const FEEDBACK_SCREENSHOT_MAX_BYTES = 5_000_000;
+export const FEEDBACK_SCREENSHOT_ALLOWED_EXTENSIONS = ['.png', '.jpg', '.jpeg'];
+
 export function formatBytes(bytes: number): string {
   const mb = bytes / (1024 * 1024);
   return `${mb % 1 === 0 ? mb.toFixed(0) : mb.toFixed(1)} MB`;

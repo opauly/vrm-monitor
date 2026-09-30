@@ -87,3 +87,11 @@ export function formatDate(iso: string, locale: DateLocale = 'es-CR'): string {
 export function isWithinLastHours(iso: string, hours: number): boolean {
   return Date.now() - new Date(iso).getTime() <= hours * 60 * 60 * 1000;
 }
+
+/** Whole days from now until `iso` (negative if `iso` is already in the
+ * past) — `components/app/BillingBanners`' own "beta ends in N days"
+ * banner (PLAN_BETA_PROGRAM.md § Phase 5), same `Date.now()`-lives-in-one-
+ * small-function reasoning `isWithinLastHours()`'s own comment gives. */
+export function daysUntil(iso: string): number {
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+}
