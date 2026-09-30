@@ -126,7 +126,7 @@ export async function getCustomerByAuthUserId(authUserId: string): Promise<{ id:
  * matters there specifically, not just for `sendInvite()`'s existing
  * customer).
  */
-async function findOtherCustomerByEmail(email: string, excludeCustomerId?: string): Promise<{ id: string; name: string } | null> {
+export async function findOtherCustomerByEmail(email: string, excludeCustomerId?: string): Promise<{ id: string; name: string } | null> {
   let query = getSupabaseAdmin().schema('vrm').from('customers').select('id, name').ilike('auth_email', email).limit(1);
   if (excludeCustomerId) query = query.neq('id', excludeCustomerId);
   const { data, error } = await query;

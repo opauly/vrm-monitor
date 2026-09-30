@@ -19,7 +19,7 @@ import {
   type CreateBetaGrantFields,
   type CreateCustomerFields,
 } from '@/lib/server/db/admin';
-import { sendInvite, resendInvite, type BetaInviteContext } from '@/lib/server/invites';
+import { sendInvite, resendInvite, findOtherCustomerByEmail, type BetaInviteContext } from '@/lib/server/invites';
 import { billingRefresh } from '@/lib/server/pipeline';
 import { captureServerEvent } from '@/lib/server/analytics';
 import { t } from '@/lib/i18n/strings';
@@ -104,6 +104,18 @@ export async function createBetaInviteAction(_prevState: CreateBetaInviteState, 
     if (!(DISCOUNT_PERCENTAGES as readonly number[]).includes(fields.discountPct)) {
       return { error: t(admin.uiLanguage, 'admin_beta_err_discount_pct_invalid') };
     }
+  }
+
+  // Checked up front, not just left to the DB's unique index + the catch
+  // block below — that combination was surfacing the generic
+  // "could not create" message instead of naming the actual conflict, since
+  // by the time the insert fails the admin has no idea *which* existing
+  // customer already owns this login email. Same lookup `sendInvite()`'s
+  // own "already_linked_elsewhere" ladder already uses, just run earlier,
+  // before anything is created.
+  const existingByEmail = await findOtherCustomerByEmail(fields.authEmail);
+  if (existingByEmail) {
+    return { error: t(admin.uiLanguage, 'admin_beta_err_duplicate_named').replace('{name}', existingByEmail.name) };
   }
 
   let priceVariant: string | null = null;

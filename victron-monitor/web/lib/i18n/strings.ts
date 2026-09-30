@@ -322,6 +322,7 @@ export const STRINGS = {
     admin_beta_err_discount_not_seeded:
       'That plan/interval/discount combination has not been seeded yet — run the discount-seeding script first.',
     admin_beta_err_duplicate: 'A customer with that login email or name already exists.',
+    admin_beta_err_duplicate_named: 'This email is already the login for an existing customer, "{name}". Use a different email, or edit that customer instead.',
     admin_beta_err_create_generic: 'Could not create the beta tester. Please try again.',
     admin_beta_err_revoke_generic: 'Could not revoke this grant — it may already be expired, revoked, or converted.',
     admin_beta_err_extend_generic: 'Could not extend this grant. Please try again.',
@@ -2369,6 +2370,7 @@ export const STRINGS = {
     admin_beta_err_discount_not_seeded:
       'Esa combinación de plan/intervalo/descuento todavía no fue creada — corré primero el script de generación de descuentos.',
     admin_beta_err_duplicate: 'Ya existe un cliente con ese correo de acceso o nombre.',
+    admin_beta_err_duplicate_named: 'Ese correo ya es el de acceso de un cliente existente, "{name}". Usá otro correo, o editá ese cliente en su lugar.',
     admin_beta_err_create_generic: 'No se pudo crear el probador beta. Por favor intentá de nuevo.',
     admin_beta_err_revoke_generic: 'No se pudo revocar esta concesión — puede que ya esté vencida, revocada o convertida.',
     admin_beta_err_extend_generic: 'No se pudo extender esta concesión. Por favor intentá de nuevo.',
