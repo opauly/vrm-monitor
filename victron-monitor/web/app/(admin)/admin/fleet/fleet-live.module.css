@@ -1,0 +1,119 @@
+/* FleetLiveSection.tsx — the "Live energy flow" block at the top of the fleet
+   pages. Visual vocabulary deliberately matches the stat cards below it
+   (same mono labels, panel surface, hairline border) so the page reads as
+   one system. */
+.section {
+  margin-bottom: 28px;
+}
+.title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--victron-glow);
+  margin: 0 0 4px;
+}
+.sub {
+  max-width: none;
+  font-size: 12px;
+  color: var(--mute);
+  margin: 0 0 14px;
+}
+
+/* Diagram on the left at its natural (max 480px) width, the three panels
+   filling the rest; stacked on narrow screens. */
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 480px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.flow {
+  min-width: 0;
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.value {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--paper);
+  font-variant-numeric: tabular-nums;
+}
+.empty {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--mute);
+}
+.note {
+  font-size: 11.5px;
+  color: var(--mute);
+  line-height: 1.4;
+}
+
+.bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.barFill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+.attentionList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.attentionRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+}
+.attentionLink {
+  color: var(--paper);
+  text-decoration: none;
+  min-width: 0;
+}
+.attentionLink:hover {
+  color: var(--victron-glow);
+  text-decoration: underline;
+}
+.attentionReasons {
+  color: var(--signal);
+  font-size: 12px;
+  text-align: right;
+}

@@ -8,7 +8,7 @@ import { formatDateTime, formatDateTimeInZone, isWithinLastHours } from '@/lib/d
 import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
 import { t, type Lang } from '@/lib/i18n/strings';
 import { FleetFreshness } from '../../../(admin)/admin/fleet/FleetFreshness';
-import { FlowDiagram, splitCounts } from '../../../(admin)/admin/fleet/FlowDiagram';
+import { FleetLiveSection } from '../../../(admin)/admin/fleet/FleetLiveSection';
 import { ShapeChart } from '../../../(admin)/admin/fleet/ShapeChart';
 import styles from './dashboard.module.css';
 
@@ -178,16 +178,9 @@ export default async function CustomerDashboardPage() {
   );
 
   const onlineSites = sites.filter((s) => s.connection_status === 'online');
-  const solarSites = onlineSites.filter((s) => s.live_pv_power_w !== null);
-  const loadSites = onlineSites.filter((s) => s.live_load_power_w !== null);
-  const batterySites = onlineSites.filter((s) => s.live_battery_power_w !== null);
   const meteredSites = onlineSites.filter((s) => s.has_grid_meter);
   const socSites = onlineSites.filter((s) => s.live_soc_pct !== null);
 
-  const totalSolar = solarSites.reduce((a, s) => a + (s.live_pv_power_w ?? 0), 0);
-  const totalLoad = loadSites.reduce((a, s) => a + (s.live_load_power_w ?? 0), 0);
-  const totalBattery = batterySites.reduce((a, s) => a + (s.live_battery_power_w ?? 0), 0);
-  const totalGrid = meteredSites.reduce((a, s) => a + (s.live_grid_power_w ?? 0), 0);
   const avgSoc = socSites.length > 0 ? Math.round((socSites.reduce((a, s) => a + (s.live_soc_pct ?? 0), 0) / socSites.length) * 10) / 10 : null;
   const lowestSoc = socSites.length > 0 ? socSites.reduce((min, s) => ((s.live_soc_pct ?? 0) < (min.live_soc_pct ?? 0) ? s : min)) : null;
 
@@ -228,6 +221,10 @@ export default async function CustomerDashboardPage() {
         )}
       </div>
       <p className={`mono ${styles.pageDesc}`}>{t(lang, 'dashboard_intro')}</p>
+
+      {sites.length > 0 && (
+        <FleetLiveSection sites={sites} lang={lang} loadLabel={t(lang, 'dashboard_flow_load_label')} siteHrefBase="/app/dashboard/" />
+      )}
 
       <p className={styles.rollupHint}>{t(lang, 'admin_fleet_rollup_hint')}</p>
 
@@ -530,22 +527,6 @@ export default async function CustomerDashboardPage() {
         <p className={styles.sub}>{t(lang, 'dashboard_no_sites')}</p>
       ) : (
         <>
-          <FlowDiagram
-            lang={lang}
-            solarW={solarSites.length > 0 ? totalSolar : null}
-            solarNote={t(lang, 'admin_fleet_flow_note_of_sites').replace('{n}', String(solarSites.length)).replace('{m}', String(sites.length))}
-            loadW={loadSites.length > 0 ? totalLoad : null}
-            loadLabel={t(lang, 'dashboard_flow_load_label')}
-            batteryW={batterySites.length > 0 ? totalBattery : null}
-            batteryNote={t(lang, 'admin_fleet_flow_battery_note')}
-            batterySplit={splitCounts(batterySites.map((s) => s.live_battery_power_w))}
-            socPct={avgSoc}
-            gridW={totalGrid}
-            hasGridMeter={meteredSites.length > 0}
-            gridSplit={splitCounts(meteredSites.map((s) => s.live_grid_power_w))}
-            gridNote={t(lang, 'admin_fleet_flow_note_of_sites').replace('{n}', String(meteredSites.length)).replace('{m}', String(sites.length))}
-          />
-
           <ShapeChart
             siteIds={sites.map((s) => s.site_id)}
             title={t(lang, 'admin_fleet_shape_title')}
