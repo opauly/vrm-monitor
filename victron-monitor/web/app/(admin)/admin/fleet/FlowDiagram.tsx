@@ -101,7 +101,6 @@ export function FlowDiagram({
   // (discharge, which is the NEGATIVE sign convention VRM uses for `bp`).
   const gridLine = lineFor(gridW, 1);
   const batteryLine = lineFor(batteryW, -1);
-  const gridExporting = !gridLine.idle && gridLine.reverse;
 
   const splitText = (split: FlowSplit, positiveKey: Parameters<typeof t>[1], negativeKey: Parameters<typeof t>[1]) => {
     const parts: string[] = [];
@@ -137,12 +136,12 @@ export function FlowDiagram({
     grid: showMix ? sources.grid / sourceTotal : 0,
   };
   const pct = (f: number) => Math.round(f * 100);
-  const selfPoweredPct = showMix ? pct(share.solar + share.battery) : null;
   const mixSegments = [
-    { key: 'solar', fraction: share.solar, color: 'var(--signal)' },
-    { key: 'battery', fraction: share.battery, color: 'var(--good)' },
-    { key: 'grid', fraction: share.grid, color: 'var(--mute)' },
-  ].filter((segment) => segment.fraction > 0);
+    { key: 'solar', labelKey: 'flow_diagram_solar', fraction: share.solar, color: 'var(--signal)' },
+    { key: 'battery', labelKey: 'flow_diagram_battery', fraction: share.battery, color: 'var(--good)' },
+    { key: 'grid', labelKey: 'flow_diagram_grid', fraction: share.grid, color: 'var(--victron-glow)' },
+  ] as const;
+  const activeSegments = mixSegments.filter((segment) => segment.fraction > 0);
   let mixOffset = 0;
 
   const soc = socPct === null ? null : Math.min(Math.max(socPct, 0), 100);
@@ -157,7 +156,7 @@ export function FlowDiagram({
         <path className={`${lineClass(batteryLine)} ${styles.batteryHome}`} style={batteryLine.style} d="M 200 296 Q 200 281 200 266" />
         {hasGridMeter && (
           <path
-            className={`${lineClass(gridLine)} ${gridExporting ? styles.gridExport : styles.gridHome}`}
+            className={`${lineClass(gridLine)} ${styles.gridHome}`}
             style={gridLine.style}
             d="M 325 40 Q 220 55 205 120"
           />
@@ -178,7 +177,7 @@ export function FlowDiagram({
 
       <div className={`${styles.node} ${styles.grid}`}>
         <div className={styles.ring}>
-          <svg className={styles.icon} viewBox="0 0 24 24" fill="none" stroke="var(--mute)" strokeWidth={1.8}>
+          <svg className={styles.icon} viewBox="0 0 24 24" fill="none" stroke="var(--victron-glow)" strokeWidth={1.8}>
             <path d="M6 21V10l6-6 6 6v11M9 21v-6h6v6" />
           </svg>
         </div>
@@ -202,10 +201,10 @@ export function FlowDiagram({
                 .replace('{battery}', String(pct(share.battery)))
                 .replace('{grid}', String(pct(share.grid)))}
             >
-              {mixSegments.map((segment) => {
+              {activeSegments.map((segment) => {
                 // A hairline gap between segments, only when there is more
                 // than one — a lone 100% segment is just a full ring.
-                const gap = mixSegments.length > 1 ? 2 : 0;
+                const gap = activeSegments.length > 1 ? 2 : 0;
                 const length = Math.max(segment.fraction * MIX_RING_CIRCUMFERENCE - gap, 0.5);
                 const offset = -mixOffset * MIX_RING_CIRCUMFERENCE;
                 mixOffset += segment.fraction;
@@ -233,8 +232,14 @@ export function FlowDiagram({
         </div>
         <div className={styles.name}>{loadLabel}</div>
         <div className={styles.amt}>{formatW(loadW)}</div>
-        {selfPoweredPct !== null && (
-          <div className={styles.state}>{t(lang, 'flow_diagram_self_powered').replace('{n}', String(selfPoweredPct))}</div>
+        {showMix && (
+          <div className={styles.mix}>
+            {activeSegments.map((segment) => (
+              <span key={segment.key} style={{ color: segment.color }}>
+                {pct(segment.fraction)}% {t(lang, segment.labelKey)}
+              </span>
+            ))}
+          </div>
         )}
       </div>
 

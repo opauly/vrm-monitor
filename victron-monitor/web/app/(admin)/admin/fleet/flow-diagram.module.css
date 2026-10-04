@@ -26,9 +26,10 @@
   gap: 6px;
 }
 .ring {
+  --ring-size: 64px;
   position: relative;
-  width: 64px;
-  height: 64px;
+  width: var(--ring-size);
+  height: var(--ring-size);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -40,14 +41,19 @@
   width: 28px;
   height: 28px;
 }
-/* Progress/mix arcs drawn over the ring's own border: inset -2px puts the
-   svg on the border box (the ring is border-box sized), so the arc's
-   viewBox maps 1:1 onto the ring's pixels. */
+/* Progress/mix arcs drawn over the ring's own border: offset -2px (the
+   border width) puts the svg exactly on the ring's border box, so its
+   viewBox maps 1:1 onto the ring's pixels. Sized in fixed px from
+   --ring-size; see max-width below for why a percentage can't be used. */
 .arc {
   position: absolute;
-  inset: -2px;
-  width: calc(100% + 4px);
-  height: calc(100% + 4px);
+  top: -2px;
+  left: -2px;
+  width: var(--ring-size);
+  height: var(--ring-size);
+  /* base.css caps every svg at max-width: 100%, i.e. the ring's padding
+     box (4px narrower than the border box this must cover). */
+  max-width: none;
   pointer-events: none;
 }
 .name {
@@ -74,11 +80,31 @@
   color: var(--paper-dim);
   text-align: center;
 }
-/* Home sits mid-diagram with free space either side, unlike the edge-pinned
-   grid node — let its line run wider than the 108px node instead of wrapping
-   onto the battery connector. */
-.home .state {
+/* Home and battery sit mid-diagram with free space either side, unlike the
+   edge-pinned solar/grid nodes — let their lines run wider than the 108px
+   node instead of wrapping (home's would collide with the battery connector). */
+.home .state,
+.battery .state {
   white-space: nowrap;
+}
+.mix {
+  display: flex;
+  gap: 10px;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.mix span::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 4px;
+  background: currentColor;
 }
 .footnote {
   font-size: 10px;
@@ -100,16 +126,12 @@
   transform: translateX(-50%);
 }
 .home .ring {
-  width: 82px;
-  height: 82px;
+  --ring-size: 82px;
   border-color: var(--paper-dim);
 }
 /* The supply-mix / SOC arcs replace the ring's own border colour, so the
    border drops back to the faint track they are drawn over. */
-.home .mixRing,
-.battery .socRing {
-  border-color: var(--line);
-}
+
 .battery {
   top: 296px;
   left: 50%;
@@ -125,7 +147,15 @@
   box-shadow: 0 0 18px rgba(var(--good-rgb), 0.25);
 }
 .grid .ring {
-  border-color: var(--mute);
+  border-color: var(--victron-glow);
+  box-shadow: 0 0 18px rgba(var(--victron-glow-rgb), 0.25);
+}
+/* The supply-mix / SOC arcs are drawn over the ring's border, so with an arc
+   present the border drops back to the faint track beneath it. After the
+   per-node colours above on purpose: same specificity, last rule wins. */
+.home .mixRing,
+.battery .socRing {
+  border-color: var(--line);
 }
 
 .lines {
@@ -172,15 +202,10 @@
 .batteryHome {
   stroke: var(--good);
 }
-/* Grid keeps its own neutral identity color (the same --mute used for the
-   Grid KPI card's swatch elsewhere), but otherwise animates exactly like
+/* Grid is the brand blue (it was neutral grey, which read as "disabled"
+   next to the amber/green nodes), but otherwise animates exactly like
    solarHome/batteryHome — a real, moving grid reading with a static line
    read as "this number isn't actually live," which it is. */
 .gridHome {
-  stroke: var(--mute);
-}
-/* Exporting: the line runs home -> grid, in the brand accent so it reads
-   differently from an import at a glance. */
-.gridExport {
   stroke: var(--victron-glow);
 }
