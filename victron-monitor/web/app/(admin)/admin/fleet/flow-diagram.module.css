@@ -13,7 +13,7 @@
    something the ~800px dev preview this was built against ever showed. */
 .flow {
   position: relative;
-  height: 440px;
+  height: 420px;
   max-width: 480px;
   margin: 0 auto;
 }
@@ -70,8 +70,7 @@
   color: var(--paper);
   font-variant-numeric: tabular-nums;
 }
-/* Direction/state under an amount ("importing", "charging", "95%
-   self-powered"). */
+/* Direction/state under an amount ("importing", "charging", "idle"). */
 .state {
   font-family: var(--font-mono);
   font-size: 10px;
@@ -80,31 +79,24 @@
   color: var(--paper-dim);
   text-align: center;
 }
-/* Home and battery sit mid-diagram with free space either side, unlike the
-   edge-pinned solar/grid nodes — let their lines run wider than the 108px
-   node instead of wrapping (home's would collide with the battery connector). */
-.home .state,
+/* The battery sits mid-diagram with free space either side, unlike the
+   edge-pinned solar/grid nodes — let its line run wider than the 108px node
+   instead of wrapping. */
 .battery .state {
   white-space: nowrap;
 }
-.mix {
-  display: flex;
-  gap: 10px;
-  white-space: nowrap;
+/* A source's share, sitting just outside its own arc of the home ring
+   (positioned from its angle in FlowDiagram.tsx). */
+.mixLabel {
+  position: absolute;
+  transform: translate(-50%, -50%);
   font-family: var(--font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
-}
-.mix span::before {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  margin-right: 4px;
-  background: currentColor;
+  white-space: nowrap;
+  pointer-events: none;
 }
 .footnote {
   font-size: 10px;
@@ -133,7 +125,7 @@
    border drops back to the faint track they are drawn over. */
 
 .battery {
-  top: 296px;
+  top: 276px;
   left: 50%;
   transform: translateX(-50%);
 }

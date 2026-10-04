@@ -57,6 +57,22 @@ function lineFor(w: number | null, forwardSign: 1 | -1): Line {
 
 const lineClass = (line: Line) => `${styles.path} ${line.idle ? styles.idle : ''} ${line.reverse ? styles.reverse : ''}`;
 
+// Where a segment's percentage sits on the home ring, as degrees clockwise
+// from 12 o'clock. Two arcs of the ring are off-limits: the top (solar and
+// grid connectors both enter there) and the bottom (the node's own name and
+// the battery connector) — a label whose natural midpoint lands in one is
+// pushed to the nearest edge of it, i.e. onto the left or right side.
+function nudgeLabelAngle(deg: number): number {
+  const a = ((deg % 360) + 360) % 360;
+  if (a < 35) return 35;
+  if (a > 325) return 325;
+  if (a > 130 && a < 230) return a < 180 ? 130 : 230;
+  return a;
+}
+// Segments below this are too thin to carry a readable label.
+const MIX_LABEL_MIN_SHARE = 0.04;
+const MIX_LABEL_MIN_GAP_DEG = 24;
+
 const SOC_RING_CIRCUMFERENCE = 2 * Math.PI * 31;
 const MIX_RING_RADIUS = 40;
 const MIX_RING_CIRCUMFERENCE = 2 * Math.PI * MIX_RING_RADIUS;
@@ -137,23 +153,34 @@ export function FlowDiagram({
   };
   const pct = (f: number) => Math.round(f * 100);
   const mixSegments = [
-    { key: 'solar', labelKey: 'flow_diagram_solar', fraction: share.solar, color: 'var(--signal)' },
-    { key: 'battery', labelKey: 'flow_diagram_battery', fraction: share.battery, color: 'var(--good)' },
-    { key: 'grid', labelKey: 'flow_diagram_grid', fraction: share.grid, color: 'var(--victron-glow)' },
+    { key: 'solar', fraction: share.solar, color: 'var(--signal)' },
+    { key: 'battery', fraction: share.battery, color: 'var(--good)' },
+    { key: 'grid', fraction: share.grid, color: 'var(--victron-glow)' },
   ] as const;
   const activeSegments = mixSegments.filter((segment) => segment.fraction > 0);
+  const labelPlacements: { key: string; fraction: number; color: string; angle: number }[] = [];
+  let labelCursor = 0;
+  for (const segment of activeSegments) {
+    const midpoint = labelCursor + segment.fraction / 2;
+    labelCursor += segment.fraction;
+    if (segment.fraction < MIX_LABEL_MIN_SHARE) continue;
+    let angle = nudgeLabelAngle(midpoint * 360);
+    const previous = labelPlacements[labelPlacements.length - 1];
+    if (previous && angle - previous.angle < MIX_LABEL_MIN_GAP_DEG) angle = previous.angle + MIX_LABEL_MIN_GAP_DEG;
+    labelPlacements.push({ key: segment.key, fraction: segment.fraction, color: segment.color, angle });
+  }
   let mixOffset = 0;
 
   const soc = socPct === null ? null : Math.min(Math.max(socPct, 0), 100);
 
   return (
     <div className={styles.flow}>
-      <svg className={styles.lines} viewBox="0 0 400 440" preserveAspectRatio="none" aria-hidden="true">
+      <svg className={styles.lines} viewBox="0 0 400 420" preserveAspectRatio="none" aria-hidden="true">
         <path className={`${lineClass(solarLine)} ${styles.solarHome}`} style={solarLine.style} d="M 75 40 Q 180 55 195 120" />
-        {/* Ends at 266, not the home node's exact text-bottom (110 + 82 ring +
-           name + amt + state = ~256) — that left zero clearance, so the dashed
-           line's own start dot sat right on top of the state text. */}
-        <path className={`${lineClass(batteryLine)} ${styles.batteryHome}`} style={batteryLine.style} d="M 200 296 Q 200 281 200 266" />
+        {/* Ends at 248, not the home node's exact text-bottom (110 + 82 ring +
+           name + amt = 236) — that left zero clearance, so the dashed line's
+           own start dot sat right on top of the amount text. */}
+        <path className={`${lineClass(batteryLine)} ${styles.batteryHome}`} style={batteryLine.style} d="M 200 276 Q 200 262 200 248" />
         {hasGridMeter && (
           <path
             className={`${lineClass(gridLine)} ${styles.gridHome}`}
@@ -225,6 +252,24 @@ export function FlowDiagram({
               })}
             </svg>
           )}
+          {showMix &&
+            labelPlacements.map((label) => {
+              const radians = (label.angle * Math.PI) / 180;
+              const sin = Math.sin(radians);
+              const cos = Math.cos(radians);
+              // Ring radius (41) + a gap, plus however much of the label's own
+              // half-width/half-height sticks out along this direction.
+              const radius = 41 + 5 + Math.abs(sin) * 13 + Math.abs(cos) * 6;
+              return (
+                <span
+                  key={label.key}
+                  className={styles.mixLabel}
+                  style={{ color: label.color, left: `calc(50% + ${(radius * sin).toFixed(1)}px)`, top: `calc(50% + ${(-radius * cos).toFixed(1)}px)` }}
+                >
+                  {pct(label.fraction)}%
+                </span>
+              );
+            })}
           <svg className={styles.icon} viewBox="0 0 24 24" fill="none" stroke="var(--paper)" strokeWidth={1.6}>
             <path d="M3 11l9-7 9 7" />
             <path d="M5 10v10h14V10" />
@@ -232,15 +277,6 @@ export function FlowDiagram({
         </div>
         <div className={styles.name}>{loadLabel}</div>
         <div className={styles.amt}>{formatW(loadW)}</div>
-        {showMix && (
-          <div className={styles.mix}>
-            {activeSegments.map((segment) => (
-              <span key={segment.key} style={{ color: segment.color }}>
-                {pct(segment.fraction)}% {t(lang, segment.labelKey)}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
 
       <div className={`${styles.node} ${styles.battery}`}>
