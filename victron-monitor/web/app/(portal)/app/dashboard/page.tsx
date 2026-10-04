@@ -8,7 +8,7 @@ import { formatDateTime, formatDateTimeInZone, isWithinLastHours } from '@/lib/d
 import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
 import { t, type Lang } from '@/lib/i18n/strings';
 import { FleetFreshness } from '../../../(admin)/admin/fleet/FleetFreshness';
-import { FlowDiagram } from '../../../(admin)/admin/fleet/FlowDiagram';
+import { FlowDiagram, splitCounts } from '../../../(admin)/admin/fleet/FlowDiagram';
 import { ShapeChart } from '../../../(admin)/admin/fleet/ShapeChart';
 import styles from './dashboard.module.css';
 
@@ -531,14 +531,18 @@ export default async function CustomerDashboardPage() {
       ) : (
         <>
           <FlowDiagram
+            lang={lang}
             solarW={solarSites.length > 0 ? totalSolar : null}
             solarNote={t(lang, 'admin_fleet_flow_note_of_sites').replace('{n}', String(solarSites.length)).replace('{m}', String(sites.length))}
             loadW={loadSites.length > 0 ? totalLoad : null}
             loadLabel={t(lang, 'dashboard_flow_load_label')}
             batteryW={batterySites.length > 0 ? totalBattery : null}
             batteryNote={t(lang, 'admin_fleet_flow_battery_note')}
+            batterySplit={splitCounts(batterySites.map((s) => s.live_battery_power_w))}
+            socPct={avgSoc}
             gridW={totalGrid}
             hasGridMeter={meteredSites.length > 0}
+            gridSplit={splitCounts(meteredSites.map((s) => s.live_grid_power_w))}
             gridNote={t(lang, 'admin_fleet_flow_note_of_sites').replace('{n}', String(meteredSites.length)).replace('{m}', String(sites.length))}
           />
 

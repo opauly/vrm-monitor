@@ -278,10 +278,12 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
           <h2>{t(lang, 'admin_fleetsite_flow_title')}</h2>
           <div className={styles.cardSub}>{t(lang, 'admin_fleetsite_flow_sub')}</div>
           <FlowDiagram
+            lang={lang}
             solarW={site.live_pv_power_w}
             loadW={site.live_load_power_w}
             batteryW={site.live_battery_power_w}
             batteryNote={site.live_soc_pct === null ? undefined : `${site.live_soc_pct}%`}
+            socPct={site.live_soc_pct}
             gridW={site.live_grid_power_w}
             hasGridMeter={site.has_grid_meter}
           />

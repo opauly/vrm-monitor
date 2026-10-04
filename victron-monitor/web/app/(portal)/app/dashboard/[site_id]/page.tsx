@@ -252,10 +252,12 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
           <h2>Energy flow — right now</h2>
           <div className={styles.cardSub}>From this site&apos;s most recent snapshot, refreshed every ~15 minutes.</div>
           <FlowDiagram
+            lang={lang}
             solarW={site.live_pv_power_w}
             loadW={site.live_load_power_w}
             batteryW={site.live_battery_power_w}
             batteryNote={site.live_soc_pct === null ? undefined : `${site.live_soc_pct}%`}
+            socPct={site.live_soc_pct}
             gridW={site.live_grid_power_w}
             hasGridMeter={site.has_grid_meter}
           />

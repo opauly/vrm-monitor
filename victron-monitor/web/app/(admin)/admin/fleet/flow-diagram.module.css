@@ -13,7 +13,7 @@
    something the ~800px dev preview this was built against ever showed. */
 .flow {
   position: relative;
-  height: 420px;
+  height: 440px;
   max-width: 480px;
   margin: 0 auto;
 }
@@ -26,6 +26,7 @@
   gap: 6px;
 }
 .ring {
+  position: relative;
   width: 64px;
   height: 64px;
   border-radius: 50%;
@@ -35,9 +36,19 @@
   background: var(--panel-2);
   border: 2px solid var(--line);
 }
-.ring svg {
+.icon {
   width: 28px;
   height: 28px;
+}
+/* Progress/mix arcs drawn over the ring's own border: inset -2px puts the
+   svg on the border box (the ring is border-box sized), so the arc's
+   viewBox maps 1:1 onto the ring's pixels. */
+.arc {
+  position: absolute;
+  inset: -2px;
+  width: calc(100% + 4px);
+  height: calc(100% + 4px);
+  pointer-events: none;
 }
 .name {
   font-family: var(--font-mono);
@@ -52,6 +63,22 @@
   font-weight: 600;
   color: var(--paper);
   font-variant-numeric: tabular-nums;
+}
+/* Direction/state under an amount ("importing", "charging", "95%
+   self-powered"). */
+.state {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--paper-dim);
+  text-align: center;
+}
+/* Home sits mid-diagram with free space either side, unlike the edge-pinned
+   grid node — let its line run wider than the 108px node instead of wrapping
+   onto the battery connector. */
+.home .state {
+  white-space: nowrap;
 }
 .footnote {
   font-size: 10px;
@@ -77,8 +104,14 @@
   height: 82px;
   border-color: var(--paper-dim);
 }
+/* The supply-mix / SOC arcs replace the ring's own border colour, so the
+   border drops back to the faint track they are drawn over. */
+.home .mixRing,
+.battery .socRing {
+  border-color: var(--line);
+}
 .battery {
-  top: 276px;
+  top: 296px;
   left: 50%;
   transform: translateX(-50%);
 }
@@ -102,12 +135,26 @@
   height: 100%;
   overflow: visible;
 }
+/* `--dur`/`--w` are set per line from the size of its reading
+   (FlowDiagram.tsx:lineFor) — bigger flow, faster and thicker. */
 .path {
   fill: none;
-  stroke-width: 2.5;
+  stroke-width: var(--w, 2.5);
   stroke-linecap: round;
   stroke-dasharray: 6 8;
-  animation: dash 1.1s linear infinite;
+  animation: dash var(--dur, 1.1s) linear infinite;
+}
+/* Reverse = the reading says power flows the other way along this path
+   (grid export, battery charging). */
+.reverse {
+  animation-direction: reverse;
+}
+/* No flow worth showing: still and dim, so a quiet line reads as "nothing
+   is moving", not as a broken one. */
+.idle {
+  animation: none;
+  stroke-width: 2;
+  opacity: 0.3;
 }
 @media (prefers-reduced-motion: reduce) {
   .path {
@@ -131,4 +178,9 @@
    read as "this number isn't actually live," which it is. */
 .gridHome {
   stroke: var(--mute);
+}
+/* Exporting: the line runs home -> grid, in the brand accent so it reads
+   differently from an import at a glance. */
+.gridExport {
+  stroke: var(--victron-glow);
 }

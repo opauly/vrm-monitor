@@ -128,6 +128,7 @@ class VrmLiveError(ValueError):
 
 def _pv_power_from_diagnostics(
     diagnostics: dict,
+    now: datetime | None = None,
 ) -> tuple[float | None, datetime | None, list[dict] | None]:
     """Sum every `PVP` instance's own `rawValue` straight from diagnostics —
     see the module docstring for why this, not `get_stats`, is the one
@@ -144,8 +145,18 @@ def _pv_power_from_diagnostics(
     records = diagnostics.get("records", diagnostics) if isinstance(diagnostics, dict) else diagnostics
     if not isinstance(records, list):
         return None, None, None
+    # Diagnostics keeps serving a charger's LAST value indefinitely after it
+    # stops reporting. Found live 2026-10-03: El Encino (Casita)'s charger 1
+    # still read 4102.6 W at 8:50pm local, after a 0.0 kWh day (and ~24h
+    # after its last real sample), which alone made the fleet flow diagram's
+    # sources (solar + grid + battery) exceed its load by 4.2 kW. A record
+    # older than the same window every other live signal here is limited to
+    # (`_LOOKBACK_HOURS`) is dropped, not summed. A record with no usable
+    # timestamp can't be judged and is kept.
+    cutoff = (now or datetime.now(timezone.utc)).timestamp() - _LOOKBACK_HOURS * 3600
     pv_records = [r for r in records if isinstance(r, dict) and r.get("code") == PV_POWER_CODE
-                 and isinstance(r.get("rawValue"), (int, float))]
+                 and isinstance(r.get("rawValue"), (int, float))
+                 and not (isinstance(r.get("timestamp"), (int, float)) and r["timestamp"] < cutoff)]
     if not pv_records:
         return None, None, None
     total = sum(r["rawValue"] for r in pv_records)
