@@ -83,3 +83,27 @@
   border-left: 1px solid var(--line);
   transform: translateY(50%) rotate(45deg);
 }
+
+/* Phone layout: a 250px bubble anchored to the icon's left edge runs off the
+   right of the screen whenever the icon sits more than ~100px in. Instead
+   the wrapper stops being the positioning anchor, so the bubble stretches
+   between left/right insets of its nearest positioned ancestor (the card,
+   or the page) and can never leave the screen; with `top: auto` it stays
+   at its place in the flow (just under the icon's line) and scrolls with
+   the page. The little pointer no longer lines up with the icon, so it goes. */
+@media (max-width: 720px) {
+  .wrap {
+    position: static;
+  }
+  .bubble {
+    top: auto;
+    margin-top: 16px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+  }
+  .bubble::after {
+    display: none;
+  }
+}

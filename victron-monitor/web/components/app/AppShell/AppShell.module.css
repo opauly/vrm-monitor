@@ -16,6 +16,7 @@
 .brandRow {
   display: flex;
   align-items: center;
+  flex: none;
 }
 .brand {
   display: flex;
@@ -28,6 +29,7 @@
   font-size: 14px;
   color: var(--paper);
   text-decoration: none;
+  white-space: nowrap;
 }
 .logoImg {
   height: 22px;
@@ -159,35 +161,162 @@
   padding: 40px 32px;
 }
 
-@media (max-width: 720px) {
+/* Desktop: MobileMenu's wrapper vanishes (its children lay out directly in
+   the header, exactly as before) and its toggle is hidden. */
+.menuToggle {
+  display: none;
+}
+.menuPanel {
+  display: contents;
+}
+
+/* The admin nav (ten items plus the personal group and language switch)
+   needs roughly 1210px at these sizes; tightening the spacing keeps it on
+   one row down to the collapse point below instead of squeezing the brand. */
+@media (max-width: 1440px) and (min-width: 1201px) {
+  .header {
+    padding: 0 20px;
+    gap: 18px;
+  }
+  .nav {
+    gap: 14px;
+  }
+  .navPersonal {
+    gap: 8px;
+  }
+  .account {
+    gap: 10px;
+  }
+}
+
+/* Below ~1200px the nav no longer fits on one row (phones and tablets
+   alike), so it collapses behind MobileMenu's toggle. */
+@media (max-width: 1200px) {
   .header {
     flex-wrap: wrap;
     height: auto;
-    padding: 14px 20px;
-    gap: 14px;
+    min-height: 64px;
+    padding: 12px 16px;
+    gap: 0 12px;
   }
-  /* Found live, 2026-09-24 — `.nav`'s own base rule is `flex: 1`, which
-     sets `flex-basis: 0%`; `width: 100%` alone never overrides that for a
-     flex item's main-axis size, so `.nav` never actually broke onto its
-     own line here despite `order: 3` — it just grew very tall in place
-     (each of its own children wrapping internally) while `.header`'s
-     `align-items: center` centered the brand row and account button
-     partway down inside that tall block, reading as the nav and the logo
-     overlapping. `flex-basis: 100%` (equivalently, `flex: 1 1 100%`) is
-     what actually forces the new line `width: 100%` was supposed to. */
-  .nav {
+  .brandRow {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .menuToggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 42px;
+    height: 42px;
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+  }
+  .menuBars,
+  .menuBars::before,
+  .menuBars::after {
+    display: block;
+    width: 18px;
+    height: 2px;
+    background: var(--paper);
+    border-radius: 1px;
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .menuBars {
+    position: relative;
+  }
+  .menuBars::before,
+  .menuBars::after {
+    content: '';
+    position: absolute;
+    left: 0;
+  }
+  .menuBars::before {
+    top: -6px;
+  }
+  .menuBars::after {
+    top: 6px;
+  }
+  .menuBarsOpen {
+    background: transparent;
+  }
+  .menuBarsOpen::before {
+    transform: translateY(6px) rotate(45deg);
+  }
+  .menuBarsOpen::after {
+    transform: translateY(-6px) rotate(-45deg);
+  }
+
+  /* `flex-basis: 100%` (not just `width`) is what forces the panel onto its
+     own line — `.nav`'s `flex: 1` sets a zero basis that `width` alone does
+     not override (found live 2026-09-24). */
+  .menuPanel {
+    display: none;
     order: 3;
-    width: 100%;
     flex-basis: 100%;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 12px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+  }
+  .menuPanelOpen {
+    display: flex;
+  }
+
+  /* Language / feedback on the left, avatar on the right — the avatar's
+     dropdown is right-anchored, so it must sit at the right edge or it
+     opens off the left of the screen. */
+  .account {
+    order: -1;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .nav {
+    flex: none;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+  }
+  .navLink {
+    padding: 12px 10px;
+    font-size: 14px;
+  }
+  .navLinkActive {
+    margin: 0;
+    padding: 12px 10px;
   }
   .navPersonal {
-    order: 4;
     width: 100%;
-    flex-basis: 100%;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: stretch;
   }
   .navPersonal .divider {
     display: none;
+  }
+  .navLinkPersonal {
+    padding: 12px 12px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 720px) {
+  .brand {
+    gap: 8px;
+    font-size: 13px;
+  }
+  .logoImg {
+    height: 18px;
+  }
+  .main {
+    padding: 24px 16px 40px;
+  }
+  .main h1 {
+    font-size: clamp(30px, 9vw, 44px);
   }
 }

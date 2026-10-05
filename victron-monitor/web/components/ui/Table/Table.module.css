@@ -40,3 +40,72 @@
 .table :global(tbody tr:hover) {
   background: var(--panel);
 }
+
+/* Phone layout: each row is a card, each cell a "LABEL  value" line (the
+   label comes from the column heading, copied onto the cell as `data-label`
+   by Table.tsx). The first cell is the card title. The heading row stays in
+   the DOM for screen readers but is visually hidden. */
+@media (max-width: 720px) {
+  .wrap {
+    overflow-x: visible;
+  }
+  .table,
+  .table :global(tbody),
+  .table :global(tbody tr),
+  .table :global(tbody td) {
+    display: block;
+  }
+  .table :global(thead) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .table :global(tbody tr) {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .table :global(tbody tr:last-child) {
+    border-bottom: none;
+  }
+  .table :global(tbody td) {
+    position: relative;
+    min-width: 0;
+    padding: 5px 0 5px 38%;
+    border-bottom: none;
+    overflow-wrap: anywhere;
+  }
+  .table :global(tbody td::before) {
+    content: attr(data-label);
+    position: absolute;
+    left: 0;
+    top: 7px;
+    width: 34%;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--mute);
+    overflow-wrap: normal;
+  }
+  /* Cells with no heading of their own (the actions column, a spanning
+     detail row) and the title cell use the full width, unlabelled. */
+  .table :global(tbody td[data-label=""]) {
+    padding-left: 0;
+  }
+  .table :global(tbody td:first-child) {
+    padding-left: 0;
+    padding-bottom: 8px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .table :global(tbody td:first-child::before) {
+    display: none;
+  }
+  /* Callers set nowrap on some cells' contents to keep a desktop row on one
+     line; inside a narrow card that just forces overflow. */
+  .table :global(tbody td) :global(*) {
+    white-space: normal;
+  }
+}

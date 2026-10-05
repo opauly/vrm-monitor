@@ -287,3 +287,19 @@
 .upsell h2 {
   margin-top: 0;
 }
+
+/* The freshness text ("LIVE — refreshed 20:05:13 (your local time), …") is
+   longer than a phone is wide; let it wrap inside the pill instead of being
+   clipped at the screen edge. */
+@media (max-width: 720px) {
+  .liveBadge {
+    white-space: normal;
+    max-width: 100%;
+    align-items: flex-start;
+    border-radius: 14px;
+    line-height: 1.4;
+  }
+  .pulse {
+    margin-top: 5px;
+  }
+}

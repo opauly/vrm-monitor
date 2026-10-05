@@ -101,7 +101,7 @@ export function FleetLiveSection({
     );
 
   return (
-    <section className={styles.section}>
+    <div className={styles.section}>
       <h2 className={styles.title}>{t(lang, 'fleet_live_title')}</h2>
       <p className={styles.sub}>{t(lang, 'fleet_live_sub')}</p>
 
@@ -198,6 +198,6 @@ export function FleetLiveSection({
           </div>
         </div>
       </div>
-    </section>
+    </div>
   );
 }

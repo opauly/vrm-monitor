@@ -2,9 +2,10 @@ import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { AccountMenu } from '@/components/ui';
-import type { Lang } from '@/lib/i18n/strings';
+import { t, type Lang } from '@/lib/i18n/strings';
 import { NavLink } from './NavLink';
 import { AdminLangSwitcher } from './AdminLangSwitcher';
+import { MobileMenu } from './MobileMenu';
 // Relative import, not `@/components/app` (the barrel) — that barrel also
 // exports AppShell itself, so importing it FROM here would be a circular
 // dependency (index.ts -> AppShell.tsx -> index.ts). Same reasoning
@@ -84,28 +85,30 @@ export function AppShell({ role, email, navItems, lang, badge, feedbackSites, ch
             {badge && <span className={styles.betaTag}>{badge}</span>}
           </Link>
         </div>
-        <nav className={styles.nav}>
-          {mainItems.map((item) => (
-            <NavLink key={item.href} href={item.href} className={styles.navLink} activeClassName={styles.navLinkActive}>
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-        {personalItems.length > 0 && (
-          <nav className={styles.navPersonal}>
-            <span className={styles.divider} aria-hidden="true" />
-            {personalItems.map((item) => (
-              <NavLink key={item.href} href={item.href} className={styles.navLinkPersonal} activeClassName={styles.navLinkPersonalActive}>
+        <MobileMenu label={t(lang, 'app_menu_toggle')}>
+          <nav className={styles.nav}>
+            {mainItems.map((item) => (
+              <NavLink key={item.href} href={item.href} className={styles.navLink} activeClassName={styles.navLinkActive}>
                 {item.label}
               </NavLink>
             ))}
           </nav>
-        )}
-        <div className={styles.account}>
-          {role === 'admin' && <AdminLangSwitcher lang={lang} />}
-          {role === 'customer' && <FeedbackWidget lang={lang} sites={feedbackSites ?? []} />}
-          <AccountMenu email={email} />
-        </div>
+          {personalItems.length > 0 && (
+            <nav className={styles.navPersonal}>
+              <span className={styles.divider} aria-hidden="true" />
+              {personalItems.map((item) => (
+                <NavLink key={item.href} href={item.href} className={styles.navLinkPersonal} activeClassName={styles.navLinkPersonalActive}>
+                  {item.label}
+                </NavLink>
+              ))}
+            </nav>
+          )}
+          <div className={styles.account}>
+            {role === 'admin' && <AdminLangSwitcher lang={lang} />}
+            {role === 'customer' && <FeedbackWidget lang={lang} sites={feedbackSites ?? []} />}
+            <AccountMenu email={email} />
+          </div>
+        </MobileMenu>
       </header>
       <main className={styles.main}>{children}</main>
     </div>

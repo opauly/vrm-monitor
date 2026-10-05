@@ -308,3 +308,36 @@
   font-size: 12px;
   white-space: nowrap;
 }
+
+/* Phone layout for the filter bar above: dropdowns share a two-column grid
+   with their labels stacked above them (instead of each hugging its own
+   width on a ragged row), and the search box + result count get full-width
+   rows of their own. */
+@media (max-width: 720px) {
+  .filtersRow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    align-items: end;
+  }
+  .searchBox,
+  .filterCount {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The freshness text ("LIVE — refreshed 20:05:13 (your local time), …") is
+   longer than a phone is wide; let it wrap inside the pill instead of being
+   clipped at the screen edge. */
+@media (max-width: 720px) {
+  .liveBadge {
+    white-space: normal;
+    max-width: 100%;
+    align-items: flex-start;
+    border-radius: 14px;
+    line-height: 1.4;
+  }
+  .pulse {
+    margin-top: 5px;
+  }
+}

@@ -161,3 +161,27 @@
   border-radius: 2px;
   display: inline-block;
 }
+
+/* Phone layout: one control per row at full width (the selects otherwise
+   keep their own intrinsic widths, leaving a ragged column), and a slimmer
+   panel so the content gets the screen. */
+@media (max-width: 720px) {
+  .controls {
+    flex-direction: column;
+    gap: 14px;
+  }
+  .controlField {
+    min-width: 0;
+    width: 100%;
+  }
+  .controlField select,
+  .dateInput {
+    width: 100%;
+  }
+  .panel {
+    padding: 18px 16px;
+  }
+  .generateButton {
+    width: 100%;
+  }
+}

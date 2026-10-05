@@ -200,3 +200,28 @@
   font-size: 13px;
   color: var(--paper-dim);
 }
+
+/* Phone layout for the filter bar above: dropdowns share a two-column grid
+   with their labels stacked above them (instead of each hugging its own
+   width on a ragged row), and the search box + result count get full-width
+   rows of their own. */
+@media (max-width: 720px) {
+  .filtersRow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    align-items: end;
+  }
+  .filterLabel {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .filterLabel select {
+    width: 100%;
+  }
+  .searchBox,
+  .filterCount {
+    grid-column: 1 / -1;
+  }
+}
