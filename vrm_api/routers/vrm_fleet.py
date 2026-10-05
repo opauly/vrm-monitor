@@ -61,6 +61,8 @@ and `tab_upload()`'s CSV path already use) are called directly, matching
 import logging
 import os
 import re
+import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
@@ -403,6 +405,48 @@ def post_sync(body: VrmFleetSyncRequest, background_tasks: BackgroundTasks) -> J
     return JobCreated(job_id=job["id"])
 
 
+# How many sites' VRM calls `post_refresh_snapshots()` runs at once. Small on
+# purpose: each worker is one site's pair of sequential VRM requests, and
+# Victron's API is throttled per token — 4 cuts a 13-site sweep to roughly a
+# quarter of its time without a burst anyone would notice.
+_SNAPSHOT_FETCH_WORKERS = 4
+
+
+def _fetch_site_snapshot(site: dict, admin_token: str | None) -> tuple[str, dict | None]:
+    """Phase 1 of `post_refresh_snapshots()` for ONE site: resolve its token
+    and fetch its live snapshot. Returns `("ok", snapshot)`, `("skipped",
+    None)` (no installation id / no token / nothing published) or `("failed",
+    None)` (unexpected error, already logged) — never raises, so one site can
+    never take down the thread pool or the sweep."""
+    id_site = site.get("vrm_installation_id")
+    if id_site is None:
+        return "skipped", None
+
+    token: str | None = None
+    try:
+        token = secrets.read_customer_vrm_token(site["customer_id"])
+    except Exception:  # noqa: BLE001 — a broken vault read for one customer
+        # must not stop the rest of the sweep; fall through to the admin
+        # token below, same as "never connected" would.
+        logger.warning("vrm-fleet refresh-snapshots: could not read customer token for customer_id=%s",
+                      site["customer_id"])
+    token = token or admin_token
+    if not token:
+        return "skipped", None
+
+    try:
+        client = VrmRemoteClient(token)
+        diagnostics = client.get_diagnostics(id_site)
+        snapshot = fetch_live_snapshot(client, id_site, site["site_id"],
+                                      tz=site.get("timezone") or DEFAULT_TZ_NAME,
+                                      diagnostics=diagnostics)
+    except Exception:  # noqa: BLE001
+        logger.exception("vrm-fleet refresh-snapshots: unexpected error for site %s", site["site_id"])
+        return "failed", None
+
+    return ("ok", snapshot) if snapshot is not None else ("skipped", None)
+
+
 @router.post("/refresh-snapshots", response_model=FleetSnapshotsRefreshOut)
 def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
     """Fleet Dashboard Phase 2's live-snapshot sweep (2026-08-30) — meant
@@ -479,38 +523,24 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
         for row in energy_rows:
             energy_daily_by_site.setdefault(row["site_id"], []).append(row)
 
+    # Phase 1 — every site's vault read + VRM calls, a few at a time. This is
+    # all network wait (one site is ~2 VRM round trips plus a vault lookup),
+    # and run strictly one site after another the whole sweep took longer
+    # than the 30s an external cron service allows a response (2026-10-05:
+    # the scheduler reported "Failed (timeout)" on every run even though the
+    # sweep itself finished). Each site gets its own VrmRemoteClient, so the
+    # client's per-instance throttle is unaffected. Phase 2 below — the
+    # database writes — stays sequential and unchanged.
+    started = time.monotonic()
+    with ThreadPoolExecutor(max_workers=_SNAPSHOT_FETCH_WORKERS) as pool:
+        fetched = list(pool.map(lambda site: _fetch_site_snapshot(site, admin_token), sites))
+
     refreshed, skipped, failed = 0, 0, 0
-    for site in sites:
-        id_site = site.get("vrm_installation_id")
-        if id_site is None:
-            skipped += 1
-            continue
-
-        token: str | None = None
-        try:
-            token = secrets.read_customer_vrm_token(site["customer_id"])
-        except Exception:  # noqa: BLE001 — a broken vault read for one
-            # customer must not stop the rest of the sweep; fall through to
-            # the admin token below same as "never connected" would.
-            logger.warning("vrm-fleet refresh-snapshots: could not read customer token for customer_id=%s",
-                          site["customer_id"])
-        token = token or admin_token
-        if not token:
-            skipped += 1
-            continue
-
-        try:
-            client = VrmRemoteClient(token)
-            diagnostics = client.get_diagnostics(id_site)
-            snapshot = fetch_live_snapshot(client, id_site, site["site_id"],
-                                          tz=site.get("timezone") or DEFAULT_TZ_NAME,
-                                          diagnostics=diagnostics)
-        except Exception:  # noqa: BLE001 — see this function's own docstring
-            logger.exception("vrm-fleet refresh-snapshots: unexpected error for site %s", site["site_id"])
+    for site, (status, snapshot) in zip(sites, fetched):
+        if status == "failed":
             failed += 1
             continue
-
-        if snapshot is None:
+        if status == "skipped" or snapshot is None:
             skipped += 1
             continue
 
@@ -548,6 +578,8 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
             logger.exception("vrm-fleet refresh-snapshots: unexpected_silence check failed for site %s",
                              site["site_id"])
 
+    logger.info("vrm-fleet refresh-snapshots: checked=%d refreshed=%d skipped=%d failed=%d in %.1fs",
+                len(sites), refreshed, skipped, failed, time.monotonic() - started)
     return FleetSnapshotsRefreshOut(checked=len(sites), refreshed=refreshed, skipped=skipped, failed=failed)
 
 
