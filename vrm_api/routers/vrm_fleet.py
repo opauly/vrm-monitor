@@ -72,6 +72,7 @@ from pydantic import ValidationError
 from database.supabase_client import get_client
 
 from victron import ingest as victron_ingest
+from vrm_api import alerts_service
 from victron.anomaly_battery import check_incomplete_charging
 from victron.anomaly_drift import check_quiet_drift, check_underperformance
 from victron.anomaly_silence import check_unexpected_silence
@@ -490,7 +491,7 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
     not per-site, same "one query for the whole page, not N+1" discipline
     `_monitoring_suggestions_by_installation()` already uses above.
     """
-    sites = (_t("sites").select("site_id, customer_id, vrm_installation_id, timezone")
+    sites = (_t("sites").select("site_id, customer_id, vrm_installation_id, timezone, system_type")
             .eq("source", "vrm_api").eq("active", True).execute().data or [])
     admin_token = os.environ.get("VRM_ADMIN_TOKEN")
     site_ids = [s["site_id"] for s in sites]
@@ -503,7 +504,7 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
     # site's own upsert a few lines down).
     previous_snapshots_by_site: dict[str, dict] = {}
     if site_ids:
-        prev_rows = (_t("site_snapshots").select("site_id, captured_at, pv_power_w")
+        prev_rows = (_t("site_snapshots").select("site_id, captured_at, pv_power_w, soc_pct, raw")
                     .in_("site_id", site_ids).execute().data or [])
         previous_snapshots_by_site = {r["site_id"]: r for r in prev_rows}
 
@@ -518,7 +519,7 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
     energy_daily_by_site: dict[str, list[dict]] = {}
     if site_ids:
         lookback_date = (datetime.now(timezone.utc) - timedelta(days=_ANOMALY_ENERGY_LOOKBACK_DAYS)).date().isoformat()
-        energy_rows = (_t("energy_daily").select("site_id, pv_kwh, complete_day")
+        energy_rows = (_t("energy_daily").select("site_id, date, pv_kwh, grid_kwh, complete_day")
                       .in_("site_id", site_ids).gte("date", lookback_date).execute().data or [])
         for row in energy_rows:
             energy_daily_by_site.setdefault(row["site_id"], []).append(row)
@@ -577,6 +578,19 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
         except Exception:  # noqa: BLE001 — see this block's own comment above
             logger.exception("vrm-fleet refresh-snapshots: unexpected_silence check failed for site %s",
                              site["site_id"])
+
+    # Fleet alerts (offline / grid outage / low battery / alarms / VRM link).
+    # Off unless ALERTS_MODE is set, and walled off from everything above: a
+    # failure here is logged and ignored, never a failed or slow snapshot sweep.
+    if alerts_service.alerts_mode() != "off":
+        try:
+            summary = alerts_service.run_alert_pass(
+                sites=sites, fetched=fetched,
+                previous_by_site=previous_snapshots_by_site, energy_by_site=energy_daily_by_site,
+            )
+            logger.info("vrm-fleet refresh-snapshots: alerts %s", summary)
+        except Exception:  # noqa: BLE001
+            logger.exception("vrm-fleet refresh-snapshots: alert pass failed (snapshots are unaffected)")
 
     logger.info("vrm-fleet refresh-snapshots: checked=%d refreshed=%d skipped=%d failed=%d in %.1fs",
                 len(sites), refreshed, skipped, failed, time.monotonic() - started)

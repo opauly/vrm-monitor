@@ -114,6 +114,12 @@ GRID_POWER_CODES = ("g1", "g2", "g3")
 INVERTER_INPUT_CODES = ("IP1", "IP2", "IP3")
 INVERTER_STATE_CODE = "S"
 ACTIVE_INPUT_CODE = "AI"
+# AC-input voltage per leg — stored raw (never summed) so the fleet alert
+# rules can detect a grid outage from voltage absence, the same signal the
+# historical outage detector trusts (`vrm_daily._grid_outages()`). `AI` above
+# is NOT a safe outage signal: some grid-tied sites open the input relay
+# (AI=240) while the grid is live. Rides in the same `get_stats` request.
+AC_INPUT_VOLTAGE_CODES = ("IV1", "IV2")
 
 # How far back to look for "the most recent sample" — wide enough to
 # tolerate a site that hasn't reported in a little while (still worth
@@ -341,6 +347,9 @@ def fetch_live_snapshot(client, id_site, site_id: str, *, tz: str = DEFAULT_TZ_N
         requested.add(INVERTER_STATE_CODE)
     if ACTIVE_INPUT_CODE in available:
         requested.add(ACTIVE_INPUT_CODE)
+    for code in AC_INPUT_VOLTAGE_CODES:
+        if code in available:
+            requested.add(code)
 
     if not requested and pv_power_w is None:
         return None
