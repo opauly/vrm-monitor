@@ -1,26 +1,38 @@
-// Token-refresh entry point — PLAN_PHASE14.md §2 Step 3 calls this file
-// `middleware.ts`; Next.js 16 deprecated and renamed that file convention to
-// `proxy.ts` / `export function proxy()` between the plan being written and
-// this step being built (`node_modules/next/dist/docs/.../proxy.md`: "The
-// `middleware.js` file convention has been deprecated ... and renamed to
-// `proxy.js`. All functionality remains the same — only the file and export
-// names have changed."). This *is* PLAN_PHASE14.md's "middleware.ts", under
-// the name the installed Next.js version requires.
+// Request entry point. Two jobs:
 //
-// Matched to exactly the routes that touch a Supabase session
-// (PLAN_PHASE14.md §2 Step 3): `/app`, `/admin`, `/login`, `/activate`
-// (the last is Step 7's, matched now so it doesn't need a second edit to
-// this file later). Everything else — the marketing site, static assets,
-// `/styleguide` — never reads or writes a Supabase cookie, so running this
-// on every request there would just be per-request Auth-server latency
-// with nothing to show for it.
-import type { NextRequest } from 'next/server';
+//  1. Content-Security-Policy with a per-request nonce for every dynamic route
+//     that handles sessions, forms or card entry (see lib/csp.ts for why only
+//     those). Next.js reads the nonce off the CSP header of the incoming
+//     request during rendering and stamps it onto its own bootstrap scripts.
+//
+//  2. Supabase token refresh (PLAN_PHASE14.md §2 Step 3, originally called
+//     `middleware.ts`; Next.js 16 renamed that convention to `proxy.ts`) —
+//     only for the routes that actually touch a session: `/app`, `/admin`,
+//     `/login`, `/activate`. `/signup`, `/forgot` and `/unsubscribe` need the
+//     CSP but never read or write a Supabase cookie, so running the Auth
+//     round trip there would be per-request latency for nothing.
+import { NextRequest, NextResponse } from 'next/server';
 import { refreshSupabaseSession } from '@/lib/server/supabase-middleware';
+import { nonceCsp } from './lib/csp';
 
-export function proxy(request: NextRequest) {
-  return refreshSupabaseSession(request);
+const SESSION_PATH = /^\/(?:app|admin|login|activate)(?:\/|$)/;
+
+export async function proxy(request: NextRequest) {
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  const csp = nonceCsp(nonce);
+
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('Content-Security-Policy', csp);
+
+  const response = SESSION_PATH.test(request.nextUrl.pathname)
+    ? await refreshSupabaseSession(new NextRequest(request, { headers: requestHeaders }))
+    : NextResponse.next({ request: { headers: requestHeaders } });
+
+  response.headers.set('Content-Security-Policy', csp);
+  return response;
 }
 
 export const config = {
-  matcher: ['/app/:path*', '/admin/:path*', '/login', '/activate/:path*'],
+  matcher: ['/app/:path*', '/admin/:path*', '/login', '/activate/:path*', '/signup/:path*', '/forgot', '/unsubscribe'],
 };

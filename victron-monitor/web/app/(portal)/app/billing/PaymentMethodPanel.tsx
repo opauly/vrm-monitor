@@ -64,6 +64,7 @@ declare global {
         paymentType: 'one_time' | 'subscription';
         locale: 'en' | 'es';
         manualSubmit: boolean;
+        cspNonce?: string;
         onSuccess: (data: unknown) => void;
         onError: (data: unknown) => void;
       }) => { render: (selector: string) => void };
@@ -72,6 +73,18 @@ declare global {
 }
 
 const CONTAINER_ID = 'onvo-payment-method-form';
+
+// The SDK injects a <style> element into this page when it mounts, and this
+// route's Content-Security-Policy (proxy.ts / lib/csp.ts) only allows <style>
+// elements carrying the per-request nonce — without it the form is silently
+// left unstyled at its 300x150 default size (found testing the strict policy,
+// 2026-10-05; the SDK exposes a `cspNonce` option for exactly this). The nonce
+// is read off the nonce'd bootstrap script Next.js already put in the page:
+// browsers blank the `nonce` ATTRIBUTE after parsing but keep the `.nonce`
+// property, and this avoids threading it down through every parent.
+function pageCspNonce(): string | undefined {
+  return document.querySelector<HTMLScriptElement>('script[nonce]')?.nonce || undefined;
+}
 
 export type PaymentMethodSession = {
   onvoSubscriptionId: string;
@@ -244,6 +257,7 @@ export function PaymentMethodPanel({ lang, mode, subscribeSession, onSuccess, on
         // even while every `t()` call in this same file resolves to English.
         locale: lang,
         manualSubmit: false,
+        cspNonce: pageCspNonce(),
         onSuccess: handleWidgetSuccess,
         onError: handleWidgetError,
       });

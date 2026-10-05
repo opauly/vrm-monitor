@@ -1,53 +1,27 @@
 import type { NextConfig } from "next";
+import { baselineCsp, NONCE_CSP_PREFIXES } from "./lib/csp";
 
-// PLAN_PHASE14.md §2 Step 8 — never added until now, because there was
-// never a real deployed host to add them for. `style-src` keeps
-// `'unsafe-inline'`: this app uses React's `style={{...}}` prop
-// extensively (every `app/(admin)/admin/**` page, for one), and CSP's
-// style-src also gates the rendered `style=""` attribute, not just
-// `<style>`/`<link>` tags — removing this would break real, working UI,
-// not just a hypothetical one. `script-src` ALSO keeps `'unsafe-inline'` —
-// confirmed live, not assumed: without it, Next.js's own hydration
-// bootstrap (an inline `<script>` it emits itself, unrelated to this app's
-// code) is blocked outright by Chrome's CSP enforcement, breaking every
-// page. A nonce-based strict CSP is Next's own documented alternative, but
-// is a real, separate piece of work (wiring a per-request nonce through
-// `proxy.ts`) — not attempted here; this is a real, working baseline, not
-// a maximally strict one. `connect-src`/`frame-src` allow
-// `sdk.onvopay.com`/`api.onvopay.com` for the ONVO card-entry SDK
-// (`app/(portal)/app/billing/PaymentMethodPanel.tsx`) — this is a REAL
-// revenue path already verified working pre-CSP; **verify it still works
-// against the live deployed site (DevTools console, watch for CSP
-// violation warnings) before trusting this policy is complete**, since a
-// third-party SDK's exact origin list isn't something to guess with
-// confidence from reading its embed snippet alone.
+// PLAN_PHASE14.md §2 Step 8 — security headers. The Content-Security-Policy
+// is built in `lib/csp.ts` (single allow-list of ONVO / PostHog / Supabase
+// hosts, with the history of why each is there). Two policies:
 //
-// PostHog domains added 2026-09-21 — found live, both broken by the
-// original policy: (1) PostHogProvider.tsx's own client-side SDK was
-// silently failing every pageview/event (script-src/connect-src
-// violations, console: "Refused to connect/load ... us(-assets).i.posthog
-// .com"), and (2) /admin/analytics's embedded dashboard iframe
-// (POSTHOG_DASHBOARD_URL) rendered as a blank "This content is blocked"
-// placeholder — frame-src had no PostHog origin at all, only ONVO's. Both
-// US and EU regions are listed since NEXT_PUBLIC_POSTHOG_HOST is a
-// runtime env var this build-time CSP can't branch on.
-const csp = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://sdk.onvopay.com https://us-assets.i.posthog.com https://eu-assets.i.posthog.com",
-  "style-src 'self' 'unsafe-inline'",
-  // `blob:` is required for BrandingForm.tsx's instant local logo preview
-  // (`URL.createObjectURL(file)`, before the upload round trip completes) —
-  // found missing 2026-08-28 from a real live test: the preview silently
-  // failed to render the just-picked file with no console error, since a
-  // blocked `blob:` <img> src fails quietly rather than throwing.
-  "img-src 'self' data: blob: https://*.supabase.co",
-  "connect-src 'self' https://*.supabase.co https://sdk.onvopay.com https://api.onvopay.com https://us.i.posthog.com https://eu.i.posthog.com https://us-assets.i.posthog.com https://eu-assets.i.posthog.com",
-  "frame-src https://sdk.onvopay.com https://us.posthog.com https://eu.posthog.com",
-  "font-src 'self' data:",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-].join('; ');
+//  - Routes that handle sessions, forms and card entry (`NONCE_CSP_PREFIXES`)
+//    get a strict, nonce-based policy from `proxy.ts` — no `'unsafe-inline'`
+//    for scripts. A nonce needs a per-request render, which those routes
+//    already have.
+//  - Everything else (the statically generated marketing pages, which carry
+//    no session or card data) keeps the baseline allow-list policy below,
+//    since a static page has no request to mint a nonce from.
+//
+// The two must not overlap: when a response carries two policies the browser
+// enforces both, and the baseline's looser rules would add nothing while
+// making failures harder to read. Hence the path exclusion on the CSP entry.
+//
+// **After any change here, verify the ONVO card form still mounts on the live
+// site (DevTools console: watch for "Refused to ..." CSP violations)** — it is
+// the revenue path, and a third-party SDK's real origin list isn't something
+// to infer from its embed snippet alone.
+const nonceRoutes = NONCE_CSP_PREFIXES.join('|');
 
 const nextConfig: NextConfig = {
   async headers() {
@@ -58,8 +32,11 @@ const nextConfig: NextConfig = {
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Content-Security-Policy', value: csp },
         ],
+      },
+      {
+        source: `/((?!(?:${nonceRoutes})(?:/|$)).*)`,
+        headers: [{ key: 'Content-Security-Policy', value: baselineCsp }],
       },
     ];
   },
