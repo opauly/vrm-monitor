@@ -21,14 +21,16 @@
   margin: 0 0 14px;
 }
 
-/* The diagram (which scales itself to its column, capped, see
-   flow-diagram.module.css) on the left, the three panels on the right at
-   their natural height; stacked on narrow screens. */
+/* Two columns sized to their content and centred as a pair, vertically
+   centred on each other: the diagram (which scales itself to its column,
+   capped, see flow-diagram.module.css) is the main element, the three panels
+   a narrower companion beside it. Stacked on narrow screens. */
 .grid {
   display: grid;
-  grid-template-columns: minmax(0, 500px) minmax(0, 1fr);
-  gap: 24px;
-  align-items: start;
+  grid-template-columns: minmax(0, 480px) minmax(0, 400px);
+  justify-content: center;
+  gap: 24px 56px;
+  align-items: center;
 }
 @media (max-width: 900px) {
   .grid {
