@@ -88,7 +88,12 @@ export function ScoreBreakdown({
         <span>{t(lang, 'score_breakdown_total')}</span>
         <span className={styles.points}>{score === null ? '—' : `${score}/100`}</span>
       </div>
-      <p className={styles.bands}>{t(lang, 'score_breakdown_bands')}</p>
+      <ul className={styles.legend}>
+        <li className={styles.excellent}>{t(lang, 'score_band_excellent')}</li>
+        <li className={styles.good}>{t(lang, 'score_band_good')}</li>
+        <li className={styles.watch}>{t(lang, 'score_band_watch')}</li>
+        <li className={styles.attention}>{t(lang, 'score_band_attention')}</li>
+      </ul>
     </div>
   );
 }
