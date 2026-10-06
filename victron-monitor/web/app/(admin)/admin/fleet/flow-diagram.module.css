@@ -13,18 +13,18 @@
    something the ~800px dev preview this was built against ever showed. */
 /* Everything is drawn on a 420-unit-wide design canvas and scaled by `--u`
    (one design unit, in px): 1px minimum — so a phone gets the original size —
-   growing with the column the diagram sits in up to 1.7px, which lets it fill
-   half of a wide screen with proportionally bigger rings, icons and type.
+   growing with the column the diagram sits in up to 1.15px — a touch bigger than
+   the original on a wide screen, never the dominant element of the page.
    `--u` is resolved against `.frame` (the size container), which is why the
    diagram needs that wrapper rather than measuring itself. */
 .frame {
   container-type: inline-size;
   width: 100%;
-  max-width: 714px;
+  max-width: 483px;
   margin: 0 auto;
 }
 .flow {
-  --u: clamp(1px, calc(100cqw / 420), 1.7px);
+  --u: clamp(1px, calc(100cqw / 420), 1.15px);
   position: relative;
   height: calc(420 * var(--u));
   width: 100%;
