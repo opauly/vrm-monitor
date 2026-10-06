@@ -4,7 +4,7 @@ import { useActionState, useState } from 'react';
 import { Button } from '@/components/ui';
 import { t, type Lang } from '@/lib/i18n/strings';
 import type { AlertKind, AlertPreference } from '@/lib/server/db';
-import { saveAlertSettingsAction, type AlertSettingsState } from './actions';
+import type { AlertSettingsState } from './actions';
 import styles from './alerts.module.css';
 
 const INITIAL_STATE: AlertSettingsState = {};
@@ -14,13 +14,15 @@ type Props = {
   kinds: readonly AlertKind[];
   initial: Record<AlertKind, AlertPreference>;
   email: string;
+  /** Who the preferences are saved for is decided by this server action, from the session — never by the form. */
+  action: (prev: AlertSettingsState, formData: FormData) => Promise<AlertSettingsState>;
 };
 
 // One row per alert kind: "Show" (is it raised at all), "Email me" and
 // "Phone" (push). Email/Phone are moot when Show is off, so those boxes are disabled then — a disabled box is
 // not submitted, which the action reads as "off", the same outcome.
-export function AlertSettingsForm({ lang, kinds, initial, email }: Props) {
-  const [state, formAction, pending] = useActionState(saveAlertSettingsAction, INITIAL_STATE);
+export function AlertSettingsForm({ lang, kinds, initial, email, action }: Props) {
+  const [state, formAction, pending] = useActionState(action, INITIAL_STATE);
   const [shown, setShown] = useState<Record<string, boolean>>(Object.fromEntries(kinds.map((k) => [k, initial[k].enabled])));
 
   return (
