@@ -104,6 +104,16 @@ export function FleetLiveSection({
   const solarNowW = sum(capacitySites.map((s) => s.live_pv_power_w ?? 0));
   const solarPct = installedKwp > 0 ? (solarNowW / 1000 / installedKwp) * 100 : null;
 
+  // The latest scored day's energy totals — the site page's fourth panel.
+  const energyRows = (
+    [
+      { key: 'site_live_energy_solar', value: sites[0]?.energy_pv_kwh },
+      { key: 'site_live_energy_load', value: sites[0]?.energy_load_kwh },
+      { key: 'site_live_energy_import', value: sites[0]?.energy_grid_import_kwh },
+      { key: 'site_live_energy_export', value: sites[0]?.energy_grid_export_kwh },
+    ] as const
+  ).filter((row): row is { key: typeof row.key; value: number } => row.value !== null && row.value !== undefined);
+
   const attention = sites
     .map((site) => ({ site, reasons: attentionReasons(site, lang) }))
     .filter((entry) => entry.reasons.length > 0)
@@ -137,6 +147,8 @@ export function FleetLiveSection({
             gridNote={single ? undefined : ofSites(meteredSites.length)}
           />
         </div>
+
+        {aside && <div className={styles.aside}>{aside}</div>}
 
         <div className={styles.side}>
           <div className={styles.card}>
@@ -236,9 +248,23 @@ export function FleetLiveSection({
               <div className={styles.note}>{t(lang, 'fleet_live_insights_hint')}</div>
             )}
           </div>
-        </div>
 
-        {aside && <div className={styles.aside}>{aside}</div>}
+          {single && energyRows.length > 0 && (
+            <div className={styles.card}>
+              <div className={styles.label}>{t(lang, 'site_live_energy_title').replace('{date}', sites[0].health_metrics_date ?? '')}</div>
+              <div className={styles.energyGrid}>
+                {energyRows.map((row) => (
+                  <div key={row.key}>
+                    <div className={styles.energyValue}>
+                      {row.value.toFixed(1)} <span className={styles.energyUnit}>kWh</span>
+                    </div>
+                    <div className={styles.note}>{t(lang, row.key)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

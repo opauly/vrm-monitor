@@ -1,62 +1,34 @@
 -- ============================================================
--- VRM Monitor — vrm.compute_daily_health() (reference copy)
+-- VRM Monitor — store the points behind each health score
 -- ============================================================
--- Source of truth: the LIVE function in Supabase — there is no
--- migration file for it in this repo (the `vrm` schema's migrations,
--- unlike `monitoring`'s, were never checked in anywhere; see
--- ../README.md and ../web/README.md for that split-repo gap). This
--- file exists purely as documentation, so the current scoring logic
--- doesn't require pulling `pg_get_functiondef('vrm.compute_daily_
--- health'::regproc)` from the SQL editor every time someone needs to
--- read it. Keep it in sync manually whenever the live function
--- changes — nothing here is executed automatically.
+-- Run once in the Supabase SQL editor (project: the one holding the `vrm`
+-- schema). It does three things, in order:
 --
--- 2026-10-06 change (Oscar's own request): the score now stores the points
--- behind it — system_breakdown/grid_breakdown (jsonb, one entry per reason:
--- code, points, and where it applies the measured value and the limit it was
--- judged against) — so the "how this was calculated" view shows the real
--- arithmetic instead of just a list of reasons. See vrm_health_breakdown.sql
--- for the migration that adds the columns and applies this function.
+--   1. adds vrm.daily_health.system_breakdown / grid_breakdown (jsonb);
+--   2. replaces vrm.compute_daily_health() with the version that fills them
+--      (identical scoring — only the two jsonb lists are new);
+--   3. recomputes the last 14 days so the dashboard has real breakdowns now,
+--      not only from tomorrow on.
 --
--- Pulled live 2026-09-17/18, immediately after applying each fix below
--- (confirmed applied by recomputing real rows via the exposed
--- `rpc/compute_daily_health` endpoint and diffing the result each time).
+-- The web app reads the new columns when they exist and falls back to the
+-- plain list of reasons when they don't, so it is safe to deploy either side
+-- first. Everything here is idempotent — running it twice changes nothing.
 --
--- 2026-09-17 change, in two passes (Oscar's own feedback both times):
--- the low-SOC penalty used to be totally blind to WHY the battery was
--- low — a day where the grid dropped and the battery successfully
--- covered the load (SOC crashes, but the system worked exactly as
--- designed) scored IDENTICAL to a day where SOC crashed for no reason
--- at all with the grid sitting right there available. First pass
--- shifted the outage-explained case down one severity tier rather than
--- waiving it. Oscar pushed back on that too: "a low score for me would
--- be that the system is behaving bad... if there is an outage and my
--- battery is capable of holding the loads... that is a very healthy
--- system" — a customer seeing 45/100 reads it as "something's wrong,"
--- not "your battery did exactly its job." Second (current) pass fully
--- waives the SOC penalty when a real outage happened that day —
--- informational note only, zero score impact — since genuine
--- battery-damage risk is still caught independently by the low-voltage
--- check and by the Cerbo's own alarm events, already scored elsewhere
--- in this function. Only a low SOC with NO outage that day (grid
--- available, drained anyway) still costs the original full penalty.
--- The outage-duration penalty itself (a separate concern — grid
--- reliability, not battery health) is unchanged throughout.
---
--- 2026-09-18 change (Oscar's own follow-up): the single blended score
--- was still asking one number to answer two different questions — "is
--- my equipment okay?" and "is my grid reliable?" — which is exactly
--- how a covered outage could still read as alarming even after the
--- fix above. Split into system_score/system_status/system_notes
--- (alarms, SOC, cycling, temperature, voltage, float charge — "is my
--- equipment okay?") and grid_score/grid_status/grid_notes (outage
--- duration/count, grid dependency — "is my grid reliable?"), computed
--- in parallel with the existing blended v_score at the exact point
--- each deduction already fires, rather than restructuring that logic.
--- health_score/health_status/notes are kept populated as a safety net
--- for any undiscovered reader, but the app no longer surfaces them
--- anywhere — System/Grid are the real numbers now. grid_score is NULL
--- (not 100) for an off_grid site with no grid connection at all.
+-- BEFORE running: the function below was written from the reference copy in
+-- vrm_compute_daily_health.sql. If anyone edited the live function directly
+-- since that copy was pulled (2026-09-17/18), compare first:
+--     SELECT pg_get_functiondef('vrm.compute_daily_health'::regproc);
+-- and carry any difference into step 2 so it isn't lost.
+
+ALTER TABLE vrm.daily_health
+  ADD COLUMN IF NOT EXISTS system_breakdown jsonb,
+  ADD COLUMN IF NOT EXISTS grid_breakdown jsonb;
+
+COMMENT ON COLUMN vrm.daily_health.system_breakdown IS
+  'Points behind system_score, one entry per reason in the order applied: {code, points, value?, limit?, estimated?}. 100 + sum(points) = system_score. Written by vrm.compute_daily_health(); NULL for days scored before it did.';
+COMMENT ON COLUMN vrm.daily_health.grid_breakdown IS
+  'Same as system_breakdown, for grid_score. NULL for an off_grid site (no grid to score) and for days scored before breakdowns were stored.';
+
 CREATE OR REPLACE FUNCTION vrm.compute_daily_health(p_site_id text, p_date date, p_dump_type text DEFAULT 'csv_upload'::text)
  RETURNS vrm.daily_health
  LANGUAGE plpgsql
@@ -449,4 +421,11 @@ BEGIN
 
   RETURN v_result;
 END;
-$function$
+$function$;
+
+
+-- Recompute the recent days (the dashboard shows the latest scored day; two
+-- weeks leaves room for the "partial day" fallback and the week view).
+SELECT vrm.compute_daily_health(site_id, date, dump_type)
+FROM vrm.daily_health
+WHERE date >= current_date - 14;

@@ -344,3 +344,8 @@
   flex-wrap: wrap;
   gap: 4px 10px;
 }
+/* Side by side while collapsed; stacked once a "how this was calculated" is
+   open, so its breakdown has the card's full width to read in. */
+.healthCard .scoreBlockRow:has(details[open]) {
+  grid-template-columns: 1fr;
+}

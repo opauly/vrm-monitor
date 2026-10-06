@@ -146,24 +146,84 @@
   text-align: left;
 }
 
-/* An aside card (site pages: scores + energy sources) goes below the block,
-   centred, until there is room for it as a third column beside the panels. */
+/* Site pages add a second card (scores + energy sources) between the diagram
+   and the panels. Narrow container: diagram | panels in the first row, the
+   card centred below. Wide container (below): diagram | card | panels, the
+   card and the panels stretched to the same height. */
 .aside {
   min-width: 0;
+  display: flex;
+}
+.aside > * {
+  flex: 1;
+  min-width: 0;
+}
+.withAside .flow {
+  grid-column: 1;
+  grid-row: 1;
+}
+.withAside .side {
+  grid-column: 2;
+  grid-row: 1;
 }
 .withAside .aside {
   grid-column: 1 / -1;
+  grid-row: 2;
   justify-self: center;
   width: min(100%, 440px);
 }
-@container (min-width: 1120px) {
+@media (max-width: 900px) {
+  .withAside .flow,
+  .withAside .side,
+  .withAside .aside {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .withAside .side {
+    order: 2;
+  }
+  .withAside .aside {
+    order: 3;
+  }
+}
+@container (min-width: 1160px) {
   .withAside {
-    grid-template-columns: minmax(0, 420px) minmax(0, 310px) minmax(0, 330px);
+    grid-template-columns: minmax(0, 420px) minmax(0, 330px) minmax(0, 330px);
     gap: 24px 32px;
   }
   .withAside .aside {
-    grid-column: auto;
+    grid-column: 2;
+    grid-row: 1;
     justify-self: stretch;
     width: auto;
   }
+  .withAside .side {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .withAside .aside,
+  .withAside .side {
+    align-self: stretch;
+  }
+  .withAside .side .card {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+.energyGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+}
+.energyValue {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--paper);
+  font-variant-numeric: tabular-nums;
+}
+.energyUnit {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--mute);
 }

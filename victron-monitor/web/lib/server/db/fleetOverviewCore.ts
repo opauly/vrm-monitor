@@ -1,3 +1,4 @@
+import { parseBreakdown, type HealthBreakdownItem } from '@/lib/healthBreakdown';
 import 'server-only';
 
 // ══════════════════════════════════════════════════════════════════════
@@ -119,6 +120,14 @@ export type FleetOverviewRow = {
   grid_score: number | null;
   grid_status: string | null;
   grid_notes: string | null;
+  // The points behind each score — one entry per reason, e.g. `{ code:
+  // 'grid_dependency_high', points: -10, value: 62.4, limit: 50 }` — stored
+  // by `vrm.compute_daily_health()` (sql/vrm_health_breakdown.sql) so the
+  // "how this was calculated" view shows real arithmetic. `null` for a day
+  // scored before that migration (until recomputed) and, for the grid side,
+  // an off_grid site.
+  system_breakdown: HealthBreakdownItem[] | null;
+  grid_breakdown: HealthBreakdownItem[] | null;
   // Live-only (2026-09-01): counts categories present in the MOST RECENT
   // live snapshot's raw.alarms/raw.critical_alerts, nothing else — not an
   // episode/history count. A category active yesterday but cleared by the
@@ -176,6 +185,12 @@ export type FleetOverviewRow = {
   // that day's denominator is zero/missing rather than a divide-by-zero or
   // a fabricated 0%.
   health_metrics_date: string | null;
+  // That same latest day's energy totals (kWh) — what the per-site "Energy"
+  // card shows. `null` when the day has no such figure.
+  energy_pv_kwh: number | null;
+  energy_load_kwh: number | null;
+  energy_grid_import_kwh: number | null;
+  energy_grid_export_kwh: number | null;
   specific_yield_kwh_per_kwp: number | null;
   self_sufficiency_pct: number | null;
   self_consumption_pct: number | null;
@@ -465,7 +480,14 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
     // voltage (45.2V)"), one list per score. Surfaced on the per-site
     // page so a low score isn't just a bare number with no way to tell
     // what actually needs attention.
-    admin.schema('vrm').from('daily_health').select('site_id, date, system_score, system_status, system_notes, grid_score, grid_status, grid_notes, grid_dependency_pct').in('site_id', siteIds).gte('date', lookbackDate),
+    // `system_breakdown`/`grid_breakdown` arrived with sql/vrm_health_breakdown.sql;
+    // until that has run the columns don't exist and PostgREST rejects the
+    // whole select, so retry without them rather than take the dashboard down.
+    (async () => {
+      const withBreakdown = await admin.schema('vrm').from('daily_health').select('site_id, date, system_score, system_status, system_notes, system_breakdown, grid_score, grid_status, grid_notes, grid_breakdown, grid_dependency_pct').in('site_id', siteIds).gte('date', lookbackDate);
+      if (!withBreakdown.error) return withBreakdown;
+      return admin.schema('vrm').from('daily_health').select('site_id, date, system_score, system_status, system_notes, grid_score, grid_status, grid_notes, grid_dependency_pct').in('site_id', siteIds).gte('date', lookbackDate);
+    })(),
     // `alarm_events`/`critical_alerts` deliberately NOT fetched here any
     // more (2026-09-01) — this is a live monitoring dashboard, and those
     // tables are the HISTORICAL sync's own record (through yesterday only,
@@ -490,7 +512,7 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
     // rather than trusting `vrm.daily_health.battery_cycles`, which still
     // fabricates a 0.0 for exactly this case (migration 012, unfixed).
     admin.schema('vrm').from('energy_daily')
-      .select('site_id, date, pv_kwh, grid_kwh, grid_export_kwh, pv_kwp_snapshot, min_soc, max_soc, avg_soc, outage_count, outage_minutes, battery_charge_kwh, battery_discharge_kwh')
+      .select('site_id, date, pv_kwh, load_kwh, grid_kwh, grid_export_kwh, pv_kwp_snapshot, min_soc, max_soc, avg_soc, outage_count, outage_minutes, battery_charge_kwh, battery_discharge_kwh')
       .in('site_id', siteIds).gte('date', lookback30Date),
     // Fleet Dashboard Phase 3b (migration 038) — every OPEN anomaly across
     // every site in one query, same "no bulk vrm_api endpoint exists for
@@ -538,9 +560,11 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
     system_score: number | null;
     system_status: string | null;
     system_notes: string | null;
+    system_breakdown: HealthBreakdownItem[] | null;
     grid_score: number | null;
     grid_status: string | null;
     grid_notes: string | null;
+    grid_breakdown: HealthBreakdownItem[] | null;
     grid_dependency_pct: number | null;
   };
   const healthRowsBySite = new Map<string, HealthRow[]>();
@@ -551,9 +575,11 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
       system_score: row.system_score,
       system_status: row.system_status,
       system_notes: row.system_notes,
+      system_breakdown: parseBreakdown((row as { system_breakdown?: unknown }).system_breakdown),
       grid_score: row.grid_score,
       grid_status: row.grid_status,
       grid_notes: row.grid_notes,
+      grid_breakdown: parseBreakdown((row as { grid_breakdown?: unknown }).grid_breakdown),
       grid_dependency_pct: row.grid_dependency_pct,
     });
     healthRowsBySite.set(row.site_id, list);
@@ -570,7 +596,7 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
   }
 
   // Latest energy_daily row per site — same "highest date wins" rule.
-  const latestEnergyBySite = new Map<string, { date: string; pv_kwh: number | null; grid_kwh: number | null; grid_export_kwh: number | null; pv_kwp_snapshot: number | null; min_soc: number | null }>();
+  const latestEnergyBySite = new Map<string, { date: string; pv_kwh: number | null; load_kwh: number | null; grid_kwh: number | null; grid_export_kwh: number | null; pv_kwp_snapshot: number | null; min_soc: number | null }>();
   for (const row of energyDaily ?? []) {
     const existing = latestEnergyBySite.get(row.site_id);
     if (!existing || row.date > existing.date) {
@@ -644,6 +670,8 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
       grid_score: latestHealth?.grid_score ?? null,
       grid_status: latestHealth?.grid_status ?? null,
       grid_notes: latestHealth?.grid_notes ?? null,
+      system_breakdown: latestHealth?.system_breakdown ?? null,
+      grid_breakdown: latestHealth?.grid_breakdown ?? null,
       active_alarms: _activeCountFromRaw(snapshot?.raw, 'alarms'),
       active_critical_alerts: _activeCountFromRaw(snapshot?.raw, 'critical_alerts'),
       active_anomalies: anomaliesBySite.get(s.site_id) ?? [],
@@ -658,6 +686,10 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
       live_grid_source: _gridSourceFromRaw(snapshot?.raw),
       live_load_phases: _loadPhasesFromRaw(snapshot?.raw),
       health_metrics_date: energy?.date ?? null,
+      energy_pv_kwh: energy?.pv_kwh ?? null,
+      energy_load_kwh: energy?.load_kwh ?? null,
+      energy_grid_import_kwh: energy?.grid_kwh ?? null,
+      energy_grid_export_kwh: energy?.grid_export_kwh ?? null,
       specific_yield_kwh_per_kwp: indicators.specificYield,
       self_sufficiency_pct: indicators.selfSufficiency,
       self_consumption_pct: indicators.selfConsumption,

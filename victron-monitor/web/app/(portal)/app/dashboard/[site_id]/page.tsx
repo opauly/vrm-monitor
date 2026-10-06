@@ -6,6 +6,7 @@ import { getCustomer, getDashboardAccess, getCustomerFleetSiteDetail, type SiteA
 import { formatDateTimeInZone } from '@/lib/dates';
 import { t } from '@/lib/i18n/strings';
 import { Panel, Button, InfoTooltip } from '@/components/ui';
+import { ScoreBreakdown } from '@/components/app';
 import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
 import { FleetLiveSection } from '../../../../(admin)/admin/fleet/FleetLiveSection';
 import { Gauge } from '../../../../(admin)/admin/fleet/Gauge';
@@ -180,11 +181,7 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
             {site.system_score !== null && healthNotesList(site.system_notes).length > 0 && (
               <details className={styles.notesDetails}>
                 <summary className={styles.notesToggle}>{t(lang, 'score_notes_toggle')}</summary>
-                <ul className={styles.healthNotes}>
-                  {healthNotesList(site.system_notes).map((note, i) => (
-                    <li key={i}>{note}</li>
-                  ))}
-                </ul>
+                <ScoreBreakdown lang={lang} items={site.system_breakdown} notes={site.system_notes} score={site.system_score} />
               </details>
             )}
           </div>
@@ -206,11 +203,7 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
                 {healthNotesList(site.grid_notes).length > 0 && (
                   <details className={styles.notesDetails}>
                     <summary className={styles.notesToggle}>{t(lang, 'score_notes_toggle')}</summary>
-                    <ul className={styles.healthNotes}>
-                      {healthNotesList(site.grid_notes).map((note, i) => (
-                        <li key={i}>{note}</li>
-                      ))}
-                    </ul>
+                    <ScoreBreakdown lang={lang} items={site.grid_breakdown} notes={site.grid_notes} score={site.grid_score} />
                   </details>
                 )}
               </>

@@ -16,6 +16,7 @@ export { FeedbackWidget } from './FeedbackWidget/FeedbackWidget';
 export type { FeedbackWidgetProps, FeedbackWidgetSite } from './FeedbackWidget/FeedbackWidget';
 
 export { PushPanel } from './PushPanel/PushPanel';
+export { ScoreBreakdown } from './ScoreBreakdown/ScoreBreakdown';
 
 export { DataSourceDiagram } from './HelpDiagrams/DataSourceDiagram';
 export { ScoreLegend } from './HelpDiagrams/ScoreLegend';

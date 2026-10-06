@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/server/auth';
 import { getFleetSiteDetail, type SiteAnomalyRow } from '@/lib/server/db/admin';
 import { formatDateTimeInZone } from '@/lib/dates';
 import { InfoTooltip } from '@/components/ui';
+import { ScoreBreakdown } from '@/components/app';
 import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
 import { t, type Lang } from '@/lib/i18n/strings';
 import { FleetLiveSection } from '../FleetLiveSection';
@@ -200,11 +201,7 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
             {site.system_score !== null && healthNotesList(site.system_notes).length > 0 && (
               <details className={styles.notesDetails}>
                 <summary className={styles.notesToggle}>{t(lang, 'score_notes_toggle')}</summary>
-                <ul className={styles.healthNotes}>
-                  {healthNotesList(site.system_notes).map((note, i) => (
-                    <li key={i}>{note}</li>
-                  ))}
-                </ul>
+                <ScoreBreakdown lang={lang} items={site.system_breakdown} notes={site.system_notes} score={site.system_score} />
               </details>
             )}
           </div>
@@ -226,11 +223,7 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
                 {healthNotesList(site.grid_notes).length > 0 && (
                   <details className={styles.notesDetails}>
                     <summary className={styles.notesToggle}>{t(lang, 'score_notes_toggle')}</summary>
-                    <ul className={styles.healthNotes}>
-                      {healthNotesList(site.grid_notes).map((note, i) => (
-                        <li key={i}>{note}</li>
-                      ))}
-                    </ul>
+                    <ScoreBreakdown lang={lang} items={site.grid_breakdown} notes={site.grid_notes} score={site.grid_score} />
                   </details>
                 )}
               </>
