@@ -439,8 +439,28 @@
   flex-wrap: wrap;
   gap: 4px 10px;
 }
-/* Side by side while collapsed; stacked once a "how this was calculated" is
-   open, so its breakdown has the card's full width to read in. */
-.healthCard .scoreBlockRow:has(details[open]) {
+/* One column always: the layout doesn't shift when a calculation is opened. */
+.healthCard .scoreBlockRow {
   grid-template-columns: 1fr;
+  gap: 16px;
+  margin-bottom: 0;
+}
+/* The "how this was calculated" toggle reads as a control (a small outlined
+   pill), and what it opens is an inset panel — see ScoreBreakdown.module.css. */
+.healthCard .notesDetails {
+  margin-bottom: 0;
+}
+.healthCard .notesToggle {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--victron-glow);
+}
+.healthCard .notesToggle:hover {
+  color: var(--paper);
+  border-color: var(--victron-glow);
+}
+.healthCard .notesDetails[open] > .notesToggle {
+  background: rgba(var(--victron-glow-rgb), 0.12);
+  border-color: var(--victron-glow);
 }

@@ -2,7 +2,14 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 10px;
+  /* An inset panel, darker than the card around it with an accent edge, so an
+     opened calculation reads as its own object. */
+  padding: 12px 14px;
+  background: rgba(6, 18, 28, 0.35);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--victron-glow);
+  border-radius: var(--radius-sm);
 }
 .line {
   display: flex;
