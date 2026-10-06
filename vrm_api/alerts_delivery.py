@@ -16,8 +16,9 @@ on a resolved alert that WAS notified means "owes a back-to-normal notice".
 
 Guards, because this is the first code that can message customers:
 
-  * Backlog: an alert that has been open for more than MAX_NOTIFY_AGE when
-    emailing is first switched on (or after downtime) is stamped as handled
+  * Backlog: an alert whose underlying event began more than MAX_NOTIFY_AGE
+    ago (for a site that went silent, when its data stopped — not when we
+    first noticed) when emailing is first switched on, or after downtime, is stamped as handled
     WITHOUT sending, so nobody gets a surprise email about a months-old
     offline site. Both stamps are set, so no "back to normal" notice follows
     for something that was never announced.
@@ -90,6 +91,22 @@ def _fill(template: str, **values) -> str:
     for key, value in values.items():
         template = template.replace("{" + key + "}", str(value))
     return template
+
+
+def _event_time(alert: dict, now: datetime) -> datetime:
+    """When the underlying event actually began, for the backlog check.
+
+    An alert row's `opened_at` is when OUR engine first saw the condition, which
+    for something already long-standing (a site that has been silent for 77
+    days, the first time alerts are switched on) is "just now" — so measuring
+    the backlog from it would let a months-old offline site through as news.
+    A site-offline alert knows better: `detail.last_seen` is when data stopped.
+    """
+    if alert.get("kind") == rules.SITE_OFFLINE:
+        seen = _parse((alert.get("detail") or {}).get("last_seen"))
+        if seen is not None:
+            return seen
+    return _parse(alert.get("opened_at")) or now
 
 
 def describe(alert: dict, *, resolved: bool, site_name: str, tz_name: str | None,
@@ -180,7 +197,7 @@ def deliver_pending(*, now: datetime | None = None, mode: str | None = None, sit
     keep_opens: list[dict] = []
     drop: list[dict] = []
     for a in opens:
-        opened = _parse(a.get("opened_at")) or now
+        opened = _event_time(a, now)
         flapping = any(key(r) == key(a) and r["id"] != a["id"] for r in recent)
         (drop if (now - opened > MAX_NOTIFY_AGE or flapping or not emailable(a)) else keep_opens).append(a)
     suppress(drop)

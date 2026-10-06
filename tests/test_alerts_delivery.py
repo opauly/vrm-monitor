@@ -259,3 +259,18 @@ def test_email_links_to_the_alert_settings(env):
     alert(store)
     run()
     assert 'href="https://vrm.example.com/app/alerts"' in sent[0]["html"] and "Choose which alerts you get" in sent[0]["html"]
+
+
+def test_a_long_silent_site_first_seen_just_now_is_not_news(env):
+    """The real Proyecto JR case: the alert row is brand new, the site has been dark for months."""
+    store, sent = env
+    row = alert(store, kind=A.SITE_OFFLINE, opened_at=ago(minutes=1),
+                detail={"last_seen": ago(days=77), "minutes_silent": 111442})
+    out = run()
+    assert not sent and out["suppressed"] == 1 and row["notified_at"] and row["resolved_notified_at"]
+
+
+def test_a_site_that_just_went_quiet_is_still_announced(env):
+    store, sent = env
+    alert(store, kind=A.SITE_OFFLINE, opened_at=ago(minutes=1), detail={"last_seen": ago(minutes=50), "minutes_silent": 50})
+    assert run()["sent"] == 1
