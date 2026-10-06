@@ -1,14 +1,24 @@
-"""Emails the alerts that `alerts_service` has opened and resolved.
+"""Tells customers about the alerts that `alerts_service` has opened and resolved.
 
-Runs at the end of a refresh sweep (after the alert pass) and sends at most
-ONE email per customer per run: new alerts first, then anything that is back
-to normal. Controlled by `ALERTS_EMAIL`:
+Runs at the end of a refresh sweep (after the alert pass) over two independent
+channels, each with its own switch:
 
-  off   (default) send nothing
-  test  send everything to `ALERTS_EMAIL_TEST_TO` instead of the customer,
-        subject prefixed "[TEST → real address]" — to see real emails before
-        any customer does. Still marks alerts as notified.
-  on    send to the customer (`contact_email`, else the login email)
+  EMAIL — at most ONE email per customer per run: new alerts first, then
+  anything that is back to normal. `ALERTS_EMAIL`:
+    off   (default) send nothing
+    test  send everything to `ALERTS_EMAIL_TEST_TO` instead of the customer,
+          subject prefixed "[TEST → real address]" — to see real emails before
+          any customer does. Still marks alerts as notified.
+    on    send to the customer (`contact_email`, else the login email)
+
+  PUSH — a phone/browser notification to every device the customer opted in
+  (`ALERTS_PUSH=on`, see `alerts_push.py`). Up to three separate notifications
+  per run, collapsing into one summary beyond that. The internal-fleet accounts
+  (ALERTS_FORCE_CUSTOMER_IDS, which have no login) notify the ADMIN's devices.
+
+A customer's per-alert-type settings (`vrm.alert_preferences`: email / push)
+choose which channel each alert uses. An alert is "handled" once ANY channel
+that applies has delivered it.
 
 Rows are chosen by two columns on `vrm.alerts`: `notified_at IS NULL` on an
 open alert means "owes an opened notice", and `resolved_notified_at IS NULL`
@@ -45,7 +55,8 @@ from victron import email_i18n
 from victron.mailer import MailerError
 from victron.mailer import send as mailer_send
 from victron.vrm_series import DEFAULT_TZ_NAME
-from vrm_api.alerts_service import load_preferences
+from vrm_api import alerts_push
+from vrm_api.alerts_service import forced_customer_ids, load_preferences
 
 logger = logging.getLogger("vrm_api.alerts_delivery")
 
@@ -121,7 +132,7 @@ def describe(alert: dict, *, resolved: bool, site_name: str, tz_name: str | None
 
     if resolved:
         return {"title": _fill(t[f"alert_{kind}_resolved"], site=site_name), "body": "", "severity": "ok",
-                "severity_label": "", "url": url, "button_label": button}
+                "severity_label": "", "url": url, "path": link_target, "button_label": button}
 
     severity = alert.get("severity") or rules.WARNING
     title_key, body_key = f"alert_{kind}_title", f"alert_{kind}_body"
@@ -142,7 +153,7 @@ def describe(alert: dict, *, resolved: bool, site_name: str, tz_name: str | None
 
     return {"title": _fill(t[title_key], **values), "body": _fill(t[body_key], **values), "severity": severity,
             "severity_label": t["alert_severity_critical" if severity == rules.CRITICAL else "alert_severity_warning"],
-            "url": url, "button_label": button}
+            "url": url, "path": link_target, "button_label": button}
 
 
 def _stamp(table, ids: list, **columns) -> list:
@@ -153,14 +164,33 @@ def _stamp(table, ids: list, **columns) -> list:
     return query.execute().data or []
 
 
-def deliver_pending(*, now: datetime | None = None, mode: str | None = None, site_url: str | None = None) -> dict:
+def _push_payloads(items: list[tuple[dict, dict]], strings: dict) -> list[dict]:
+    """Notification payloads for `items` = [(alert row, card)]: one each, or a
+    single summary when there are too many to show separately. The service
+    worker (`public/sw.js`) turns each into a native notification; `tag` makes a
+    later notice about the same alert REPLACE the earlier one (so "back to
+    normal" replaces the alarm instead of stacking beneath it)."""
+    if len(items) > alerts_push.MAX_INDIVIDUAL_PUSHES:
+        worst = rules.CRITICAL if any(c["severity"] == "critical" for _, c in items) else rules.WARNING
+        return [{"title": _fill(strings["alert_multi_subject"], n=len(items)),
+                 "body": " · ".join(c["title"] for _, c in items[:3]),
+                 "url": "/app/alerts", "tag": "alerts-summary", "severity": worst}]
+    return [{"title": c["title"], "body": c["body"] or "", "url": c["path"], "tag": f"alert-{a['id']}", "severity": c["severity"]}
+            for a, c in items]
+
+
+def deliver_pending(*, now: datetime | None = None, mode: str | None = None, push: bool | None = None,
+                    site_url: str | None = None) -> dict:
     mode = mode or email_mode()
-    summary = {"mode": mode, "sent": 0, "suppressed": 0, "failed": 0, "customers": 0}
-    if mode == "off":
+    push_on = alerts_push.push_enabled() if push is None else push
+    summary = {"mode": mode, "push": push_on, "sent": 0, "pushed": 0, "suppressed": 0, "failed": 0, "customers": 0}
+    if mode == "off" and not push_on:
         return summary
     test_to = (os.environ.get("ALERTS_EMAIL_TEST_TO") or "").strip()
     if mode == "test" and not _EMAIL_RE.match(test_to):
-        logger.warning("alerts_delivery: ALERTS_EMAIL=test needs a valid ALERTS_EMAIL_TEST_TO — sending nothing")
+        logger.warning("alerts_delivery: ALERTS_EMAIL=test needs a valid ALERTS_EMAIL_TEST_TO — email is skipped")
+    email_active = mode == "on" or (mode == "test" and bool(_EMAIL_RE.match(test_to)))
+    if not email_active and not push_on:
         return summary
 
     now = now or datetime.now(timezone.utc)
@@ -187,22 +217,25 @@ def deliver_pending(*, now: datetime | None = None, mode: str | None = None, sit
             alerts.update({"resolved_notified_at": stamp}).in_("id", [r["id"] for r in rows]).execute()
             summary["suppressed"] += len(rows)
 
-    # "Show in the app but don't email me" (vrm.alert_preferences.email = false):
-    # handled like any other suppressed notice, both stamps set.
+    # Per-alert-type channel choices (vrm.alert_preferences). No saved row = on.
     prefs = load_preferences(sorted({a["customer_id"] for a in opens + resolves}))
 
-    def emailable(a: dict) -> bool:
-        return prefs.get((a["customer_id"], a["kind"]), {}).get("email", True)
+    def pref(a: dict, channel: str) -> bool:
+        return prefs.get((a["customer_id"], a["kind"]), {}).get(channel, True)
+
+    def wanted(a: dict) -> bool:
+        """Does ANY active channel's setting want this alert?"""
+        return (email_active and pref(a, "email")) or (push_on and pref(a, "push"))
 
     keep_opens: list[dict] = []
     drop: list[dict] = []
     for a in opens:
         opened = _event_time(a, now)
         flapping = any(key(r) == key(a) and r["id"] != a["id"] for r in recent)
-        (drop if (now - opened > MAX_NOTIFY_AGE or flapping or not emailable(a)) else keep_opens).append(a)
+        (drop if (now - opened > MAX_NOTIFY_AGE or flapping or not wanted(a)) else keep_opens).append(a)
     suppress(drop)
 
-    keep_resolves = [a for a in resolves if now - (_parse(a.get("resolved_at")) or now) <= MAX_NOTIFY_AGE and emailable(a)]
+    keep_resolves = [a for a in resolves if now - (_parse(a.get("resolved_at")) or now) <= MAX_NOTIFY_AGE and wanted(a)]
     stale = [a for a in resolves if a not in keep_resolves]
     if stale:
         alerts.update({"resolved_notified_at": stamp}).in_("id", [a["id"] for a in stale]).execute()
@@ -226,21 +259,43 @@ def deliver_pending(*, now: datetime | None = None, mode: str | None = None, sit
     sites = {s["site_id"]: s for s in (_t("sites").select("site_id, display_name, timezone").in_("site_id", site_ids).execute().data or [])} if site_ids else {}
     customers = {c["id"]: c for c in (_t("customers").select("id, contact_email, auth_email, ui_language")
                                       .in_("id", list(by_customer)).execute().data or [])}
+    forced = forced_customer_ids()
 
     for customer_id, groups in by_customer.items():
         customer = customers.get(customer_id) or {}
         recipient = customer.get("contact_email") or customer.get("auth_email")
-        if not recipient or not _EMAIL_RE.match(recipient):
-            logger.warning("alerts_delivery: customer %s has no valid email — leaving %d alert(s) unsent",
+        recipient_ok = bool(recipient and _EMAIL_RE.match(recipient))
+
+        # Where can this customer be reached right now?
+        email_to = None
+        if email_active:
+            if mode == "test":
+                email_to = test_to                       # test mode never needs a real address on file
+            elif recipient_ok:
+                email_to = recipient
+        devices: list[dict] = []
+        if push_on:
+            try:
+                devices = alerts_push.destinations(customer_id=customer_id, include_admin_devices=customer_id in forced)
+            except Exception:  # noqa: BLE001 — e.g. vrm.push_subscriptions not created yet
+                logger.warning("alerts_delivery: could not read push subscriptions for customer %s", customer_id)
+
+        def feasible(a: dict) -> bool:
+            return (email_to is not None and pref(a, "email")) or (bool(devices) and pref(a, "push"))
+
+        new_rows = [a for a in groups["new"] if feasible(a)]
+        res_rows = [a for a in groups["resolved"] if feasible(a)]
+        if not new_rows and not res_rows:
+            logger.warning("alerts_delivery: no way to reach customer %s (no email / push device) — leaving %d alert(s) unsent",
                            customer_id, len(groups["new"]) + len(groups["resolved"]))
             continue
 
-        new_ids = [a["id"] for a in groups["new"]]
-        res_ids = [a["id"] for a in groups["resolved"]]
+        new_ids = [a["id"] for a in new_rows]
+        res_ids = [a["id"] for a in res_rows]
         claimed_new = {r["id"] for r in _stamp(alerts, new_ids, notified_at=stamp)} if new_ids else set()
         claimed_res = {r["id"] for r in _stamp(alerts, res_ids, resolved_notified_at=stamp)} if res_ids else set()
-        new = [a for a in groups["new"] if a["id"] in claimed_new]
-        resolved = [a for a in groups["resolved"] if a["id"] in claimed_res]
+        new = [a for a in new_rows if a["id"] in claimed_new]
+        resolved = [a for a in res_rows if a["id"] in claimed_res]
         if not new and not resolved:
             continue  # another sweep claimed them first
 
@@ -252,33 +307,53 @@ def deliver_pending(*, now: datetime | None = None, mode: str | None = None, sit
             return describe(a, resolved=is_resolved, site_name=site.get("display_name") or a.get("site_id") or "",
                             tz_name=site.get("timezone"), strings=strings, site_url=site_url)
 
-        cards_new = [card(a, False) for a in new]
-        cards_resolved = [card(a, True) for a in resolved]
-        sections = [s for s in (
-            {"heading": strings["alert_section_new"], "cards": cards_new} if cards_new else None,
-            {"heading": strings["alert_section_resolved"], "cards": cards_resolved} if cards_resolved else None,
-        ) if s]
-        total = len(cards_new) + len(cards_resolved)
-        subject = (cards_new + cards_resolved)[0]["title"] if total == 1 else _fill(strings["alert_multi_subject"], n=total)
-        to = recipient
-        if mode == "test":
-            subject = f"[TEST → {recipient}] {subject}"
-            to = test_to
+        new_cards = [(a, card(a, False)) for a in new]
+        res_cards = [(a, card(a, True)) for a in resolved]
 
-        try:
-            html = env.get_template("alert_email.html").render(
-                lang=lang, t=strings, subject=subject, sections=sections,
-                settings_url=f"{site_url.rstrip('/')}/app/alerts" if site_url else None)
-            mailer_send(to, subject, html)
-        except Exception as exc:  # noqa: BLE001 — release the claim so the next sweep retries
-            logger.warning("alerts_delivery: could not email customer %s: %s", customer_id, exc if isinstance(exc, MailerError) else type(exc).__name__)
+        # ── email ───────────────────────────────────────────────────────
+        email_ok = False
+        email_new = [c for a, c in new_cards if pref(a, "email")]
+        email_res = [c for a, c in res_cards if pref(a, "email")]
+        if email_to is not None and (email_new or email_res):
+            sections = [s for s in (
+                {"heading": strings["alert_section_new"], "cards": email_new} if email_new else None,
+                {"heading": strings["alert_section_resolved"], "cards": email_res} if email_res else None,
+            ) if s]
+            total = len(email_new) + len(email_res)
+            subject = (email_new + email_res)[0]["title"] if total == 1 else _fill(strings["alert_multi_subject"], n=total)
+            to = email_to
+            if mode == "test":
+                subject = f"[TEST → {recipient if recipient_ok else 'no email on file'}] {subject}"
+            try:
+                html = env.get_template("alert_email.html").render(
+                    lang=lang, t=strings, subject=subject, sections=sections,
+                    settings_url=f"{site_url.rstrip('/')}/app/alerts" if site_url else None)
+                mailer_send(to, subject, html)
+                email_ok = True
+                summary["sent"] += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("alerts_delivery: could not email customer %s: %s", customer_id, exc if isinstance(exc, MailerError) else type(exc).__name__)
+
+        # ── push ────────────────────────────────────────────────────────
+        push_ok = False
+        push_items = [(a, c) for a, c in new_cards if pref(a, "push")] + [(a, c) for a, c in res_cards if pref(a, "push")]
+        if devices and push_items:
+            try:
+                urgent = any(c["severity"] == "critical" for a, c in push_items if a in new)
+                result = alerts_push.deliver(devices, _push_payloads(push_items, strings), urgency="high" if urgent else "normal", now=now)
+                push_ok = result["delivered"] > 0
+                summary["pushed"] += result["delivered"]
+            except Exception:  # noqa: BLE001
+                logger.exception("alerts_delivery: push delivery failed for customer %s", customer_id)
+
+        if not (email_ok or push_ok):
+            # Nothing got through: release the claim so the next sweep retries.
             if claimed_new:
                 alerts.update({"notified_at": None}).in_("id", list(claimed_new)).execute()
             if claimed_res:
                 alerts.update({"resolved_notified_at": None}).in_("id", list(claimed_res)).execute()
             summary["failed"] += 1
             continue
-        summary["sent"] += 1
         summary["customers"] += 1
 
     return summary

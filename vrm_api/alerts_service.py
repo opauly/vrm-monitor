@@ -40,7 +40,7 @@ def _t(name: str):
     return get_client().schema("vrm").table(name)
 
 
-def _forced_customer_ids() -> set[str]:
+def forced_customer_ids() -> set[str]:
     """Customers that get alerts regardless of plan — `ALERTS_FORCE_CUSTOMER_IDS`
     (comma-separated). For Pauly & Co's own portfolio account, which sits on the
     `trial` plan (no live dashboard) but whose sites are exactly the ones
@@ -61,21 +61,29 @@ def eligible_customer_ids(customer_ids: list[str]) -> set[str]:
             and c.get("billing_status") not in _NOT_ENTITLED_STATUSES
         if entitled and plans.get(c.get("plan") or "default", default_allowed):
             eligible.add(c["id"])
-    return eligible | (_forced_customer_ids() & set(customer_ids))
+    return eligible | (forced_customer_ids() & set(customer_ids))
 
 
 def load_preferences(customer_ids: list[str]) -> dict[tuple[str, str], dict]:
-    """`{(customer_id, kind): {"enabled": bool, "email": bool}}` for saved rows only;
-    a missing row means the defaults (everything on). A missing table (migration not
-    run yet) is treated the same way, so deploying ahead of the SQL is safe."""
+    """`{(customer_id, kind): {"enabled": bool, "email": bool, "push": bool}}` for
+    saved rows only; a missing row means the defaults (everything on). A missing
+    table (migration not run yet) is treated the same way, so deploying ahead of
+    the SQL is safe — and so is a table that predates the `push` column: the
+    columns that exist are still honoured (a saved "don't email me" must never be
+    lost just because the push migration has not been applied)."""
     if not customer_ids:
         return {}
-    try:
-        rows = _t("alert_preferences").select("customer_id, kind, enabled, email").in_("customer_id", customer_ids).execute().data or []
-    except Exception:  # noqa: BLE001
+    rows = None
+    for columns in ("customer_id, kind, enabled, email, push", "customer_id, kind, enabled, email"):
+        try:
+            rows = _t("alert_preferences").select(columns).in_("customer_id", customer_ids).execute().data or []
+            break
+        except Exception:  # noqa: BLE001
+            continue
+    if rows is None:
         logger.info("alerts: vrm.alert_preferences is not readable yet — using defaults")
         return {}
-    return {(r["customer_id"], r["kind"]): {"enabled": r["enabled"], "email": r["email"]} for r in rows}
+    return {(r["customer_id"], r["kind"]): {"enabled": r["enabled"], "email": r["email"], "push": r.get("push", True)} for r in rows}
 
 
 def _grid_imported_recently(rows: list[dict], now: datetime) -> bool:

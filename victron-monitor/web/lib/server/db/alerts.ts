@@ -14,7 +14,7 @@ import type { AlertKind, AlertPreference, AlertRecord, AlertWithSite } from './t
 
 export const ALERT_KINDS: readonly AlertKind[] = ['site_offline', 'grid_outage', 'low_battery', 'system_alarm', 'vrm_link_broken'];
 
-const DEFAULT_PREFERENCE: AlertPreference = { enabled: true, email: true };
+const DEFAULT_PREFERENCE: AlertPreference = { enabled: true, email: true, push: true };
 
 // 42P01 = Postgres "undefined_table"; PGRST205 = PostgREST "not in schema cache".
 function isMissingTable(error: { code?: string } | null): boolean {
@@ -98,18 +98,26 @@ export async function countOpenAlerts(customerId: string): Promise<number> {
 /** One entry per kind; kinds with no saved row get the defaults (everything on). */
 export async function getAlertPreferences(customerId: string): Promise<Record<AlertKind, AlertPreference>> {
   const result = Object.fromEntries(ALERT_KINDS.map((k) => [k, { ...DEFAULT_PREFERENCE }])) as Record<AlertKind, AlertPreference>;
-  const { data, error } = await getSupabaseAdmin()
-    .schema('vrm')
-    .from('alert_preferences')
-    .select('kind, enabled, email')
-    .eq('customer_id', customerId);
+  // `push` came with the phone-notification migration; if only the earlier one
+  // has run, the column is missing and the read falls back to the columns that
+  // exist — the saved enabled/email choices must still show.
+  type PrefRow = { kind: string; enabled: boolean; email: boolean; push?: boolean };
+  const table = () => getSupabaseAdmin().schema('vrm').from('alert_preferences');
+  const first = await table().select('kind, enabled, email, push').eq('customer_id', customerId);
+  let data = first.data as PrefRow[] | null;
+  let error: { code?: string } | null = first.error;
+  if (error && !isMissingTable(error)) {
+    const second = await table().select('kind, enabled, email').eq('customer_id', customerId);
+    data = second.data as PrefRow[] | null;
+    error = second.error;
+  }
   if (error) {
     if (isMissingTable(error)) return result;
     throw error;
   }
   for (const row of data ?? []) {
-    if ((ALERT_KINDS as readonly string[]).includes(row.kind as string)) {
-      result[row.kind as AlertKind] = { enabled: row.enabled as boolean, email: row.email as boolean };
+    if ((ALERT_KINDS as readonly string[]).includes(row.kind)) {
+      result[row.kind as AlertKind] = { enabled: row.enabled, email: row.email, push: row.push ?? true };
     }
   }
   return result;
@@ -123,8 +131,18 @@ export async function saveAlertPreferences(customerId: string, prefs: Record<Ale
     kind,
     enabled: prefs[kind].enabled,
     email: prefs[kind].email,
+    push: prefs[kind].push,
     updated_at: now,
   }));
-  const { error } = await getSupabaseAdmin().schema('vrm').from('alert_preferences').upsert(rows, { onConflict: 'customer_id,kind' });
+  const table = () => getSupabaseAdmin().schema('vrm').from('alert_preferences');
+  let { error } = await table().upsert(rows, { onConflict: 'customer_id,kind' });
+  if (error && !isMissingTable(error)) {
+    // The `push` column may not exist yet (migration not run): save the rest
+    // rather than failing the whole settings page.
+    ({ error } = await table().upsert(
+      rows.map((row) => ({ customer_id: row.customer_id, kind: row.kind, enabled: row.enabled, email: row.email, updated_at: row.updated_at })),
+      { onConflict: 'customer_id,kind' },
+    ));
+  }
   if (error) throw error;
 }

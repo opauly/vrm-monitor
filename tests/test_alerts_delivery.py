@@ -5,6 +5,7 @@ import pytest
 
 from victron import alerts as A
 from vrm_api import alerts_delivery as ad
+from vrm_api import alerts_push as ap
 from vrm_api import alerts_service as svc
 
 NOW = datetime(2026, 10, 5, 18, 0, tzinfo=timezone.utc)
@@ -32,6 +33,7 @@ class Query:
 
     def select(self, *_): self.op = "select"; return self
     def update(self, payload): self.op, self.payload = "update", payload; return self
+    def delete(self): self.op = "delete"; return self
     def eq(self, c, v): self.checks.append(lambda r: r.get(c) == v); return self
     def in_(self, c, vs): self.checks.append(lambda r: r.get(c) in vs); return self
     def is_(self, c, v): self.checks.append(lambda r: r.get(c) is None); return self
@@ -42,6 +44,9 @@ class Query:
         if self.op == "update":
             for r in matched:
                 r.update(self.payload)
+        elif self.op == "delete":
+            for r in matched:
+                self.rows.remove(r)
         return Result([dict(r) for r in matched])
 
 
@@ -49,6 +54,7 @@ class Table:
     def __init__(self, store, name): self.store, self.name = store, name
     def select(self, *a): return Query(self.store, self.name).select(*a)
     def update(self, p): return Query(self.store, self.name).update(p)
+    def delete(self): return Query(self.store, self.name).delete()
 
 
 @pytest.fixture
@@ -60,6 +66,8 @@ def env(monkeypatch):
     sent = []
     monkeypatch.setattr(ad, "_t", lambda name: Table(store, name))
     monkeypatch.setattr(svc, "_t", lambda name: Table(store, name))          # load_preferences() reads through the service module
+    monkeypatch.setattr(ap, "_t", lambda name: Table(store, name))           # push destinations
+    monkeypatch.delenv("ALERTS_FORCE_CUSTOMER_IDS", raising=False)
     monkeypatch.setattr(ad, "mailer_send", lambda to, subject, html, **kw: sent.append({"to": to, "subject": subject, "html": html}))
     monkeypatch.setenv("ALERTS_EMAIL_TEST_TO", "")
     return store, sent
@@ -274,3 +282,178 @@ def test_a_site_that_just_went_quiet_is_still_announced(env):
     store, sent = env
     alert(store, kind=A.SITE_OFFLINE, opened_at=ago(minutes=1), detail={"last_seen": ago(minutes=50), "minutes_silent": 50})
     assert run()["sent"] == 1
+
+
+# ── push channel ─────────────────────────────────────────────────────────
+@pytest.fixture
+def pushes(monkeypatch):
+    """Fake sender: records payloads, outcome controllable per test."""
+    log = {"payloads": [], "outcome": "ok", "urgency": []}
+    def fake_send(device, payload, urgency="normal"):
+        log["payloads"].append(payload); log["urgency"].append(urgency); return log["outcome"]
+    monkeypatch.setattr(ap, "send_one", fake_send)
+    return log
+
+
+def device(store, id=1, customer="c1", admin=None):
+    store.setdefault("push_subscriptions", []).append(
+        {"id": id, "customer_id": None if admin else customer, "admin_email": admin, "endpoint": f"e{id}", "p256dh": "p", "auth": "a", "failure_count": 0})
+
+
+def run_push(email="off", push=True, **kw):
+    return ad.deliver_pending(now=NOW, mode=email, push=push, site_url="https://vrm.example.com", **kw)
+
+
+def test_push_only_sends_a_notification_and_no_email(env, pushes):
+    store, sent = env
+    device(store)
+    row = alert(store)
+    out = run_push()
+    assert not sent and out["pushed"] == 1 and out["sent"] == 0 and row["notified_at"]
+    p = pushes["payloads"][0]
+    assert p["title"] == "Low battery at El Encino" and p["url"] == "/app/dashboard/s1" and p["tag"] == f"alert-{row['id']}"
+    assert p["severity"] == "warning" and pushes["urgency"] == ["normal"]
+
+
+def test_critical_alerts_are_sent_with_high_urgency(env, pushes):
+    store, _ = env
+    device(store)
+    alert(store, severity="critical", detail={"soc_pct": 6.0})
+    run_push()
+    assert pushes["urgency"] == ["high"]
+
+
+def test_both_channels_deliver_the_same_alert(env, pushes):
+    store, sent = env
+    device(store)
+    alert(store)
+    out = run_push(email="on")
+    assert len(sent) == 1 and out["sent"] == 1 and out["pushed"] == 1 and len(pushes["payloads"]) == 1
+
+
+def test_push_off_means_no_push_even_with_devices(env, pushes):
+    store, sent = env
+    device(store)
+    alert(store)
+    out = run_push(email="on", push=False)
+    assert len(sent) == 1 and pushes["payloads"] == [] and out["pushed"] == 0
+
+
+def test_many_alerts_collapse_into_one_summary_notification(env, pushes):
+    store, _ = env
+    device(store)
+    for kind in (A.LOW_BATTERY, A.SITE_OFFLINE, A.GRID_OUTAGE, A.SYSTEM_ALARM):
+        alert(store, kind=kind, detail={"soc_pct": 10.0, "last_seen": ago(minutes=50), "minutes_silent": 50, "alarms": ["overload"]})
+    run_push()
+    assert len(pushes["payloads"]) == 1
+    p = pushes["payloads"][0]
+    assert p["title"] == "4 updates on your systems" and p["url"] == "/app/alerts" and p["tag"] == "alerts-summary"
+
+
+def test_a_back_to_normal_push_replaces_the_alarm_via_the_same_tag(env, pushes):
+    store, _ = env
+    device(store)
+    row = alert(store, status="resolved", notified_at=ago(hours=1), resolved_at=ago(minutes=5))
+    run_push()
+    assert pushes["payloads"][0]["tag"] == f"alert-{row['id']}" and pushes["payloads"][0]["title"] == "Battery recovered at El Encino"
+
+
+def test_push_preference_off_mutes_push_but_not_email(env, pushes):
+    store, sent = env
+    store["alert_preferences"] = [{"customer_id": "c1", "kind": A.LOW_BATTERY, "enabled": True, "email": True, "push": False}]
+    device(store)
+    alert(store)
+    out = run_push(email="on")
+    assert len(sent) == 1 and pushes["payloads"] == [] and out["pushed"] == 0
+
+
+def test_email_preference_off_still_pushes(env, pushes):
+    store, sent = env
+    store["alert_preferences"] = [{"customer_id": "c1", "kind": A.LOW_BATTERY, "enabled": True, "email": False, "push": True}]
+    device(store)
+    alert(store)
+    run_push(email="on")
+    assert not sent and len(pushes["payloads"]) == 1
+
+
+def test_both_muted_for_a_kind_suppresses_it_completely(env, pushes):
+    store, sent = env
+    store["alert_preferences"] = [{"customer_id": "c1", "kind": A.LOW_BATTERY, "enabled": True, "email": False, "push": False}]
+    device(store)
+    row = alert(store)
+    out = run_push(email="on")
+    assert not sent and not pushes["payloads"] and out["suppressed"] == 1 and row["notified_at"] and row["resolved_notified_at"]
+
+
+def test_push_failing_with_email_ok_still_counts_as_handled(env, pushes):
+    store, sent = env
+    device(store)
+    pushes["outcome"] = "error"
+    row = alert(store)
+    out = run_push(email="on")
+    assert len(sent) == 1 and row["notified_at"] and out["failed"] == 0
+
+
+def test_nothing_getting_through_releases_the_claim(env, pushes):
+    store, _ = env
+    device(store)
+    pushes["outcome"] = "error"
+    row = alert(store)
+    out = run_push()
+    assert out["failed"] == 1 and row["notified_at"] is None
+
+
+def test_a_gone_device_is_removed_and_the_alert_is_retried(env, pushes):
+    store, _ = env
+    device(store)
+    pushes["outcome"] = "gone"
+    row = alert(store)
+    run_push()
+    assert store["push_subscriptions"] == [] and row["notified_at"] is None
+
+
+def test_no_email_and_no_device_leaves_the_alert_unsent(env, pushes):
+    store, _ = env
+    store["customers"][0].update(contact_email=None, auth_email=None)
+    row = alert(store)
+    run_push(email="on")
+    assert row["notified_at"] is None and not pushes["payloads"]
+
+
+def test_someone_elses_device_is_never_used(env, pushes):
+    store, _ = env
+    device(store, customer="other")
+    row = alert(store)
+    run_push()
+    assert not pushes["payloads"] and row["notified_at"] is None
+
+
+def test_the_internal_fleet_notifies_the_admins_devices(env, pushes, monkeypatch):
+    store, _ = env
+    device(store, id=5, admin="me@x.com")
+    row = alert(store)
+    run_push()
+    assert not pushes["payloads"] and row["notified_at"] is None                     # not a forced customer: admin devices are not used
+    monkeypatch.setenv("ALERTS_FORCE_CUSTOMER_IDS", "c1")
+    run_push()
+    assert len(pushes["payloads"]) == 1 and row["notified_at"]
+
+
+def test_an_alert_wanted_only_by_email_waits_when_there_is_no_email_address(env, pushes):
+    store, _ = env
+    store["customers"][0].update(contact_email=None, auth_email=None)
+    store["alert_preferences"] = [{"customer_id": "c1", "kind": A.LOW_BATTERY, "enabled": True, "email": True, "push": False}]
+    device(store)
+    row = alert(store)
+    run_push(email="on")
+    assert row["notified_at"] is None and not pushes["payloads"]
+
+
+# ── test mode no longer needs a real address on file ────────────────────
+def test_test_mode_reaches_the_test_address_even_without_a_customer_email(env, monkeypatch):
+    store, sent = env
+    store["customers"][0].update(contact_email=None, auth_email=None)
+    monkeypatch.setenv("ALERTS_EMAIL_TEST_TO", "me@example.com")
+    alert(store)
+    run("test")
+    assert sent[0]["to"] == "me@example.com" and sent[0]["subject"].startswith("[TEST → no email on file] ")

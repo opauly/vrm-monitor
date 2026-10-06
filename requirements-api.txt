@@ -40,3 +40,8 @@ posthog>=3.7.0
 # None'". A no-op on 3.10+, where the interpreter can eval `|` unions
 # natively — kept for local dev, not because the deployed image needs it.
 eval_type_backport>=0.2.0
+
+# Web Push for fleet alerts (vrm_api/alerts_push.py): encrypts and signs (VAPID)
+# notifications to a customer's phone/browser via Apple's/Google's/Mozilla's
+# push services. Pulls in py-vapid, http-ece and cryptography.
+pywebpush>=2.0.0

@@ -697,6 +697,15 @@ export async function billingAddress(body: {
  * never a state change"). Rate-limited per customer by the route handler
  * that calls this (§6.5) — this function itself has no rate limit of its
  * own, matching `vrm_api`'s own division of responsibility. */
+// ── Alert push test (vrm_api/routers/alerts.py) ──────────────────────────
+// Sends one harmless notification to the CALLER'S OWN registered devices.
+export type PushTestOut = { devices: number; delivered: number; removed: number; failed: number };
+
+export async function sendPushTest(owner: { customerId: string } | { adminEmail: string }, lang: 'en' | 'es'): Promise<PushTestOut> {
+  const body = 'customerId' in owner ? { customer_id: owner.customerId, lang } : { admin_email: owner.adminEmail, lang };
+  return pipelineJson('/v1/alerts/push-test', jsonInit(body));
+}
+
 export async function billingRefresh(customerId: string): Promise<BillingStatusOut> {
   return pipelineJson('/v1/billing/refresh', jsonInit({ customer_id: customerId }));
 }

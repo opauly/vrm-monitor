@@ -35,6 +35,15 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // The service worker must always be fetched fresh: a cached copy would
+        // keep an old push handler alive on every phone for days after a fix.
+        source: '/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+          { key: 'Service-Worker-Allowed', value: '/' },
+        ],
+      },
+      {
         source: `/((?!(?:${nonceRoutes})(?:/|$)).*)`,
         headers: [{ key: 'Content-Security-Policy', value: baselineCsp }],
       },

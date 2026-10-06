@@ -3,12 +3,14 @@ import Link from 'next/link';
 import { requireAdmin } from '@/lib/server/auth';
 import { getFleetOverview, type FleetConnectionStatus, type FleetOverviewRow } from '@/lib/server/db/admin';
 import { InfoTooltip } from '@/components/ui';
+import { PushPanel } from '@/components/app';
 import { formatDateTime, isWithinLastHours } from '@/lib/dates';
 import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
 import { t, type Lang } from '@/lib/i18n/strings';
 import { FleetFreshness } from './FleetFreshness';
 import { FleetSitesTable } from './FleetSitesTable';
 import { FleetLiveSection } from './FleetLiveSection';
+import { sendAdminTestPushAction, subscribeAdminPushAction, unsubscribeAdminPushAction } from './pushActions';
 import { ShapeChart } from './ShapeChart';
 import styles from './fleet.module.css';
 
@@ -462,6 +464,17 @@ export default async function AdminFleetPage() {
           <FleetSitesTable sites={sites} lang={lang} />
         </>
       )}
+
+      {/* The admin's own phone, for the alerts of the internal-fleet accounts
+          (ALERTS_FORCE_CUSTOMER_IDS) — they have no login to subscribe from. */}
+      <PushPanel
+        lang={lang}
+        vapidPublicKey={process.env.VAPID_PUBLIC_KEY?.trim() || null}
+        intro={t(lang, 'push_intro_admin')}
+        onSubscribe={subscribeAdminPushAction}
+        onUnsubscribe={unsubscribeAdminPushAction}
+        onTest={sendAdminTestPushAction}
+      />
     </div>
   );
 }

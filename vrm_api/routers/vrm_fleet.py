@@ -72,7 +72,7 @@ from pydantic import ValidationError
 from database.supabase_client import get_client
 
 from victron import ingest as victron_ingest
-from vrm_api import alerts_delivery, alerts_service
+from vrm_api import alerts_delivery, alerts_push, alerts_service
 from victron.anomaly_battery import check_incomplete_charging
 from victron.anomaly_drift import check_quiet_drift, check_underperformance
 from victron.anomaly_silence import check_unexpected_silence
@@ -591,12 +591,13 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
             logger.info("vrm-fleet refresh-snapshots: alerts %s", summary)
         except Exception:  # noqa: BLE001
             logger.exception("vrm-fleet refresh-snapshots: alert pass failed (snapshots are unaffected)")
-        # Emails only go out for persisted alerts, and only if ALERTS_EMAIL is on.
-        if alerts_service.alerts_mode() == "live" and alerts_delivery.email_mode() != "off":
+        # Notifications only go out for persisted alerts, and only on a channel
+        # that is switched on (ALERTS_EMAIL and/or ALERTS_PUSH).
+        if alerts_service.alerts_mode() == "live" and (alerts_delivery.email_mode() != "off" or alerts_push.push_enabled()):
             try:
-                logger.info("vrm-fleet refresh-snapshots: alert emails %s", alerts_delivery.deliver_pending())
+                logger.info("vrm-fleet refresh-snapshots: alert notifications %s", alerts_delivery.deliver_pending())
             except Exception:  # noqa: BLE001
-                logger.exception("vrm-fleet refresh-snapshots: alert emails failed (snapshots are unaffected)")
+                logger.exception("vrm-fleet refresh-snapshots: alert notifications failed (snapshots are unaffected)")
 
     logger.info("vrm-fleet refresh-snapshots: checked=%d refreshed=%d skipped=%d failed=%d in %.1fs",
                 len(sites), refreshed, skipped, failed, time.monotonic() - started)

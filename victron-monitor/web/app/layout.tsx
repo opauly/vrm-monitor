@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { fontVariables } from './fonts';
 import { SITE_URL } from '@/lib/site';
 import { PostHogProvider } from '@/components/analytics/PostHogProvider';
@@ -24,7 +24,16 @@ export const metadata: Metadata = {
   },
   description:
     'VRM Monitor turns the Victron VRM export nobody opens into a branded, AI-narrated report your customers actually read — automatically, every week.',
+  // Home Screen install (see app/manifest.ts): iOS reads the apple-touch-icon
+  // and these web-app flags; Android/desktop read the manifest.
+  icons: {
+    icon: [{ url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
+    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+  },
+  appleWebApp: { capable: true, title: 'VRM Monitor', statusBarStyle: 'black-translucent' },
 };
+
+export const viewport: Viewport = { themeColor: '#0b2231' };
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   // Font variable classNames go on <html> (not <body>) so every CSS Module

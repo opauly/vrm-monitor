@@ -1,0 +1,57 @@
+/* Same section-label look as the other /app/alerts headings. */
+.label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--victron-glow);
+  margin: 28px 0 12px;
+}
+.intro {
+  color: var(--paper-dim);
+  max-width: none;
+  margin: 0 0 12px;
+}
+.status {
+  color: var(--mute);
+  font-size: 14px;
+  max-width: none;
+  margin: 0 0 4px;
+}
+.on {
+  color: var(--good);
+  font-size: 14px;
+  max-width: none;
+  margin: 0 0 4px;
+}
+.warn {
+  color: var(--signal);
+  font-size: 14px;
+  max-width: none;
+  margin: 8px 0 0;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+.install {
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+.installTitle {
+  font-weight: 600;
+  color: var(--paper);
+  margin: 0 0 8px;
+}
+.steps {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--paper-dim);
+  font-size: 14px;
+  line-height: 1.6;
+}

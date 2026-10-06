@@ -11,11 +11,12 @@ import {
   type AlertWithSite,
 } from '@/lib/server/db';
 import { Panel, Button } from '@/components/ui';
-import { PendingSubscriptionUpsell } from '@/components/app';
+import { PendingSubscriptionUpsell, PushPanel } from '@/components/app';
 import { formatDateTimeInZone } from '@/lib/dates';
 import { describeAlert } from '@/lib/alertText';
 import { t, type Lang } from '@/lib/i18n/strings';
 import { AlertSettingsForm } from './AlertSettingsForm';
+import { sendTestPushAction, subscribePushAction, unsubscribePushAction } from './pushActions';
 import dashboardStyles from '../dashboard/dashboard.module.css';
 import styles from './alerts.module.css';
 
@@ -111,6 +112,14 @@ export default async function AlertsPage() {
           ))}
         </div>
       )}
+
+      <PushPanel
+        lang={lang}
+        vapidPublicKey={process.env.VAPID_PUBLIC_KEY?.trim() || null}
+        onSubscribe={subscribePushAction}
+        onUnsubscribe={unsubscribePushAction}
+        onTest={sendTestPushAction}
+      />
 
       <h2 className={styles.sectionLabel}>{t(lang, 'alerts_settings_title')}</h2>
       <Panel>

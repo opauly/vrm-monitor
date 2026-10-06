@@ -16,8 +16,8 @@ type Props = {
   email: string;
 };
 
-// One row per alert kind: "Show" (is it raised at all) and "Email me". Email
-// is moot when Show is off, so that box is disabled then — a disabled box is
+// One row per alert kind: "Show" (is it raised at all), "Email me" and
+// "Phone" (push). Email/Phone are moot when Show is off, so those boxes are disabled then — a disabled box is
 // not submitted, which the action reads as "off", the same outcome.
 export function AlertSettingsForm({ lang, kinds, initial, email }: Props) {
   const [state, formAction, pending] = useActionState(saveAlertSettingsAction, INITIAL_STATE);
@@ -29,6 +29,7 @@ export function AlertSettingsForm({ lang, kinds, initial, email }: Props) {
         <span>{t(lang, 'alerts_col_alert')}</span>
         <span>{t(lang, 'alerts_col_show')}</span>
         <span>{t(lang, 'alerts_col_email')}</span>
+        <span>{t(lang, 'alerts_col_push')}</span>
       </div>
 
       {kinds.map((kind) => (
@@ -50,6 +51,10 @@ export function AlertSettingsForm({ lang, kinds, initial, email }: Props) {
           <label className={styles.toggle}>
             <input type="checkbox" name={`email_${kind}`} defaultChecked={initial[kind].email} disabled={pending || !shown[kind]} />
             <span className={styles.toggleLabel}>{t(lang, 'alerts_col_email')}</span>
+          </label>
+          <label className={styles.toggle}>
+            <input type="checkbox" name={`push_${kind}`} defaultChecked={initial[kind].push} disabled={pending || !shown[kind]} />
+            <span className={styles.toggleLabel}>{t(lang, 'alerts_col_push')}</span>
           </label>
         </div>
       ))}

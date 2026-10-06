@@ -59,6 +59,9 @@ export type { CreateFeedbackFields } from './feedback';
 
 export { ALERT_KINDS, listOpenAlerts, listRecentResolvedAlerts, countOpenAlerts, getAlertPreferences, saveAlertPreferences } from './alerts';
 
+export { savePushSubscription, deletePushSubscription } from './push';
+export type { PushOwner } from './push';
+
 export { NotAuthorized } from './errors';
 
 export type { CustomerRecord, SiteRecord, IngestionLogRecord, Lang, AccountType, SystemType, ReportSchedule } from './types';

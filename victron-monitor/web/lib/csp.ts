@@ -35,6 +35,11 @@ const SHARED = [
   'frame-src https://sdk.onvopay.com https://us.posthog.com https://eu.posthog.com',
   "font-src 'self' data:",
   "object-src 'none'",
+  // The push service worker (public/sw.js). Explicit because, under the nonce
+  // policy, `script-src` carries 'strict-dynamic', which makes browsers ignore
+  // 'self' there — and worker scripts fall back to script-src when worker-src
+  // is absent, which would silently block registering the worker.
+  "worker-src 'self'",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

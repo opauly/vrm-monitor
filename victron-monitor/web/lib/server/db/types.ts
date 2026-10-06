@@ -379,4 +379,4 @@ export type AlertRecord = {
 /** An alert plus the display fields `/app/alerts` needs from its site. */
 export type AlertWithSite = AlertRecord & { site_name: string | null; site_timezone: string | null };
 
-export type AlertPreference = { enabled: boolean; email: boolean };
+export type AlertPreference = { enabled: boolean; email: boolean; push: boolean };

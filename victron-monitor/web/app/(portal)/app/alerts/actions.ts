@@ -29,7 +29,7 @@ export async function saveAlertSettingsAction(_prev: AlertSettingsState, formDat
   const prefs = Object.fromEntries(
     ALERT_KINDS.map((kind) => [
       kind,
-      { enabled: formData.get(`enabled_${kind}`) === 'on', email: formData.get(`email_${kind}`) === 'on' },
+      { enabled: formData.get(`enabled_${kind}`) === 'on', email: formData.get(`email_${kind}`) === 'on', push: formData.get(`push_${kind}`) === 'on' },
     ]),
   ) as Record<AlertKind, AlertPreference>;
 
