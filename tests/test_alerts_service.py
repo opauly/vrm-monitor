@@ -41,10 +41,21 @@ class FakeTable:
         return FakeResult(matched)
 
 
+def customer(**kw):
+    return {"id": "c1", "plan": "growth", "active": True, "provisioning_state": "active", "billing_status": "active",
+            "vrm_token_secret_id": "sec", "vrm_token_revoked_at": None, "vrm_token_last_error": None, **kw}
+
+
+PLAN_LIMITS = [{"plan_key": "default", "live_dashboard": False}, {"plan_key": "trial", "live_dashboard": False},
+               {"plan_key": "starter", "live_dashboard": False}, {"plan_key": "growth", "live_dashboard": True},
+               {"plan_key": "fleet", "live_dashboard": True}]
+
+
 @pytest.fixture
 def db(monkeypatch):
-    store = {"customers": [{"id": "c1", "vrm_token_secret_id": "sec", "vrm_token_revoked_at": None, "vrm_token_last_error": None}]}
+    store = {"customers": [customer()], "plan_limits": [dict(r) for r in PLAN_LIMITS]}
     monkeypatch.setattr(svc, "_t", lambda name: FakeTable(store, name))
+    monkeypatch.delenv("ALERTS_FORCE_CUSTOMER_IDS", raising=False)
     return store
 
 
@@ -81,17 +92,17 @@ def test_dry_run_reports_but_writes_nothing(db):
     assert db.get("alerts", []) == []
 
 
-def test_dry_run_survives_a_missing_table(monkeypatch):
+def test_dry_run_survives_a_missing_table(monkeypatch, db):
     def broken(name):
         if name == "alerts":
             raise RuntimeError("relation vrm.alerts does not exist")
-        return FakeTable({"customers": []}, name)
+        return FakeTable(db, name)
     monkeypatch.setattr(svc, "_t", broken)
     assert go(None, "dry_run", snap(soc=5))["opened"] == 1
 
 
-def test_live_missing_table_is_an_error_not_silent(monkeypatch):
-    monkeypatch.setattr(svc, "_t", lambda name: (_ for _ in ()).throw(RuntimeError("no table")) if name == "alerts" else FakeTable({"customers": []}, name))
+def test_live_missing_table_is_an_error_not_silent(monkeypatch, db):
+    monkeypatch.setattr(svc, "_t", lambda name: (_ for _ in ()).throw(RuntimeError("no table")) if name == "alerts" else FakeTable(db, name))
     with pytest.raises(RuntimeError):
         go(None, "live", snap(soc=5))
 
@@ -136,3 +147,71 @@ def test_vrm_link_broken_is_customer_level(db):
     go(db, "live", snap())
     link = [r for r in db["alerts"] if r["kind"] == A.VRM_LINK_BROKEN]
     assert len(link) == 1 and link[0]["site_id"] is None and link[0]["severity"] == A.CRITICAL
+
+
+# ── who gets alerts, and what they switched off ─────────────────────────
+def test_starter_plan_gets_no_alerts(db):
+    db["customers"][0]["plan"] = "starter"
+    assert go(db, "live", snap(soc=5))["opened"] == 0 and db.get("alerts", []) == []
+
+
+@pytest.mark.parametrize("status", ["canceled", "unpaid", "trial_expired", "beta_ended", "incomplete"])
+def test_lapsed_billing_gets_no_alerts(db, status):
+    db["customers"][0]["billing_status"] = status
+    assert go(db, "live", snap(soc=5))["opened"] == 0
+
+
+def test_inactive_or_pending_account_gets_no_alerts(db):
+    db["customers"][0]["active"] = False
+    assert go(db, "live", snap(soc=5))["opened"] == 0
+    db["customers"][0].update(active=True, provisioning_state="pending_subscription")
+    assert go(db, "live", snap(soc=5))["opened"] == 0
+
+
+def test_beta_free_tier_counts_as_entitled(db):
+    db["customers"][0]["billing_status"] = "beta"
+    assert go(db, "live", snap(soc=5))["opened"] == 1
+
+
+def test_force_list_lets_an_otherwise_ineligible_customer_through(db, monkeypatch):
+    db["customers"][0]["plan"] = "trial"
+    assert go(db, "live", snap(soc=5))["opened"] == 0
+    monkeypatch.setenv("ALERTS_FORCE_CUSTOMER_IDS", "x, c1 ,y")
+    assert go(db, "live", snap(soc=5))["opened"] == 1
+
+
+def test_a_disabled_alert_type_is_never_raised(db):
+    db["alert_preferences"] = [{"customer_id": "c1", "kind": A.LOW_BATTERY, "enabled": False, "email": True}]
+    out = go(db, "live", snap(soc=5, critical={"temp_fault": True}))
+    assert [r["kind"] for r in db["alerts"]] == [A.SYSTEM_ALARM] and out["opened"] == 1
+
+
+def test_disabling_an_alert_type_closes_the_open_one_silently(db):
+    go(db, "live", snap(soc=5))
+    db["alerts"][0]["notified_at"] = "2026-10-05T17:00:00+00:00"
+    db["alert_preferences"] = [{"customer_id": "c1", "kind": A.LOW_BATTERY, "enabled": False, "email": True}]
+    out = go(db, "live", snap(soc=5))
+    row = db["alerts"][0]
+    assert out["closed_silently"] == 1 and row["status"] == "resolved"
+    assert row["resolved_notified_at"] == NOW.isoformat()         # so no "back to normal" email follows
+    assert out["resolved"] == 0                                    # not counted as a normal resolution
+
+
+def test_losing_the_tier_closes_open_alerts_silently(db):
+    go(db, "live", snap(soc=5))
+    db["customers"][0]["plan"] = "starter"
+    assert go(db, "live", snap(soc=5))["closed_silently"] == 1 and db["alerts"][0]["status"] == "resolved"
+
+
+def test_email_off_alone_does_not_stop_the_alert_being_raised(db):
+    db["alert_preferences"] = [{"customer_id": "c1", "kind": A.LOW_BATTERY, "enabled": True, "email": False}]
+    assert go(db, "live", snap(soc=5))["opened"] == 1
+
+
+def test_missing_preferences_table_means_defaults(monkeypatch, db):
+    def maybe(name):
+        if name == "alert_preferences":
+            raise RuntimeError("relation does not exist")
+        return FakeTable(db, name)
+    monkeypatch.setattr(svc, "_t", maybe)
+    assert go(db, "live", snap(soc=5))["opened"] == 1

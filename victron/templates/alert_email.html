@@ -76,6 +76,7 @@
               <td style="padding:12px 32px 28px 32px;">
                 <p style="margin:0; font-size:12px; line-height:1.5; color:#7fa0b3;">
                   {{ t.alert_footer }}
+                  {% if settings_url %}<a href="{{ settings_url }}" style="color:#4fc8ec; text-decoration:underline;">{{ t.alert_manage }}</a>{% endif %}
                 </p>
               </td>
             </tr>

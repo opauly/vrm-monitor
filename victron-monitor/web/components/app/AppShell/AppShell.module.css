@@ -80,6 +80,21 @@
 .navLink:hover {
   color: var(--paper);
 }
+/* Count pill after a nav label (open alerts). */
+.navCount {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--signal);
+  color: var(--ink);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  vertical-align: middle;
+}
 /* Light highlighting for whichever tab matches the current route (2026-09-02,
    Oscar's own request) — a soft pill, not the bolder `.navLinkPersonal`
    treatment, since this is "where you are," not "a different kind of link." */

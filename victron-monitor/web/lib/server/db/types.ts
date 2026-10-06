@@ -354,3 +354,29 @@ export type AppSettingRecord = {
   updated_at: string;
   updated_by_email: string | null;
 };
+
+
+// vrm.alerts / vrm.alert_preferences (victron-monitor/sql/vrm_alerts.sql,
+// vrm_alert_preferences.sql) — written by the Python refresh sweep
+// (`vrm_api/alerts_service.py`), read here for `/app/alerts`.
+export type AlertKind = 'site_offline' | 'grid_outage' | 'low_battery' | 'system_alarm' | 'vrm_link_broken';
+export type AlertSeverity = 'warning' | 'critical';
+
+export type AlertRecord = {
+  id: number;
+  customer_id: string;
+  /** `null` for the one customer-level kind (`vrm_link_broken`). */
+  site_id: string | null;
+  kind: AlertKind;
+  severity: AlertSeverity;
+  status: 'open' | 'resolved';
+  opened_at: string;
+  resolved_at: string | null;
+  /** Shape varies by kind: `soc_pct`, `minutes_silent`, `last_seen`, `alarms`, ... */
+  detail: Record<string, unknown>;
+};
+
+/** An alert plus the display fields `/app/alerts` needs from its site. */
+export type AlertWithSite = AlertRecord & { site_name: string | null; site_timezone: string | null };
+
+export type AlertPreference = { enabled: boolean; email: boolean };

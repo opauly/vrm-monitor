@@ -5,6 +5,7 @@ import pytest
 
 from victron import alerts as A
 from vrm_api import alerts_delivery as ad
+from vrm_api import alerts_service as svc
 
 NOW = datetime(2026, 10, 5, 18, 0, tzinfo=timezone.utc)
 
@@ -58,6 +59,7 @@ def env(monkeypatch):
     }
     sent = []
     monkeypatch.setattr(ad, "_t", lambda name: Table(store, name))
+    monkeypatch.setattr(svc, "_t", lambda name: Table(store, name))          # load_preferences() reads through the service module
     monkeypatch.setattr(ad, "mailer_send", lambda to, subject, html, **kw: sent.append({"to": to, "subject": subject, "html": html}))
     monkeypatch.setenv("ALERTS_EMAIL_TEST_TO", "")
     return store, sent
@@ -231,3 +233,29 @@ def test_every_kind_has_text_in_both_languages():
         t = email_i18n.get(lang)
         for kind in A.KINDS:
             assert t[f"alert_{kind}_title"] and t[f"alert_{kind}_resolved"]
+
+
+# ── email preference + manage link ──────────────────────────────────────
+def test_email_off_for_a_kind_suppresses_that_kind_only(env):
+    store, sent = env
+    store["alert_preferences"] = [{"customer_id": "c1", "kind": A.LOW_BATTERY, "enabled": True, "email": False}]
+    muted = alert(store, kind=A.LOW_BATTERY)
+    alert(store, kind=A.SITE_OFFLINE, detail={"last_seen": ago(minutes=60), "minutes_silent": 60})
+    out = run()
+    assert len(sent) == 1 and sent[0]["subject"] == "El Encino stopped reporting"
+    assert out["suppressed"] == 1 and muted["notified_at"] and muted["resolved_notified_at"]
+
+
+def test_email_off_also_silences_the_back_to_normal_notice(env):
+    store, sent = env
+    store["alert_preferences"] = [{"customer_id": "c1", "kind": A.LOW_BATTERY, "enabled": True, "email": False}]
+    alert(store, status="resolved", notified_at=ago(hours=1), resolved_at=ago(minutes=3))
+    run()
+    assert not sent
+
+
+def test_email_links_to_the_alert_settings(env):
+    store, sent = env
+    alert(store)
+    run()
+    assert 'href="https://vrm.example.com/app/alerts"' in sent[0]["html"] and "Choose which alerts you get" in sent[0]["html"]

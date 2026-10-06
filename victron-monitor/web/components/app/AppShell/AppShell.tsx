@@ -27,6 +27,8 @@ export type AppNavItem = {
    * any subscriber until he explicitly links it to one. Optional and
    * unused by `/app`'s customer nav — no behavior change there. */
   personal?: boolean;
+  /** A small count pill after the label (e.g. open alerts); omitted or 0 shows nothing. */
+  count?: number;
 };
 
 export type AppShellProps = {
@@ -90,6 +92,7 @@ export function AppShell({ role, email, navItems, lang, badge, feedbackSites, ch
             {mainItems.map((item) => (
               <NavLink key={item.href} href={item.href} className={styles.navLink} activeClassName={styles.navLinkActive}>
                 {item.label}
+                {item.count ? <span className={styles.navCount}>{item.count > 99 ? '99+' : item.count}</span> : null}
               </NavLink>
             ))}
           </nav>

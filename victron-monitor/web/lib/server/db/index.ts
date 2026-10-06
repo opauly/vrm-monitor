@@ -57,7 +57,10 @@ export type { ReportRunRecord } from './reportRuns';
 export { createFeedback } from './feedback';
 export type { CreateFeedbackFields } from './feedback';
 
+export { ALERT_KINDS, listOpenAlerts, listRecentResolvedAlerts, countOpenAlerts, getAlertPreferences, saveAlertPreferences } from './alerts';
+
 export { NotAuthorized } from './errors';
 
 export type { CustomerRecord, SiteRecord, IngestionLogRecord, Lang, AccountType, SystemType, ReportSchedule } from './types';
 export type { FeedbackRecord, FeedbackKind, FeedbackSeverity } from './types';
+export type { AlertKind, AlertSeverity, AlertRecord, AlertWithSite, AlertPreference } from './types';

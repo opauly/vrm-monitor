@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { AppShell, type AppNavItem } from '@/components/app';
 import { requireCustomerAllowPending } from '@/lib/server/auth';
-import { getCustomer, listSites } from '@/lib/server/db';
+import { countOpenAlerts, getCustomer, listSites } from '@/lib/server/db';
 import { t } from '@/lib/i18n/strings';
 
 // First statement of the layout, per PLAN_PHASE14.md §1.2 rule 4 —
@@ -33,7 +33,11 @@ export default async function PortalLayout({ children }: { children: ReactNode }
   // sites for the feedback widget's site select (fetched once here, per
   // the plan's own "the options list is passed from the layout" — never
   // refetched by the widget itself).
-  const [customer, sites] = await Promise.all([getCustomer(session.customerId), listSites(session.customerId)]);
+  const [customer, sites, openAlerts] = await Promise.all([
+    getCustomer(session.customerId),
+    listSites(session.customerId),
+    countOpenAlerts(session.customerId),
+  ]);
   const badge = customer.billing_status === 'beta' ? t(session.uiLanguage, 'nav_beta_badge') : undefined;
   const feedbackSites = sites.map((s) => ({ site_id: s.site_id, display_name: s.display_name }));
 
@@ -47,6 +51,10 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     // real content vs. one of two upsells (pending-subscription vs.
     // tier), same as /app/branding below.
     { href: '/app/dashboard', label: t(session.uiLanguage, 'nav_dashboard') },
+    // Open-alert count in a pill. Shown to every tier like the dashboard tab —
+    // the page decides real content vs. upsell, and a customer without live
+    // monitoring never has open alerts (the sweep doesn't raise them).
+    { href: '/app/alerts', label: t(session.uiLanguage, 'nav_alerts'), count: openAlerts || undefined },
     { href: '/app/branding', label: t(session.uiLanguage, 'nav_branding') },
     { href: '/app/billing', label: t(session.uiLanguage, 'nav_billing') },
     { href: '/app/profile', label: t(session.uiLanguage, 'nav_profile') },

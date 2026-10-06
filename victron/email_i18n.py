@@ -82,8 +82,8 @@ EN = {
     "alert_multi_subject": "{n} updates on your systems",
     "alert_view_site": "View site",
     "alert_reconnect": "Reconnect VRM",
-    "alert_footer": "You are receiving this because alerts are turned on for your account. "
-                    "To stop them, reply to this email.",
+    "alert_footer": "You are receiving this because alerts are turned on for your account.",
+    "alert_manage": "Choose which alerts you get",
     "alert_site_offline_title": "{site} stopped reporting",
     "alert_site_offline_body": "No data has arrived since {since} ({minutes} minutes). "
                                "Check the site's internet connection and power.",
@@ -168,8 +168,8 @@ ES = dict(EN, **{
     "alert_multi_subject": "{n} novedades en tus sistemas",
     "alert_view_site": "Ver sitio",
     "alert_reconnect": "Reconectar VRM",
-    "alert_footer": "Recibes esto porque las alertas están activadas en tu cuenta. "
-                    "Para dejar de recibirlas, responde a este correo.",
+    "alert_footer": "Recibes esto porque las alertas están activadas en tu cuenta.",
+    "alert_manage": "Elige qué alertas recibir",
     "alert_site_offline_title": "{site} dejó de reportar",
     "alert_site_offline_body": "No llegan datos desde {since} ({minutes} minutos). "
                                "Revisa la conexión a internet y la energía del sitio.",

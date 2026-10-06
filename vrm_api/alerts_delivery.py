@@ -44,6 +44,7 @@ from victron import email_i18n
 from victron.mailer import MailerError
 from victron.mailer import send as mailer_send
 from victron.vrm_series import DEFAULT_TZ_NAME
+from vrm_api.alerts_service import load_preferences
 
 logger = logging.getLogger("vrm_api.alerts_delivery")
 
@@ -169,15 +170,22 @@ def deliver_pending(*, now: datetime | None = None, mode: str | None = None, sit
             alerts.update({"resolved_notified_at": stamp}).in_("id", [r["id"] for r in rows]).execute()
             summary["suppressed"] += len(rows)
 
+    # "Show in the app but don't email me" (vrm.alert_preferences.email = false):
+    # handled like any other suppressed notice, both stamps set.
+    prefs = load_preferences(sorted({a["customer_id"] for a in opens + resolves}))
+
+    def emailable(a: dict) -> bool:
+        return prefs.get((a["customer_id"], a["kind"]), {}).get("email", True)
+
     keep_opens: list[dict] = []
     drop: list[dict] = []
     for a in opens:
         opened = _parse(a.get("opened_at")) or now
         flapping = any(key(r) == key(a) and r["id"] != a["id"] for r in recent)
-        (drop if (now - opened > MAX_NOTIFY_AGE or flapping) else keep_opens).append(a)
+        (drop if (now - opened > MAX_NOTIFY_AGE or flapping or not emailable(a)) else keep_opens).append(a)
     suppress(drop)
 
-    keep_resolves = [a for a in resolves if now - (_parse(a.get("resolved_at")) or now) <= MAX_NOTIFY_AGE]
+    keep_resolves = [a for a in resolves if now - (_parse(a.get("resolved_at")) or now) <= MAX_NOTIFY_AGE and emailable(a)]
     stale = [a for a in resolves if a not in keep_resolves]
     if stale:
         alerts.update({"resolved_notified_at": stamp}).in_("id", [a["id"] for a in stale]).execute()
@@ -241,7 +249,9 @@ def deliver_pending(*, now: datetime | None = None, mode: str | None = None, sit
             to = test_to
 
         try:
-            html = env.get_template("alert_email.html").render(lang=lang, t=strings, subject=subject, sections=sections)
+            html = env.get_template("alert_email.html").render(
+                lang=lang, t=strings, subject=subject, sections=sections,
+                settings_url=f"{site_url.rstrip('/')}/app/alerts" if site_url else None)
             mailer_send(to, subject, html)
         except Exception as exc:  # noqa: BLE001 — release the claim so the next sweep retries
             logger.warning("alerts_delivery: could not email customer %s: %s", customer_id, exc if isinstance(exc, MailerError) else type(exc).__name__)

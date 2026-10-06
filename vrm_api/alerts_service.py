@@ -24,6 +24,12 @@ logger = logging.getLogger("vrm_api.alerts")
 
 _MODES = ("off", "dry_run", "live")
 
+# Mirrors `lib/server/db/fleetDashboard.ts:isEntitled()` — alerts are part of
+# the live-monitoring tier, so they follow the same rule as the live dashboard:
+# the plan allows it (`plan_limits.live_dashboard`) AND the account is active,
+# provisioned and not in a lapsed billing state.
+_NOT_ENTITLED_STATUSES = {"incomplete", "unpaid", "canceled", "trial_expired", "beta_ended"}
+
 
 def alerts_mode() -> str:
     mode = os.environ.get("ALERTS_MODE", "off").strip().lower()
@@ -32,6 +38,44 @@ def alerts_mode() -> str:
 
 def _t(name: str):
     return get_client().schema("vrm").table(name)
+
+
+def _forced_customer_ids() -> set[str]:
+    """Customers that get alerts regardless of plan — `ALERTS_FORCE_CUSTOMER_IDS`
+    (comma-separated). For Pauly & Co's own portfolio account, which sits on the
+    `trial` plan (no live dashboard) but whose sites are exactly the ones
+    to watch. An explicit list, not a name match or a plan special-case."""
+    return {x.strip() for x in os.environ.get("ALERTS_FORCE_CUSTOMER_IDS", "").split(",") if x.strip()}
+
+
+def eligible_customer_ids(customer_ids: list[str]) -> set[str]:
+    """Which of these customers are entitled to alerts."""
+    if not customer_ids:
+        return set()
+    plans = {r["plan_key"]: bool(r.get("live_dashboard")) for r in (_t("plan_limits").select("plan_key, live_dashboard").execute().data or [])}
+    default_allowed = plans.get("default", False)
+    rows = (_t("customers").select("id, plan, active, provisioning_state, billing_status").in_("id", customer_ids).execute().data or [])
+    eligible = set()
+    for c in rows:
+        entitled = bool(c.get("active")) and c.get("provisioning_state") == "active" \
+            and c.get("billing_status") not in _NOT_ENTITLED_STATUSES
+        if entitled and plans.get(c.get("plan") or "default", default_allowed):
+            eligible.add(c["id"])
+    return eligible | (_forced_customer_ids() & set(customer_ids))
+
+
+def load_preferences(customer_ids: list[str]) -> dict[tuple[str, str], dict]:
+    """`{(customer_id, kind): {"enabled": bool, "email": bool}}` for saved rows only;
+    a missing row means the defaults (everything on). A missing table (migration not
+    run yet) is treated the same way, so deploying ahead of the SQL is safe."""
+    if not customer_ids:
+        return {}
+    try:
+        rows = _t("alert_preferences").select("customer_id, kind, enabled, email").in_("customer_id", customer_ids).execute().data or []
+    except Exception:  # noqa: BLE001
+        logger.info("alerts: vrm.alert_preferences is not readable yet — using defaults")
+        return {}
+    return {(r["customer_id"], r["kind"]): {"enabled": r["enabled"], "email": r["email"]} for r in rows}
 
 
 def _grid_imported_recently(rows: list[dict], now: datetime) -> bool:
@@ -100,6 +144,17 @@ def run_alert_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]],
         if a.get("site_id"):
             open_kinds.setdefault(a["site_id"], set()).add(a["kind"])
 
+    eligible = eligible_customer_ids(customer_ids)
+    prefs = load_preferences(customer_ids)
+
+    def allowed(customer_id: str, kind: str) -> bool:
+        return customer_id in eligible and prefs.get((customer_id, kind), {}).get("enabled", True)
+
+    # Open alerts that should no longer exist at all (customer lost the tier, or
+    # switched that alert type off): closed silently below — no email either way.
+    silent_close = [a for a in open_alerts if not allowed(a["customer_id"], a["kind"])]
+    open_alerts = [a for a in open_alerts if allowed(a["customer_id"], a["kind"])]
+
     conditions: list[rules.Condition] = []
     for site, (status, snapshot) in zip(sites, fetched):
         conditions += rules.evaluate_site(
@@ -119,9 +174,10 @@ def run_alert_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]],
             if link is not None:
                 conditions.append(link)
 
+    conditions = [c for c in conditions if allowed(c.customer_id, c.kind)]
     transitions = rules.reconcile(conditions, open_alerts)
     summary = {
-        "mode": mode,
+        "mode": mode, "closed_silently": len(silent_close),
         "opened": len(transitions.opened), "escalated": len(transitions.escalated),
         "updated": len(transitions.updated), "resolved": len(transitions.resolved),
     }
@@ -136,4 +192,12 @@ def run_alert_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]],
         return summary
 
     summary["applied"] = apply_transitions(_t("alerts"), transitions, now)
+    if silent_close:
+        stamp = now.isoformat()
+        try:
+            _t("alerts").update({"status": "resolved", "resolved_at": stamp, "updated_at": stamp,
+                                 "notified_at": stamp, "resolved_notified_at": stamp}) \
+                .in_("id", [a["id"] for a in silent_close]).execute()
+        except Exception:  # noqa: BLE001
+            logger.exception("alerts: could not close %d disabled/ineligible alert(s)", len(silent_close))
     return summary

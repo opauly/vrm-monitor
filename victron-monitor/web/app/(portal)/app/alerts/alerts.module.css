@@ -1,0 +1,191 @@
+/* /app/alerts — severity colours match the alert email and the fleet
+   dashboard's signal colours (amber warning, red critical, green resolved). */
+.intro {
+  color: var(--paper-dim);
+  max-width: none;
+  margin-bottom: 24px;
+}
+
+.sectionLabel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--victron-glow);
+  margin: 28px 0 12px;
+}
+.empty {
+  color: var(--mute);
+  font-size: 14px;
+  max-width: none;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
+}
+.cardCritical {
+  border-left-color: #ef6a6a;
+}
+.cardWarning {
+  border-left-color: var(--signal);
+}
+.cardResolved {
+  border-left-color: var(--good);
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.severity {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.cardCritical .severity {
+  color: #ef6a6a;
+}
+.cardWarning .severity {
+  color: var(--signal);
+}
+.cardTitle {
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1.35;
+  color: var(--paper);
+  margin: 0 0 4px;
+}
+.cardBody {
+  font-size: 14px;
+  color: var(--paper-dim);
+  max-width: none;
+  margin: 0 0 8px;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--mute);
+}
+.cardLink {
+  color: var(--victron-glow);
+  text-decoration: none;
+  font-weight: 600;
+}
+.cardLink:hover {
+  text-decoration: underline;
+}
+
+.settingsIntro {
+  color: var(--paper-dim);
+  max-width: none;
+  margin-bottom: 14px;
+}
+.settingsForm {
+  display: flex;
+  flex-direction: column;
+}
+.settingsHead,
+.settingsRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px 130px;
+  gap: 16px;
+  align-items: center;
+}
+.settingsHead {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mute);
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+.settingsRow {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.kindName {
+  font-weight: 600;
+  color: var(--paper);
+}
+.kindDesc {
+  font-size: 12.5px;
+  color: var(--mute);
+  line-height: 1.45;
+  margin-top: 2px;
+}
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--victron);
+  cursor: pointer;
+}
+.toggle input:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+/* The column headings label these on desktop; on a phone the headings are
+   gone, so each checkbox carries its own label. */
+.toggleLabel {
+  display: none;
+  font-size: 13px;
+  color: var(--paper-dim);
+}
+.emailNote {
+  font-size: 12.5px;
+  color: var(--mute);
+  max-width: none;
+  margin: 14px 0 0;
+}
+.formActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 16px;
+}
+.saved {
+  color: var(--good);
+  font-size: 13px;
+}
+.error {
+  color: var(--signal);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .settingsHead {
+    display: none;
+  }
+  .settingsRow {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 16px;
+  }
+  .settingsRow > :first-child {
+    grid-column: 1 / -1;
+  }
+  .toggleLabel {
+    display: inline;
+  }
+}
