@@ -4,6 +4,8 @@
    one system. */
 .section {
   margin-bottom: 28px;
+  /* The container the aside's wide-screen breakpoint below measures. */
+  container-type: inline-size;
 }
 .title {
   font-family: var(--font-mono);
@@ -142,4 +144,26 @@
 .reasonsAlone {
   margin-left: 0;
   text-align: left;
+}
+
+/* An aside card (site pages: scores + energy sources) goes below the block,
+   centred, until there is room for it as a third column beside the panels. */
+.aside {
+  min-width: 0;
+}
+.withAside .aside {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: min(100%, 440px);
+}
+@container (min-width: 1120px) {
+  .withAside {
+    grid-template-columns: minmax(0, 420px) minmax(0, 310px) minmax(0, 330px);
+    gap: 24px 32px;
+  }
+  .withAside .aside {
+    grid-column: auto;
+    justify-self: stretch;
+    width: auto;
+  }
 }

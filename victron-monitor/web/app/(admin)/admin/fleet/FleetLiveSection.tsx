@@ -5,6 +5,7 @@
 // capacity, and what needs attention right now. Pure
 // presentational, same as FlowDiagram: everything is derived from the site
 // rows the page already fetched, no extra queries, no client state.
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import type { FleetOverviewRow } from '@/lib/server/db/fleetOverviewCore';
 import { t, type Lang } from '@/lib/i18n/strings';
@@ -50,6 +51,7 @@ export function FleetLiveSection({
   loadLabel,
   siteHrefBase,
   scope = 'fleet',
+  aside,
 }: {
   sites: FleetOverviewRow[];
   lang: Lang;
@@ -60,6 +62,9 @@ export function FleetLiveSection({
    * "across all sites" framing and the attention panel lists its reasons
    * instead of linking to itself. */
   scope?: 'fleet' | 'site';
+  /** Optional extra card (site pages: health scores + energy sources), shown as a
+   * third column on wide screens and below the block otherwise. */
+  aside?: ReactNode;
 }) {
   const single = scope === 'site';
   // A stale site's last snapshot still has real (once-live) readings sitting
@@ -114,7 +119,7 @@ export function FleetLiveSection({
       <h2 className={styles.title}>{t(lang, 'fleet_live_title')}</h2>
       <p className={styles.sub}>{t(lang, single ? 'site_live_sub' : 'fleet_live_sub')}</p>
 
-      <div className={styles.grid}>
+      <div className={`${styles.grid} ${aside ? styles.withAside : ''}`}>
         <div className={styles.flow}>
           <FlowDiagram
             lang={lang}
@@ -232,6 +237,8 @@ export function FleetLiveSection({
             )}
           </div>
         </div>
+
+        {aside && <div className={styles.aside}>{aside}</div>}
       </div>
     </div>
   );

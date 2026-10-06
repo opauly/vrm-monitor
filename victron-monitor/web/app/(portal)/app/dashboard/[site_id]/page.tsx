@@ -156,6 +156,106 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
   const site = await getCustomerFleetSiteDetail(session.customerId, site_id);
   if (!site) notFound();
 
+  // Scores and today's energy sources, as one compact card beside the live-flow
+  // panels (a third column on wide screens, below them otherwise).
+  const healthAside = (
+    <div className={styles.healthCard}>
+      <h2 className={styles.healthTitle}>
+        {site.health_metrics_date
+          ? t(lang, 'admin_fleetsite_as_of_date').replace('{date}', site.health_metrics_date)
+          : t(lang, 'admin_fleetsite_today_glance')}
+      </h2>
+      <div className={styles.scoreBlockRow}>
+          <div className={styles.scoreBlock}>
+            <div className={styles.scoreBlockLabel}>
+              {t(lang, 'admin_fleetsite_score_system_label')}
+              <InfoTooltip label={t(lang, 'score_info_system_tooltip_label')}>{systemScoreInfo(lang)}</InfoTooltip>
+            </div>
+            <div className={styles.healthRow}>
+              <span className={`${styles.healthBadge} ${healthClass(site.system_score)}`}>
+                {site.system_score === null ? '—' : `${site.system_score}/100`}
+              </span>
+              {site.system_status && <span className={styles.healthStatus}>{site.system_status}</span>}
+            </div>
+            {site.system_score !== null && healthNotesList(site.system_notes).length > 0 && (
+              <details className={styles.notesDetails}>
+                <summary className={styles.notesToggle}>{t(lang, 'score_notes_toggle')}</summary>
+                <ul className={styles.healthNotes}>
+                  {healthNotesList(site.system_notes).map((note, i) => (
+                    <li key={i}>{note}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+          <div className={styles.scoreBlock}>
+            <div className={styles.scoreBlockLabel}>
+              {t(lang, 'admin_fleetsite_kpi_grid')}
+              <InfoTooltip label={t(lang, 'score_info_grid_tooltip_label')}>{gridScoreInfo(lang)}</InfoTooltip>
+            </div>
+            {site.grid_score === null ? (
+              <div className={styles.sub}>{t(lang, 'admin_fleetsite_no_grid_connection')}</div>
+            ) : (
+              <>
+                <div className={styles.healthRow}>
+                  <span className={`${styles.healthBadge} ${healthClass(site.grid_score)}`}>
+                    {site.grid_score}/100
+                  </span>
+                  {site.grid_status && <span className={styles.healthStatus}>{site.grid_status}</span>}
+                </div>
+                {healthNotesList(site.grid_notes).length > 0 && (
+                  <details className={styles.notesDetails}>
+                    <summary className={styles.notesToggle}>{t(lang, 'score_notes_toggle')}</summary>
+                    <ul className={styles.healthNotes}>
+                      {healthNotesList(site.grid_notes).map((note, i) => (
+                        <li key={i}>{note}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </>
+            )}
+          </div>
+      </div>
+      <div className={styles.gaugeStack}>
+          <Gauge
+            pct={site.self_sufficiency_pct}
+            color="var(--good)"
+            label={t(lang, 'admin_fleet_card_self_sufficiency_label')}
+            desc={
+              site.self_sufficiency_pct === null
+                ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
+                : t(lang, 'admin_fleetsite_gauge_self_suff_desc').replace('{pct}', String(site.self_sufficiency_pct))
+            }
+          />
+          <Gauge
+            pct={site.self_consumption_pct}
+            color="var(--victron-glow)"
+            label={t(lang, 'admin_fleet_card_self_consumption_label')}
+            desc={
+              site.self_consumption_pct === null
+                ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
+                : t(lang, 'admin_fleetsite_gauge_self_cons_desc').replace('{pct}', String(site.self_consumption_pct))
+            }
+          />
+          <Gauge
+            pct={site.dod_pct}
+            color="var(--signal)"
+            label={t(lang, 'admin_fleetsite_gauge_dod_label')}
+            desc={
+              site.dod_pct === null
+                ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
+                : t(lang, 'admin_fleetsite_gauge_dod_desc').replace('{pct}', String(site.dod_pct))
+            }
+          />
+      </div>
+      <p className={styles.healthSub}>
+        {t(lang, 'admin_fleetsite_gauge_sub_1')} <code>vrm.energy_daily</code> / <code>vrm.daily_health</code>{' '}
+        {t(lang, 'admin_fleetsite_gauge_sub_2')}
+      </p>
+    </div>
+  );
+
   return (
     <div>
       <div className={styles.crumb}>
@@ -247,121 +347,8 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
         </div>
       </div>
 
-      <FleetLiveSection sites={[site]} lang={lang} siteHrefBase="/app/dashboard/" scope="site" />
+      <FleetLiveSection sites={[site]} lang={lang} siteHrefBase="/app/dashboard/" scope="site" aside={healthAside} />
 
-      <section className={styles.healthSection}>
-        <h2 className={styles.healthTitle}>
-            {site.health_metrics_date
-              ? t(lang, 'admin_fleetsite_as_of_date').replace('{date}', site.health_metrics_date)
-              : t(lang, 'admin_fleetsite_today_glance')}
-        </h2>
-        <p className={styles.healthSub}>
-            {t(lang, 'admin_fleetsite_gauge_sub_1')} <code>vrm.energy_daily</code> / <code>vrm.daily_health</code>{' '}
-            {t(lang, 'admin_fleetsite_gauge_sub_2')}
-        </p>
-
-        {/* Split into System (equipment: alarms, SOC, cycling, temperature,
-              voltage, float charge) and Grid (outages, grid dependency)
-              scores, 2026-09-18 — a covered outage the battery held fine no
-              longer drags down a single blended number that reads as
-              "something's wrong" when nothing actually is. */}
-        <div className={styles.healthGrid}>
-          <div className={styles.healthCol}>
-            <div className={styles.miniCard}>
-              <div className={styles.scoreBlock}>
-                <div className={styles.scoreBlockLabel}>
-                  {t(lang, 'admin_fleetsite_score_system_label')}
-                  <InfoTooltip label={t(lang, 'score_info_system_tooltip_label')}>{systemScoreInfo(lang)}</InfoTooltip>
-                </div>
-                <div className={styles.healthRow}>
-                  <span className={`${styles.healthBadge} ${healthClass(site.system_score)}`}>
-                    {site.system_score === null ? '—' : `${site.system_score}/100`}
-                  </span>
-                  {site.system_status && <span className={styles.healthStatus}>{site.system_status}</span>}
-                </div>
-                {site.system_score !== null && healthNotesList(site.system_notes).length > 0 && (
-                  <details className={styles.notesDetails}>
-                    <summary className={styles.notesToggle}>{t(lang, 'score_notes_toggle')}</summary>
-                    <ul className={styles.healthNotes}>
-                      {healthNotesList(site.system_notes).map((note, i) => (
-                        <li key={i}>{note}</li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </div>
-            </div>
-            <div className={styles.miniCard}>
-              <div className={styles.scoreBlock}>
-                <div className={styles.scoreBlockLabel}>
-                  {t(lang, 'admin_fleetsite_kpi_grid')}
-                  <InfoTooltip label={t(lang, 'score_info_grid_tooltip_label')}>{gridScoreInfo(lang)}</InfoTooltip>
-                </div>
-                {site.grid_score === null ? (
-                  <div className={styles.sub}>{t(lang, 'admin_fleetsite_no_grid_connection')}</div>
-                ) : (
-                  <>
-                    <div className={styles.healthRow}>
-                      <span className={`${styles.healthBadge} ${healthClass(site.grid_score)}`}>
-                        {site.grid_score}/100
-                      </span>
-                      {site.grid_status && <span className={styles.healthStatus}>{site.grid_status}</span>}
-                    </div>
-                    {healthNotesList(site.grid_notes).length > 0 && (
-                      <details className={styles.notesDetails}>
-                        <summary className={styles.notesToggle}>{t(lang, 'score_notes_toggle')}</summary>
-                        <ul className={styles.healthNotes}>
-                          {healthNotesList(site.grid_notes).map((note, i) => (
-                            <li key={i}>{note}</li>
-                          ))}
-                        </ul>
-                      </details>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className={styles.healthCol}>
-            <div className={styles.miniCard}>
-              <Gauge
-                pct={site.self_sufficiency_pct}
-                color="var(--good)"
-                label={t(lang, 'admin_fleet_card_self_sufficiency_label')}
-                desc={
-                  site.self_sufficiency_pct === null
-                    ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
-                    : t(lang, 'admin_fleetsite_gauge_self_suff_desc').replace('{pct}', String(site.self_sufficiency_pct))
-                }
-              />
-            </div>
-            <div className={styles.miniCard}>
-              <Gauge
-                pct={site.self_consumption_pct}
-                color="var(--victron-glow)"
-                label={t(lang, 'admin_fleet_card_self_consumption_label')}
-                desc={
-                  site.self_consumption_pct === null
-                    ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
-                    : t(lang, 'admin_fleetsite_gauge_self_cons_desc').replace('{pct}', String(site.self_consumption_pct))
-                }
-              />
-            </div>
-            <div className={styles.miniCard}>
-              <Gauge
-                pct={site.dod_pct}
-                color="var(--signal)"
-                label={t(lang, 'admin_fleetsite_gauge_dod_label')}
-                desc={
-                  site.dod_pct === null
-                    ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
-                    : t(lang, 'admin_fleetsite_gauge_dod_desc').replace('{pct}', String(site.dod_pct))
-                }
-              />
-            </div>
-          </div>
-        </div>
-      </section>
 
       <div className={styles.gaugeCard} style={{ marginBottom: 24 }}>
         <h2 id="insights">
