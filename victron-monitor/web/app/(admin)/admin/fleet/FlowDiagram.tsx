@@ -173,7 +173,7 @@ export function FlowDiagram({
 
   const soc = socPct === null ? null : Math.min(Math.max(socPct, 0), 100);
 
-  return (
+  const diagram = (
     <div className={styles.flow}>
       <svg className={styles.lines} viewBox="0 0 400 420" preserveAspectRatio="none" aria-hidden="true">
         <path className={`${lineClass(solarLine)} ${styles.solarHome}`} style={solarLine.style} d="M 75 40 Q 180 55 195 120" />
@@ -258,13 +258,14 @@ export function FlowDiagram({
               const sin = Math.sin(radians);
               const cos = Math.cos(radians);
               // Ring radius (41) + a gap, plus however much of the label's own
-              // half-width/half-height sticks out along this direction.
+              // half-width/half-height sticks out along this direction — in
+              // design units, scaled by --u like everything else.
               const radius = 41 + 5 + Math.abs(sin) * 13 + Math.abs(cos) * 6;
               return (
                 <span
                   key={label.key}
                   className={styles.mixLabel}
-                  style={{ color: label.color, left: `calc(50% + ${(radius * sin).toFixed(1)}px)`, top: `calc(50% + ${(-radius * cos).toFixed(1)}px)` }}
+                  style={{ color: label.color, left: `calc(50% + ${(radius * sin).toFixed(1)} * var(--u))`, top: `calc(50% + ${(-radius * cos).toFixed(1)} * var(--u))` }}
                 >
                   {pct(label.fraction)}%
                 </span>
@@ -310,4 +311,7 @@ export function FlowDiagram({
       </div>
     </div>
   );
+
+  // The frame is the size container `--u` is measured against (see the CSS).
+  return <div className={styles.frame}>{diagram}</div>;
 }

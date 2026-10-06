@@ -1,7 +1,8 @@
-// "Live energy flow" header block shared by `/admin/fleet` and the customer
-// `/app/dashboard`: the flow diagram plus three at-a-glance panels the stat
-// cards below don't cover — battery energy in reserve, solar output against
-// installed capacity, and which sites need attention right now. Pure
+// "Live energy flow" header block shared by `/admin/fleet`, the customer
+// `/app/dashboard` and — with `scope="site"` and a single row — both per-site
+// pages: the flow diagram plus three at-a-glance panels the stat cards below
+// don't cover — battery energy in reserve, solar output against installed
+// capacity, and what needs attention right now. Pure
 // presentational, same as FlowDiagram: everything is derived from the site
 // rows the page already fetched, no extra queries, no client state.
 import Link from 'next/link';
@@ -16,7 +17,9 @@ const ATTENTION_ROWS_SHOWN = 5;
 const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
 const kw = (w: number) => (w / 1000).toFixed(1);
 
-type Reason = { severity: number; text: string };
+// `insights` reasons deep-link to the site page's insights section, where each
+// finding is spelled out; the rest just open the site.
+type Reason = { severity: number; text: string; insights?: boolean };
 
 function attentionReasons(site: FleetOverviewRow, lang: Lang): Reason[] {
   const reasons: Reason[] = [];
@@ -36,7 +39,7 @@ function attentionReasons(site: FleetOverviewRow, lang: Lang): Reason[] {
     reasons.push({ severity: 2, text: t(lang, 'fleet_live_reason_low_soc').replace('{pct}', String(site.live_soc_pct)) });
   }
   if (site.active_anomalies.length > 0) {
-    reasons.push({ severity: 1, text: t(lang, 'fleet_live_reason_insights').replace('{n}', String(site.active_anomalies.length)) });
+    reasons.push({ severity: 1, text: t(lang, 'fleet_live_reason_insights').replace('{n}', String(site.active_anomalies.length)), insights: true });
   }
   return reasons;
 }
@@ -46,13 +49,19 @@ export function FleetLiveSection({
   lang,
   loadLabel,
   siteHrefBase,
+  scope = 'fleet',
 }: {
   sites: FleetOverviewRow[];
   lang: Lang;
-  loadLabel: string;
+  loadLabel?: string;
   /** Prefix each site's own page lives under, e.g. `/admin/fleet/`. */
   siteHrefBase: string;
+  /** `site`: `sites` is the one site whose page this is — wording drops the
+   * "across all sites" framing and the attention panel lists its reasons
+   * instead of linking to itself. */
+  scope?: 'fleet' | 'site';
 }) {
+  const single = scope === 'site';
   // A stale site's last snapshot still has real (once-live) readings sitting
   // in its row — gating on `connection_status === 'online'` (the same
   // ~45-minute freshness `_connectionStatus()` computes) keeps these
@@ -103,24 +112,24 @@ export function FleetLiveSection({
   return (
     <div className={styles.section}>
       <h2 className={styles.title}>{t(lang, 'fleet_live_title')}</h2>
-      <p className={styles.sub}>{t(lang, 'fleet_live_sub')}</p>
+      <p className={styles.sub}>{t(lang, single ? 'site_live_sub' : 'fleet_live_sub')}</p>
 
       <div className={styles.grid}>
         <div className={styles.flow}>
           <FlowDiagram
             lang={lang}
             solarW={solarSites.length > 0 ? totalSolar : null}
-            solarNote={ofSites(solarSites.length)}
+            solarNote={single ? undefined : ofSites(solarSites.length)}
             loadW={loadSites.length > 0 ? totalLoad : null}
-            loadLabel={loadLabel}
+            loadLabel={loadLabel ?? t(lang, 'site_live_load_label')}
             batteryW={batterySites.length > 0 ? totalBattery : null}
-            batteryNote={t(lang, 'admin_fleet_flow_battery_note')}
-            batterySplit={splitCounts(batterySites.map((s) => s.live_battery_power_w))}
+            batteryNote={single ? (avgSoc === null ? undefined : `${avgSoc}%`) : t(lang, 'admin_fleet_flow_battery_note')}
+            batterySplit={single ? undefined : splitCounts(batterySites.map((s) => s.live_battery_power_w))}
             socPct={avgSoc}
             gridW={totalGrid}
             hasGridMeter={meteredSites.length > 0}
-            gridSplit={splitCounts(meteredSites.map((s) => s.live_grid_power_w))}
-            gridNote={ofSites(meteredSites.length)}
+            gridSplit={single ? undefined : splitCounts(meteredSites.map((s) => s.live_grid_power_w))}
+            gridNote={single ? undefined : ofSites(meteredSites.length)}
           />
         </div>
 
@@ -128,7 +137,10 @@ export function FleetLiveSection({
           <div className={styles.card}>
             <div className={styles.label}>{t(lang, 'fleet_live_reserve_title')}</div>
             {reservePct === null ? (
-              <div className={styles.empty}>—</div>
+              <>
+                <div className={styles.empty}>—</div>
+                {single && <div className={styles.note}>{t(lang, 'site_live_reserve_unknown')}</div>}
+              </>
             ) : (
               <>
                 <div className={styles.value}>
@@ -143,7 +155,7 @@ export function FleetLiveSection({
                   />
                 </div>
                 <div className={styles.note}>
-                  {t(lang, 'fleet_live_reserve_note')
+                  {t(lang, single ? 'site_live_reserve_note' : 'fleet_live_reserve_note')
                     .replace('{pct}', String(Math.round(reservePct)))
                     .replace('{n}', String(reserveSites.length))
                     .replace('{m}', siteCount)}
@@ -155,7 +167,10 @@ export function FleetLiveSection({
           <div className={styles.card}>
             <div className={styles.label}>{t(lang, 'fleet_live_solar_title')}</div>
             {solarPct === null ? (
-              <div className={styles.empty}>—</div>
+              <>
+                <div className={styles.empty}>—</div>
+                {single && <div className={styles.note}>{t(lang, 'site_live_solar_unknown')}</div>}
+              </>
             ) : (
               <>
                 <div className={styles.value}>
@@ -165,7 +180,7 @@ export function FleetLiveSection({
                   <div className={styles.barFill} style={{ width: `${Math.min(solarPct, 100)}%`, background: 'var(--signal)' }} />
                 </div>
                 <div className={styles.note}>
-                  {t(lang, 'fleet_live_solar_note')
+                  {t(lang, single ? 'site_live_solar_note' : 'fleet_live_solar_note')
                     .replace('{pct}', String(Math.round(solarPct)))
                     .replace('{n}', String(capacitySites.length))
                     .replace('{m}', siteCount)}
@@ -174,26 +189,46 @@ export function FleetLiveSection({
             )}
           </div>
 
-          <div className={styles.card}>
+          <div className={`${styles.card} ${styles.attentionCard}`}>
             <div className={styles.label}>{t(lang, 'fleet_live_attention_title')}</div>
             {attention.length === 0 ? (
-              <div className={styles.note}>{t(lang, 'fleet_live_attention_none')}</div>
+              <div className={styles.note}>{t(lang, single ? 'site_live_attention_none' : 'fleet_live_attention_none')}</div>
             ) : (
               <ul className={styles.attentionList}>
-                {attention.slice(0, ATTENTION_ROWS_SHOWN).map(({ site, reasons }) => (
-                  <li key={site.site_id} className={styles.attentionRow}>
-                    <Link href={`${siteHrefBase}${encodeURIComponent(site.site_id)}`} className={styles.attentionLink}>
-                      {site.display_name}
-                    </Link>
-                    <span className={styles.attentionReasons}>
-                      {[...reasons].sort((a, b) => b.severity - a.severity).map((r) => r.text).join(' · ')}
-                    </span>
-                  </li>
-                ))}
-                {attention.length > ATTENTION_ROWS_SHOWN && (
+                {attention.slice(0, single ? attention.length : ATTENTION_ROWS_SHOWN).map(({ site, reasons }) => {
+                  const siteHref = single ? '' : `${siteHrefBase}${encodeURIComponent(site.site_id)}`;
+                  const ordered = [...reasons].sort((x, y) => y.severity - x.severity);
+                  return (
+                    <li key={site.site_id} className={styles.attentionRow}>
+                      {!single && (
+                        <Link href={siteHref} className={styles.attentionLink}>
+                          {site.display_name}
+                        </Link>
+                      )}
+                      <span className={`${styles.attentionReasons} ${single ? styles.reasonsAlone : ''}`}>
+                        {ordered.map((r, i) => (
+                          <span key={r.text}>
+                            {i > 0 && ' · '}
+                            {r.insights ? (
+                              <Link href={`${siteHref}#insights`} className={styles.reasonLink}>
+                                {r.text}
+                              </Link>
+                            ) : (
+                              r.text
+                            )}
+                          </span>
+                        ))}
+                      </span>
+                    </li>
+                  );
+                })}
+                {!single && attention.length > ATTENTION_ROWS_SHOWN && (
                   <li className={styles.note}>{t(lang, 'fleet_live_attention_more').replace('{n}', String(attention.length - ATTENTION_ROWS_SHOWN))}</li>
                 )}
               </ul>
+            )}
+            {attention.some((entry) => entry.reasons.some((r) => r.insights)) && (
+              <div className={styles.note}>{t(lang, 'fleet_live_insights_hint')}</div>
             )}
           </div>
         </div>

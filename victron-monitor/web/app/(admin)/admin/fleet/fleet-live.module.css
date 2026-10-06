@@ -21,13 +21,14 @@
   margin: 0 0 14px;
 }
 
-/* Diagram on the left at its natural (max 480px) width, the three panels
-   filling the rest; stacked on narrow screens. */
+/* Half and half: the diagram (which scales itself to its column, see
+   flow-diagram.module.css) on the left, the three panels on the right;
+   stacked on narrow screens. */
 .grid {
   display: grid;
-  grid-template-columns: minmax(0, 480px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
 }
 @media (max-width: 900px) {
   .grid {
@@ -51,7 +52,10 @@
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 6px;
+  /* The three panels share the diagram's height between them. */
+  flex: 1;
 }
 .label {
   font-family: var(--font-mono);
@@ -100,20 +104,45 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   font-size: 13px;
 }
+/* The list reads top-down, unlike the two meters. */
+.attentionCard {
+  justify-content: flex-start;
+  gap: 10px;
+}
+/* Site names are links: glow-blue with an arrow, not plain text. */
 .attentionLink {
-  color: var(--paper);
+  color: var(--victron-glow);
   text-decoration: none;
   min-width: 0;
 }
+.attentionLink::after {
+  content: ' →';
+  opacity: 0.6;
+}
 .attentionLink:hover {
-  color: var(--victron-glow);
   text-decoration: underline;
 }
 .attentionReasons {
   color: var(--signal);
   font-size: 12px;
   text-align: right;
+  margin-left: auto;
+}
+/* "N insights" opens the site's insights section. */
+.reasonLink {
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.reasonLink:hover {
+  text-decoration-style: solid;
+}
+/* On a site's own page there is no name beside the reasons: read from the left. */
+.reasonsAlone {
+  margin-left: 0;
+  text-align: left;
 }

@@ -7,7 +7,7 @@ import { formatDateTimeInZone } from '@/lib/dates';
 import { InfoTooltip } from '@/components/ui';
 import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
 import { t, type Lang } from '@/lib/i18n/strings';
-import { FlowDiagram } from '../FlowDiagram';
+import { FleetLiveSection } from '../FleetLiveSection';
 import { Gauge } from '../Gauge';
 import { PeriodStatsPanel } from '../PeriodStatsPanel';
 import { ShapeChart } from '../ShapeChart';
@@ -273,22 +273,9 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
         </div>
       </div>
 
-      <div className={styles.split}>
-        <div className={styles.flowCard}>
-          <h2>{t(lang, 'admin_fleetsite_flow_title')}</h2>
-          <div className={styles.cardSub}>{t(lang, 'admin_fleetsite_flow_sub')}</div>
-          <FlowDiagram
-            lang={lang}
-            solarW={site.live_pv_power_w}
-            loadW={site.live_load_power_w}
-            batteryW={site.live_battery_power_w}
-            batteryNote={site.live_soc_pct === null ? undefined : `${site.live_soc_pct}%`}
-            socPct={site.live_soc_pct}
-            gridW={site.live_grid_power_w}
-            hasGridMeter={site.has_grid_meter}
-          />
-        </div>
+      <FleetLiveSection sites={[site]} lang={lang} siteHrefBase="/admin/fleet/" scope="site" />
 
+      <div className={styles.split}>
         <div className={styles.gaugeCard}>
           <h2>
             {site.health_metrics_date
@@ -393,7 +380,7 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
       </div>
 
       <div className={styles.gaugeCard} style={{ marginBottom: 24 }}>
-        <h2>{t(lang, 'admin_fleetsite_anomalies_title')}</h2>
+        <h2 id="insights">{t(lang, 'admin_fleetsite_anomalies_title')}</h2>
         <div className={styles.cardSub}>{t(lang, 'admin_fleetsite_anomalies_sub')}</div>
         {site.active_anomalies.length === 0 ? (
           <p className={styles.sub}>{t(lang, 'admin_fleetsite_no_anomalies')}</p>

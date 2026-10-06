@@ -139,16 +139,12 @@
   font-family: var(--font-mono);
 }
 
+/* Just the health card now that the live-flow block sits above the KPIs. */
 .split {
   display: grid;
-  grid-template-columns: 1.35fr 1fr;
+  grid-template-columns: 1fr;
   gap: 16px;
   margin-bottom: 22px;
-}
-@media (max-width: 860px) {
-  .split {
-    grid-template-columns: 1fr;
-  }
 }
 .flowCard,
 .gaugeCard {

@@ -7,7 +7,7 @@ import { formatDateTimeInZone } from '@/lib/dates';
 import { t } from '@/lib/i18n/strings';
 import { Panel, Button, InfoTooltip } from '@/components/ui';
 import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
-import { FlowDiagram } from '../../../../(admin)/admin/fleet/FlowDiagram';
+import { FleetLiveSection } from '../../../../(admin)/admin/fleet/FleetLiveSection';
 import { Gauge } from '../../../../(admin)/admin/fleet/Gauge';
 import { PeriodStatsPanel } from '../../../../(admin)/admin/fleet/PeriodStatsPanel';
 import { ShapeChart } from '../../../../(admin)/admin/fleet/ShapeChart';
@@ -247,22 +247,9 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
         </div>
       </div>
 
-      <div className={styles.split}>
-        <div className={styles.flowCard}>
-          <h2>Energy flow — right now</h2>
-          <div className={styles.cardSub}>From this site&apos;s most recent snapshot, refreshed every ~15 minutes.</div>
-          <FlowDiagram
-            lang={lang}
-            solarW={site.live_pv_power_w}
-            loadW={site.live_load_power_w}
-            batteryW={site.live_battery_power_w}
-            batteryNote={site.live_soc_pct === null ? undefined : `${site.live_soc_pct}%`}
-            socPct={site.live_soc_pct}
-            gridW={site.live_grid_power_w}
-            hasGridMeter={site.has_grid_meter}
-          />
-        </div>
+      <FleetLiveSection sites={[site]} lang={lang} siteHrefBase="/app/dashboard/" scope="site" />
 
+      <div className={styles.split}>
         <div className={styles.gaugeCard}>
           <h2>
             {site.health_metrics_date
@@ -367,7 +354,7 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
       </div>
 
       <div className={styles.gaugeCard} style={{ marginBottom: 24 }}>
-        <h2>
+        <h2 id="insights">
           {t(lang, 'dashboard_ai_insights_title')} <span className={styles.betaBadge}>{t(lang, 'dashboard_beta_badge')}</span>
         </h2>
         <div className={styles.cardSub}>{t(lang, 'dashboard_ai_insights_intro')}</div>

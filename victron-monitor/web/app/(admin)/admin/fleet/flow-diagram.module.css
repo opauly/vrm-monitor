@@ -11,22 +11,34 @@
    (drawn in a 400-wide viewBox, `preserveAspectRatio="none"`) into a flat,
    disproportionate line — found live on a real wide viewport, not
    something the ~800px dev preview this was built against ever showed. */
-.flow {
-  position: relative;
-  height: 420px;
-  max-width: 480px;
+/* Everything is drawn on a 420-unit-wide design canvas and scaled by `--u`
+   (one design unit, in px): 1px minimum — so a phone gets the original size —
+   growing with the column the diagram sits in up to 1.7px, which lets it fill
+   half of a wide screen with proportionally bigger rings, icons and type.
+   `--u` is resolved against `.frame` (the size container), which is why the
+   diagram needs that wrapper rather than measuring itself. */
+.frame {
+  container-type: inline-size;
+  width: 100%;
+  max-width: 714px;
   margin: 0 auto;
+}
+.flow {
+  --u: clamp(1px, calc(100cqw / 420), 1.7px);
+  position: relative;
+  height: calc(420 * var(--u));
+  width: 100%;
 }
 .node {
   position: absolute;
-  width: 108px;
+  width: calc(108 * var(--u));
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: calc(6 * var(--u));
 }
 .ring {
-  --ring-size: 64px;
+  --ring-size: calc(64 * var(--u));
   position: relative;
   width: var(--ring-size);
   height: var(--ring-size);
@@ -38,8 +50,8 @@
   border: 2px solid var(--line);
 }
 .icon {
-  width: 28px;
-  height: 28px;
+  width: calc(28 * var(--u));
+  height: calc(28 * var(--u));
 }
 /* Progress/mix arcs drawn over the ring's own border: offset -2px (the
    border width) puts the svg exactly on the ring's border box, so its
@@ -58,14 +70,14 @@
 }
 .name {
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: calc(10.5 * var(--u));
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--mute);
 }
 .amt {
   font-family: var(--font-mono);
-  font-size: 15px;
+  font-size: calc(15 * var(--u));
   font-weight: 600;
   color: var(--paper);
   font-variant-numeric: tabular-nums;
@@ -73,14 +85,14 @@
 /* Direction/state under an amount ("importing", "charging", "idle"). */
 .state {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: calc(10 * var(--u));
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--paper-dim);
   text-align: center;
 }
 /* The battery sits mid-diagram with free space either side, unlike the
-   edge-pinned solar/grid nodes — let its line run wider than the 108px node
+   edge-pinned solar/grid nodes — let its line run wider than the 108-unit node
    instead of wrapping. */
 .battery .state {
   white-space: nowrap;
@@ -91,7 +103,7 @@
   position: absolute;
   transform: translate(-50%, -50%);
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: calc(10.5 * var(--u));
   font-weight: 600;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -99,48 +111,48 @@
   pointer-events: none;
 }
 .footnote {
-  font-size: 10px;
+  font-size: calc(10 * var(--u));
   color: var(--mute);
   text-align: center;
 }
 
 .solar {
-  top: 4px;
+  top: calc(4 * var(--u));
   left: 0;
 }
 .grid {
-  top: 4px;
+  top: calc(4 * var(--u));
   right: 0;
 }
 .home {
-  top: 110px;
+  top: calc(110 * var(--u));
   left: 50%;
   transform: translateX(-50%);
 }
 .home .ring {
-  --ring-size: 82px;
+  --ring-size: calc(82 * var(--u));
   border-color: var(--paper-dim);
 }
 /* The supply-mix / SOC arcs replace the ring's own border colour, so the
    border drops back to the faint track they are drawn over. */
 
 .battery {
-  top: 276px;
+  top: calc(276 * var(--u));
   left: 50%;
   transform: translateX(-50%);
 }
 
 .solar .ring {
   border-color: var(--signal);
-  box-shadow: 0 0 18px rgba(var(--signal-rgb), 0.25);
+  box-shadow: 0 0 calc(18 * var(--u)) rgba(var(--signal-rgb), 0.25);
 }
 .battery .ring {
   border-color: var(--good);
-  box-shadow: 0 0 18px rgba(var(--good-rgb), 0.25);
+  box-shadow: 0 0 calc(18 * var(--u)) rgba(var(--good-rgb), 0.25);
 }
 .grid .ring {
   border-color: var(--victron-glow);
-  box-shadow: 0 0 18px rgba(var(--victron-glow-rgb), 0.25);
+  box-shadow: 0 0 calc(18 * var(--u)) rgba(var(--victron-glow-rgb), 0.25);
 }
 /* The supply-mix / SOC arcs are drawn over the ring's border, so with an arc
    present the border drops back to the faint track beneath it. After the
