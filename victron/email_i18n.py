@@ -73,6 +73,40 @@ EN = {
     "beta_ended_body2": "Subscribe any time from the Billing page in your account to pick up right where "
                         "you left off.",
     "beta_ended_footer": "Sent once, when your beta access ended. This is a one-time notice.",
+
+    # Fleet alerts (vrm_api/alerts_delivery.py). {site}/{since}/{minutes}/{soc}/{alarms} are filled in there.
+    "alert_severity_critical": "Critical",
+    "alert_severity_warning": "Warning",
+    "alert_section_new": "New alerts",
+    "alert_section_resolved": "Back to normal",
+    "alert_multi_subject": "{n} updates on your systems",
+    "alert_view_site": "View site",
+    "alert_reconnect": "Reconnect VRM",
+    "alert_footer": "You are receiving this because alerts are turned on for your account. "
+                    "To stop them, reply to this email.",
+    "alert_site_offline_title": "{site} stopped reporting",
+    "alert_site_offline_body": "No data has arrived since {since} ({minutes} minutes). "
+                               "Check the site's internet connection and power.",
+    "alert_site_offline_resolved": "{site} is reporting again",
+    "alert_grid_outage_title": "Grid outage at {site}",
+    "alert_grid_outage_body": "Utility power is out. The system is running on its battery{soc_phrase}.",
+    "alert_grid_outage_soc_phrase": " (charge: {soc}%)",
+    "alert_grid_outage_resolved": "Grid power is back at {site}",
+    "alert_low_battery_title": "Low battery at {site}",
+    "alert_low_battery_body": "Battery charge is {soc}%.",
+    "alert_low_battery_critical_title": "Battery critically low at {site}",
+    "alert_low_battery_critical_body": "Battery charge is {soc}% — the system may shut down soon.",
+    "alert_low_battery_resolved": "Battery recovered at {site}",
+    "alert_system_alarm_title": "System alarm at {site}",
+    "alert_system_alarm_body": "Active: {alarms}.",
+    "alert_system_alarm_resolved": "System alarm cleared at {site}",
+    "alert_alarm_overload": "overload",
+    "alert_alarm_dc_ripple": "DC ripple",
+    "alert_alarm_temp_fault": "temperature fault",
+    "alert_alarm_cell_imbalance": "cell imbalance",
+    "alert_vrm_link_broken_title": "Your Victron VRM connection stopped working",
+    "alert_vrm_link_broken_body": "Automatic updates are paused until you reconnect your VRM account.",
+    "alert_vrm_link_broken_resolved": "Your Victron VRM connection is working again",
 }
 
 ES = dict(EN, **{
@@ -127,6 +161,38 @@ ES = dict(EN, **{
     "beta_ended_body2": "Suscribite en cualquier momento desde la página de Facturación de tu cuenta para "
                         "continuar justo donde lo dejaste.",
     "beta_ended_footer": "Enviado una sola vez, cuando terminó tu acceso beta. Este es un aviso único.",
+    "alert_severity_critical": "Crítica",
+    "alert_severity_warning": "Advertencia",
+    "alert_section_new": "Alertas nuevas",
+    "alert_section_resolved": "Volvió a la normalidad",
+    "alert_multi_subject": "{n} novedades en tus sistemas",
+    "alert_view_site": "Ver sitio",
+    "alert_reconnect": "Reconectar VRM",
+    "alert_footer": "Recibes esto porque las alertas están activadas en tu cuenta. "
+                    "Para dejar de recibirlas, responde a este correo.",
+    "alert_site_offline_title": "{site} dejó de reportar",
+    "alert_site_offline_body": "No llegan datos desde {since} ({minutes} minutos). "
+                               "Revisa la conexión a internet y la energía del sitio.",
+    "alert_site_offline_resolved": "{site} volvió a reportar",
+    "alert_grid_outage_title": "Corte de red en {site}",
+    "alert_grid_outage_body": "No hay energía de la red eléctrica. El sistema funciona con su batería{soc_phrase}.",
+    "alert_grid_outage_soc_phrase": " (carga: {soc}%)",
+    "alert_grid_outage_resolved": "Volvió la red eléctrica en {site}",
+    "alert_low_battery_title": "Batería baja en {site}",
+    "alert_low_battery_body": "La carga de la batería es {soc}%.",
+    "alert_low_battery_critical_title": "Batería críticamente baja en {site}",
+    "alert_low_battery_critical_body": "La carga de la batería es {soc}%: el sistema podría apagarse pronto.",
+    "alert_low_battery_resolved": "La batería se recuperó en {site}",
+    "alert_system_alarm_title": "Alarma del sistema en {site}",
+    "alert_system_alarm_body": "Activa: {alarms}.",
+    "alert_system_alarm_resolved": "Alarma del sistema resuelta en {site}",
+    "alert_alarm_overload": "sobrecarga",
+    "alert_alarm_dc_ripple": "rizado de CC",
+    "alert_alarm_temp_fault": "falla de temperatura",
+    "alert_alarm_cell_imbalance": "desbalance de celdas",
+    "alert_vrm_link_broken_title": "Tu conexión con Victron VRM dejó de funcionar",
+    "alert_vrm_link_broken_body": "Las actualizaciones automáticas están en pausa hasta que vuelvas a conectar tu cuenta de VRM.",
+    "alert_vrm_link_broken_resolved": "Tu conexión con Victron VRM funciona de nuevo",
 })
 
 TRANSLATIONS = {"en": EN, "es": ES}

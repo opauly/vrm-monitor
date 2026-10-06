@@ -1,0 +1,87 @@
+<!--
+  Fleet alert digest — vrm_api/alerts_delivery.py. One email per customer per
+  sweep: new alerts first, then anything that has gone back to normal. Same
+  "account mail, this product's own identity, never branded" convention as
+  trial_ending_*_email.html / beta_ending_email.html, and the same Gmail-safety
+  rule: table layout + inline styles only, no base64 images.
+
+  `sections` is a list of {heading, cards}; each card is a dict: title, body, severity
+  ('critical' | 'warning' | 'ok'), severity_label, url, button_label. The
+  severity colour is the left rule on each card — amber / red / green, the
+  same signal colours the dashboard uses.
+-->
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ subject }}</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#0b2231; font-family:Helvetica, Arial, sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0b2231;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="520" cellpadding="0" cellspacing="0" border="0"
+                 style="width:520px; max-width:100%; background-color:#12324a; border-radius:8px; overflow:hidden;">
+            <tr>
+              <td style="padding:28px 32px 0 32px;">
+                <span style="display:inline-block; font-family:Helvetica, Arial, sans-serif; font-weight:800;
+                             text-transform:uppercase; letter-spacing:1px; font-size:13px; color:#e9f2f6;">
+                  Pauly &amp; Co. &middot; VRM Monitor
+                </span>
+              </td>
+            </tr>
+
+            {% for section in sections %}
+            <tr>
+              <td style="padding:{{ '24px' if loop.first else '8px' }} 32px 4px 32px;">
+                <p style="margin:0 0 10px 0; font-size:11px; letter-spacing:1.2px; text-transform:uppercase; color:#7fa0b3;">
+                  {{ section.heading }}
+                </p>
+                {% for item in section.cards %}
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                       style="margin:0 0 12px 0; background-color:#0e2a3f; border-radius:6px;">
+                  <tr>
+                    <td width="4" style="width:4px; background-color:{{ {'critical': '#ef6a6a', 'warning': '#f2a93b', 'ok': '#3fbf8f'}[item.severity] }}; border-radius:6px 0 0 6px;"></td>
+                    <td style="padding:14px 16px;">
+                      {% if item.severity_label %}
+                      <p style="margin:0 0 4px 0; font-size:11px; letter-spacing:1px; text-transform:uppercase;
+                                color:{{ {'critical': '#ef6a6a', 'warning': '#f2a93b', 'ok': '#3fbf8f'}[item.severity] }};">
+                        {{ item.severity_label }}
+                      </p>
+                      {% endif %}
+                      <p style="margin:0 0 6px 0; font-size:16px; line-height:1.4; font-weight:700; color:#ffffff;">
+                        {{ item.title }}
+                      </p>
+                      {% if item.body %}
+                      <p style="margin:0 0 {{ '12px' if item.url else '0' }} 0; font-size:14px; line-height:1.6; color:#cfe3ee;">
+                        {{ item.body }}
+                      </p>
+                      {% endif %}
+                      {% if item.url %}
+                      <a href="{{ item.url }}"
+                         style="display:inline-block; font-size:13px; font-weight:700; color:#4fc8ec; text-decoration:none;">
+                        {{ item.button_label }} &rarr;
+                      </a>
+                      {% endif %}
+                    </td>
+                  </tr>
+                </table>
+                {% endfor %}
+              </td>
+            </tr>
+            {% endfor %}
+
+            <tr>
+              <td style="padding:12px 32px 28px 32px;">
+                <p style="margin:0; font-size:12px; line-height:1.5; color:#7fa0b3;">
+                  {{ t.alert_footer }}
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
