@@ -377,6 +377,19 @@ export type AlertRecord = {
 };
 
 /** An alert plus the display fields `/app/alerts` needs from its site. */
+export type AdminAlertKind = 'fleet_offline' | 'fetch_failing' | 'sweep_stale' | 'history_stale';
+
+/** A fleet-health alert for the admin (`vrm.admin_alerts`): about the monitor itself, not a customer's site. */
+export type AdminAlert = {
+  id: number;
+  kind: AdminAlertKind;
+  severity: 'warning' | 'critical';
+  status: 'open' | 'resolved';
+  opened_at: string;
+  resolved_at: string | null;
+  detail: Record<string, unknown>;
+};
+
 export type AlertWithSite = AlertRecord & { site_name: string | null; site_timezone: string | null };
 
 export type AlertPreference = { enabled: boolean; email: boolean; push: boolean };

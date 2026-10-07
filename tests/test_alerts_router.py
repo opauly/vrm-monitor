@@ -60,3 +60,39 @@ def test_admin_test_targets_that_admins_devices_and_links_to_the_fleet(monkeypat
     post({"admin_email": "me@x.com"})
     assert seen["admin_email"] == "me@x.com" and seen.get("customer_id") is None
     assert seen["payloads"][0]["url"] == "/admin/fleet" and seen["payloads"][0]["title"] == "Test notification"
+
+
+# ── POST /v1/alerts/admin-check ──────────────────────────────────────────────
+
+def admin_check(key="secret-key"):
+    return client.post("/v1/alerts/admin-check", headers={"Authorization": f"Bearer {key}"})
+
+
+def test_admin_check_needs_the_key():
+    assert client.post("/v1/alerts/admin-check").status_code in (401, 403)
+    assert admin_check(key="nope").status_code in (401, 403)
+
+
+def test_admin_check_is_a_noop_while_switched_off(monkeypatch):
+    from vrm_api import admin_alerts
+    monkeypatch.delenv("ALERTS_ADMIN", raising=False)
+    monkeypatch.setattr(admin_alerts, "run_watchdog_pass", lambda **k: pytest.fail("must not run while off"))
+    r = admin_check()
+    assert r.status_code == 200 and r.json() == {"mode": "off", "checks": {}, "notifications": None}
+
+
+def test_admin_check_runs_the_watchdog_then_delivers(monkeypatch):
+    from vrm_api import admin_alerts
+    monkeypatch.setenv("ALERTS_ADMIN", "on")
+    monkeypatch.setattr(admin_alerts, "run_watchdog_pass", lambda **k: {"mode": "on", "opened": 1})
+    monkeypatch.setattr(admin_alerts, "deliver_pending", lambda **k: {"mode": "on", "sent": 1})
+    r = admin_check()
+    assert r.json() == {"mode": "on", "checks": {"mode": "on", "opened": 1}, "notifications": {"mode": "on", "sent": 1}}
+
+
+def test_admin_check_in_dry_run_does_not_deliver(monkeypatch):
+    from vrm_api import admin_alerts
+    monkeypatch.setenv("ALERTS_ADMIN", "dry_run")
+    monkeypatch.setattr(admin_alerts, "run_watchdog_pass", lambda **k: {"mode": "dry_run"})
+    monkeypatch.setattr(admin_alerts, "deliver_pending", lambda **k: pytest.fail("dry_run must not deliver"))
+    assert admin_check().json()["notifications"] is None

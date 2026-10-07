@@ -5,10 +5,12 @@ import { fleetAlertCustomerId } from '@/lib/server/fleetAlertCustomer';
 import { getCustomer } from '@/lib/server/db';
 import { Panel } from '@/components/ui';
 import { t } from '@/lib/i18n/strings';
+import { AdminHealthSection } from './AdminHealthSection';
 import { AlertsView } from '@/app/(portal)/app/alerts/AlertsView';
 import { sendAdminTestPushAction, subscribeAdminPushAction, unsubscribeAdminPushAction } from '../pushActions';
 import { saveFleetAlertSettingsAction } from './actions';
 import styles from '../[site_id]/site.module.css';
+import alertStyles from '@/app/(portal)/app/alerts/alerts.module.css';
 
 export const metadata: Metadata = { title: 'Fleet alerts' };
 
@@ -29,6 +31,8 @@ export default async function AdminFleetAlertsPage() {
         <Link href="/admin/fleet">{t(lang, 'admin_fleet_title')}</Link> / <span>{t(lang, 'admin_fleet_alerts_title')}</span>
       </div>
       <h1>{t(lang, 'admin_fleet_alerts_title')}</h1>
+      <AdminHealthSection lang={lang} />
+      <h2 className={alertStyles.sectionLabel}>{t(lang, 'admin_alerts_sites_title')}</h2>
       {!customerId || !customer ? (
         <Panel>
           <p>{t(lang, 'admin_fleet_alerts_not_configured')}</p>

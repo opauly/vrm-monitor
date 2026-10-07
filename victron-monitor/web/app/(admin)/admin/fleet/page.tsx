@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/server/auth';
-import { listOpenAlerts } from '@/lib/server/db';
+import { listOpenAdminAlerts, listOpenAlerts } from '@/lib/server/db';
 import { fleetAlertCustomerId } from '@/lib/server/fleetAlertCustomer';
 import { getFleetOverview, type FleetConnectionStatus, type FleetOverviewRow } from '@/lib/server/db/admin';
 import { InfoTooltip } from '@/components/ui';
@@ -70,7 +70,11 @@ export default async function AdminFleetPage() {
   // Open alerts on the admin's own fleet, for the button's badge. A failure here
   // must not take the dashboard down; the button just shows without a count.
   const fleetAlertsOwner = fleetAlertCustomerId();
-  const openAlertCount = fleetAlertsOwner ? await listOpenAlerts(fleetAlertsOwner).then((a) => a.length).catch(() => null) : null;
+  const customerAlertCount = fleetAlertsOwner ? await listOpenAlerts(fleetAlertsOwner).then((a) => a.length).catch(() => null) : null;
+  // Fleet-health alerts (is the monitor itself working?) count toward the button
+  // and get their own banner below the header.
+  const adminAlerts = await listOpenAdminAlerts().catch(() => []);
+  const openAlertCount = customerAlertCount === null && adminAlerts.length === 0 ? null : (customerAlertCount ?? 0) + adminAlerts.length;
 
   const sites = overview.sites;
   // A stale site's last snapshot still has real (once-live) readings sitting
@@ -151,6 +155,16 @@ export default async function AdminFleetPage() {
           )}
         </div>
       </div>
+      {adminAlerts.length > 0 && (
+        <Link href="/admin/fleet/alerts" className={`${styles.healthBanner} ${adminAlerts.some((a) => a.severity === 'critical') ? styles.healthBannerCritical : ''}`}>
+          <span>
+            {adminAlerts.length === 1
+              ? t(lang, 'admin_alerts_banner_one')
+              : t(lang, 'admin_alerts_banner_many').replace('{n}', String(adminAlerts.length))}
+          </span>
+          <span className={styles.healthBannerCta}>{t(lang, 'admin_alerts_banner_cta')} →</span>
+        </Link>
+      )}
       <Link href="/admin/vrm-fleet" className={styles.manageLink}>
         {t(lang, 'admin_fleet_link_new')} →
       </Link>

@@ -457,3 +457,58 @@ def test_test_mode_reaches_the_test_address_even_without_a_customer_email(env, m
     alert(store)
     run("test")
     assert sent[0]["to"] == "me@example.com" and sent[0]["subject"].startswith("[TEST → no email on file] ")
+
+
+# ── where a tap lands (admin devices must not be sent to /app) ────────────
+def test_a_tap_on_an_admin_phone_opens_the_admin_site_page(env, pushes, monkeypatch):
+    store, _ = env
+    monkeypatch.setenv("ALERTS_FORCE_CUSTOMER_IDS", "c1")
+    device(store, id=5, admin="me@x.com")
+    alert(store)
+    run_push()
+    assert pushes["payloads"][0]["url"] == "/admin/fleet/s1"          # not /app/dashboard/s1, which bounces to Customers
+
+
+def test_admin_phone_vrm_link_alert_opens_installations(env, pushes, monkeypatch):
+    store, _ = env
+    monkeypatch.setenv("ALERTS_FORCE_CUSTOMER_IDS", "c1")
+    device(store, id=5, admin="me@x.com")
+    alert(store, kind=A.VRM_LINK_BROKEN, site=None, detail={})
+    run_push()
+    assert pushes["payloads"][0]["url"] == "/admin/vrm-fleet"
+
+
+def test_admin_phone_summary_opens_the_fleet_alerts_page(env, pushes, monkeypatch):
+    store, _ = env
+    monkeypatch.setenv("ALERTS_FORCE_CUSTOMER_IDS", "c1")
+    device(store, id=5, admin="me@x.com")
+    for _ in range(5):
+        alert(store, kind=A.LOW_BATTERY)
+    run_push()
+    assert len(pushes["payloads"]) == 1 and pushes["payloads"][0]["url"] == "/admin/fleet/alerts"
+
+
+def test_a_customers_own_phone_still_opens_the_app(env, pushes):
+    store, _ = env
+    device(store)
+    alert(store)
+    run_push()
+    assert pushes["payloads"][0]["url"] == "/app/dashboard/s1"
+
+
+def test_internal_fleet_emails_link_into_the_admin_area(env, monkeypatch):
+    store, sent = env
+    monkeypatch.setenv("ALERTS_FORCE_CUSTOMER_IDS", "c1")
+    alert(store)
+    run("on")
+    assert "https://vrm.example.com/admin/fleet/s1" in sent[0]["html"] and "/app/dashboard/" not in sent[0]["html"]
+
+
+def test_one_account_with_both_kinds_of_device_gets_the_right_link_on_each(env, pushes, monkeypatch):
+    store, _ = env
+    monkeypatch.setenv("ALERTS_FORCE_CUSTOMER_IDS", "c1")
+    device(store, id=1)                          # the customer's own phone
+    device(store, id=2, admin="me@x.com")        # the admin's phone
+    alert(store)
+    run_push()
+    assert sorted(p["url"] for p in pushes["payloads"]) == ["/admin/fleet/s1", "/app/dashboard/s1"]

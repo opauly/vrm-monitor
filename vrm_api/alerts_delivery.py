@@ -120,13 +120,24 @@ def _event_time(alert: dict, now: datetime) -> datetime:
     return _parse(alert.get("opened_at")) or now
 
 
+def link_path(alert: dict, *, admin: bool) -> str:
+    """Where tapping an alert should land. The internal-fleet accounts have no
+    login of their own: their alerts are read by the ADMIN, whose session has no
+    /app pages (they bounce to the Customers tab), so those link into /admin."""
+    if alert["kind"] == rules.VRM_LINK_BROKEN:
+        return "/admin/vrm-fleet" if admin else "/app/sites"
+    if admin:
+        return f"/admin/fleet/{alert.get('site_id')}"
+    return f"/app/dashboard/{alert.get('site_id')}"
+
+
 def describe(alert: dict, *, resolved: bool, site_name: str, tz_name: str | None,
-             strings: dict, site_url: str | None) -> dict:
+             strings: dict, site_url: str | None, admin: bool = False) -> dict:
     """One alert as a card for the email template."""
     t = strings
     kind, detail = alert["kind"], alert.get("detail") or {}
     base = (site_url or "").rstrip("/")
-    link_target = "/app/sites" if kind == rules.VRM_LINK_BROKEN else f"/app/dashboard/{alert.get('site_id')}"
+    link_target = link_path(alert, admin=admin)
     url = f"{base}{link_target}" if base else None
     button = t["alert_reconnect"] if kind == rules.VRM_LINK_BROKEN else t["alert_view_site"]
 
@@ -164,7 +175,7 @@ def _stamp(table, ids: list, **columns) -> list:
     return query.execute().data or []
 
 
-def _push_payloads(items: list[tuple[dict, dict]], strings: dict) -> list[dict]:
+def _push_payloads(items: list[tuple[dict, dict]], strings: dict, *, admin: bool = False) -> list[dict]:
     """Notification payloads for `items` = [(alert row, card)]: one each, or a
     single summary when there are too many to show separately. The service
     worker (`public/sw.js`) turns each into a native notification; `tag` makes a
@@ -174,7 +185,7 @@ def _push_payloads(items: list[tuple[dict, dict]], strings: dict) -> list[dict]:
         worst = rules.CRITICAL if any(c["severity"] == "critical" for _, c in items) else rules.WARNING
         return [{"title": _fill(strings["alert_multi_subject"], n=len(items)),
                  "body": " · ".join(c["title"] for _, c in items[:3]),
-                 "url": "/app/alerts", "tag": "alerts-summary", "severity": worst}]
+                 "url": "/admin/fleet/alerts" if admin else "/app/alerts", "tag": "alerts-summary", "severity": worst}]
     return [{"title": c["title"], "body": c["body"] or "", "url": c["path"], "tag": f"alert-{a['id']}", "severity": c["severity"]}
             for a, c in items]
 
@@ -302,13 +313,17 @@ def deliver_pending(*, now: datetime | None = None, mode: str | None = None, pus
         lang = (customer.get("ui_language") or "en").lower()
         strings = email_i18n.get(lang)
 
-        def card(a, is_resolved):
+        def card(a, is_resolved, admin=False):
             site = sites.get(a.get("site_id") or "", {})
             return describe(a, resolved=is_resolved, site_name=site.get("display_name") or a.get("site_id") or "",
-                            tz_name=site.get("timezone"), strings=strings, site_url=site_url)
+                            tz_name=site.get("timezone"), strings=strings, site_url=site_url, admin=admin)
 
-        new_cards = [(a, card(a, False)) for a in new]
-        res_cards = [(a, card(a, True)) for a in resolved]
+        # The internal-fleet accounts are read by the admin: their emails and
+        # their phones' taps must land in /admin, not on /app pages the admin
+        # session cannot open (those bounce to the Customers tab).
+        admin_view = customer_id in forced
+        new_cards = [(a, card(a, False, admin_view)) for a in new]
+        res_cards = [(a, card(a, True, admin_view)) for a in resolved]
 
         # ── email ───────────────────────────────────────────────────────
         email_ok = False
@@ -335,13 +350,22 @@ def deliver_pending(*, now: datetime | None = None, mode: str | None = None, pus
                 logger.warning("alerts_delivery: could not email customer %s: %s", customer_id, exc if isinstance(exc, MailerError) else type(exc).__name__)
 
         # ── push ────────────────────────────────────────────────────────
+        # Devices registered by an admin open /admin pages; a customer's own
+        # devices open /app pages — so each group gets its own links.
         push_ok = False
-        push_items = [(a, c) for a, c in new_cards if pref(a, "push")] + [(a, c) for a, c in res_cards if pref(a, "push")]
-        if devices and push_items:
+        for group, to_admin in (([d for d in devices if d.get("admin_email")], True), ([d for d in devices if not d.get("admin_email")], False)):
+            if not group:
+                continue
+            group_new = [(a, card(a, False, to_admin)) for a, _ in new_cards if pref(a, "push")]
+            group_res = [(a, card(a, True, to_admin)) for a, _ in res_cards if pref(a, "push")]
+            push_items = group_new + group_res
+            if not push_items:
+                continue
             try:
-                urgent = any(c["severity"] == "critical" for a, c in push_items if a in new)
-                result = alerts_push.deliver(devices, _push_payloads(push_items, strings), urgency="high" if urgent else "normal", now=now)
-                push_ok = result["delivered"] > 0
+                urgent = any(c["severity"] == "critical" for _, c in group_new)
+                result = alerts_push.deliver(group, _push_payloads(push_items, strings, admin=to_admin),
+                                             urgency="high" if urgent else "normal", now=now)
+                push_ok = push_ok or result["delivered"] > 0
                 summary["pushed"] += result["delivered"]
             except Exception:  # noqa: BLE001
                 logger.exception("alerts_delivery: push delivery failed for customer %s", customer_id)

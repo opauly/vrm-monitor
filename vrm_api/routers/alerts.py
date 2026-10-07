@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from victron import email_i18n
-from vrm_api import alerts_push
+from vrm_api import admin_alerts, alerts_push
 from vrm_api.deps import require_pipeline_key
 
 router = APIRouter(prefix="/v1/alerts", tags=["alerts"], dependencies=[Depends(require_pipeline_key)])
@@ -57,3 +57,24 @@ def post_push_test(body: PushTestRequest) -> PushTestOut:
         "severity": "warning",
     }
     return PushTestOut(**alerts_push.deliver(devices, [payload]))
+
+
+class AdminCheckOut(BaseModel):
+    mode: str
+    checks: dict
+    notifications: dict | None = None
+
+
+@router.post("/admin-check", response_model=AdminCheckOut)
+def post_admin_check() -> AdminCheckOut:
+    """The admin fleet-health watchdog (`vrm_api/admin_alerts.py`): is snapshot
+    data still arriving, is the daily history still advancing, are many sites
+    silent at once. Meant for a scheduler job every ~15 minutes, separate from
+    the snapshot sweep on purpose — a sweep that has died cannot report itself.
+    Does nothing (and says so) unless ALERTS_ADMIN is on or dry_run."""
+    mode = admin_alerts.admin_mode()
+    if mode == "off":
+        return AdminCheckOut(mode=mode, checks={})
+    checks = admin_alerts.run_watchdog_pass()
+    notifications = admin_alerts.deliver_pending() if mode == "on" else None
+    return AdminCheckOut(mode=mode, checks=checks, notifications=notifications)

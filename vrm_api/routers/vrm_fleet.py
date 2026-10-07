@@ -72,7 +72,7 @@ from pydantic import ValidationError
 from database.supabase_client import get_client
 
 from victron import ingest as victron_ingest
-from vrm_api import alerts_delivery, alerts_push, alerts_service
+from vrm_api import admin_alerts, alerts_delivery, alerts_push, alerts_service
 from victron.anomaly_battery import check_incomplete_charging
 from victron.anomaly_drift import check_quiet_drift, check_underperformance
 from victron.anomaly_silence import check_unexpected_silence
@@ -599,6 +599,16 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
             except Exception:  # noqa: BLE001
                 logger.exception("vrm-fleet refresh-snapshots: alert notifications failed (snapshots are unaffected)")
 
+    # Admin fleet-health alerts (many sites silent, reads failing, sweep/history
+    # stale). Off unless ALERTS_ADMIN is set; same rule as above: never costs a sweep.
+    if admin_alerts.admin_mode() != "off":
+        try:
+            logger.info("vrm-fleet refresh-snapshots: admin alerts %s", admin_alerts.run_sweep_pass(fetched=fetched, site_ids=site_ids))
+            if admin_alerts.admin_mode() == "on":
+                logger.info("vrm-fleet refresh-snapshots: admin notifications %s", admin_alerts.deliver_pending())
+        except Exception:  # noqa: BLE001
+            logger.exception("vrm-fleet refresh-snapshots: admin alert pass failed (snapshots are unaffected)")
+
     logger.info("vrm-fleet refresh-snapshots: checked=%d refreshed=%d skipped=%d failed=%d in %.1fs",
                 len(sites), refreshed, skipped, failed, time.monotonic() - started)
     return FleetSnapshotsRefreshOut(checked=len(sites), refreshed=refreshed, skipped=skipped, failed=failed)
@@ -709,6 +719,16 @@ def post_detect_anomalies_daily() -> FleetAnomalyDetectDailyOut:
             logger.exception("vrm-fleet detect-anomalies-daily: underperformance check failed for site %s",
                              site["site_id"])
             failed += 1
+
+    # Free fallback watchdog: even with no dedicated admin-check job, a dead
+    # sweep or history sync is noticed once a day, when this job runs.
+    if admin_alerts.admin_mode() != "off":
+        try:
+            admin_alerts.run_watchdog_pass()
+            if admin_alerts.admin_mode() == "on":
+                admin_alerts.deliver_pending()
+        except Exception:  # noqa: BLE001
+            logger.exception("vrm-fleet detect-anomalies-daily: admin watchdog failed (anomaly checks are unaffected)")
 
     return FleetAnomalyDetectDailyOut(checked=checked, skipped=skipped, failed=failed)
 

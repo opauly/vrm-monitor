@@ -133,7 +133,7 @@ def destinations(*, customer_id: str | None = None, admin_email: str | None = No
     ALERTS_FORCE_CUSTOMER_IDS) that have no login of their own to subscribe from.
     `admin_email` — just that admin's devices (used by the test button).
     """
-    columns = "id, endpoint, p256dh, auth, failure_count"
+    columns = "id, endpoint, p256dh, auth, failure_count, admin_email"
     rows: list[dict] = []
     if customer_id:
         rows += _t("push_subscriptions").select(columns).eq("customer_id", customer_id).execute().data or []

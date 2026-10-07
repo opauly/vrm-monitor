@@ -109,6 +109,22 @@ EN = {
     "alert_vrm_link_broken_title": "Your Victron VRM connection stopped working",
     "alert_vrm_link_broken_body": "Automatic updates are paused until you reconnect your VRM account.",
     "alert_vrm_link_broken_resolved": "Your Victron VRM connection is working again",
+    # Admin fleet-health alerts (vrm_api/admin_alerts.py) — to the admin, about the monitor itself.
+    "admin_alert_footer": "You are receiving this because fleet-health alerts are turned on for the admin.",
+    "admin_alert_open": "Open fleet alerts",
+    "admin_alert_multi_subject": "{n} fleet-health updates",
+    "admin_alert_fleet_offline_title": "{offline} of {total} sites went quiet together",
+    "admin_alert_fleet_offline_body": "Silent now: {sites}. Several sites stopping at once usually means a VRM, credential or connectivity problem rather than the sites themselves.",
+    "admin_alert_fleet_offline_resolved": "Sites are reporting again",
+    "admin_alert_fetch_failing_title": "Most sites could not be read ({failed} of {attempted})",
+    "admin_alert_fetch_failing_body": "The latest sweep failed to fetch from {failed} of {attempted} sites. Check VRM's status, the admin VRM token and the API logs.",
+    "admin_alert_fetch_failing_resolved": "Reading sites works again",
+    "admin_alert_sweep_stale_title": "The live-data sweep has stopped",
+    "admin_alert_sweep_stale_body": "The 15-minute snapshot sweep last ran {minutes} minutes ago, so every dashboard and alert is out of date. Check the scheduler job and the API service.",
+    "admin_alert_sweep_stale_resolved": "The live-data sweep is running again",
+    "admin_alert_history_stale_title": "Daily history is behind",
+    "admin_alert_history_stale_body": "The newest daily figures are from {day} ({days} days ago). Check the daily history sync job.",
+    "admin_alert_history_stale_resolved": "Daily history is up to date",
 }
 
 ES = dict(EN, **{
@@ -197,6 +213,22 @@ ES = dict(EN, **{
     "alert_vrm_link_broken_title": "Tu conexión con Victron VRM dejó de funcionar",
     "alert_vrm_link_broken_body": "Las actualizaciones automáticas están en pausa hasta que vuelvas a conectar tu cuenta de VRM.",
     "alert_vrm_link_broken_resolved": "Tu conexión con Victron VRM funciona de nuevo",
+    # Alertas de salud de la flota para el admin (vrm_api/admin_alerts.py).
+    "admin_alert_footer": "Recibes esto porque las alertas de salud de la flota están activadas para el admin.",
+    "admin_alert_open": "Abrir alertas de la flota",
+    "admin_alert_multi_subject": "{n} novedades de salud de la flota",
+    "admin_alert_fleet_offline_title": "{offline} de {total} sitios se quedaron sin reportar a la vez",
+    "admin_alert_fleet_offline_body": "Sin reportar ahora: {sites}. Que varios sitios se detengan a la vez suele indicar un problema de VRM, de credenciales o de conectividad, no de los sitios.",
+    "admin_alert_fleet_offline_resolved": "Los sitios vuelven a reportar",
+    "admin_alert_fetch_failing_title": "No se pudo leer la mayoría de los sitios ({failed} de {attempted})",
+    "admin_alert_fetch_failing_body": "El último barrido falló al leer {failed} de {attempted} sitios. Revisa el estado de VRM, el token de VRM del admin y los logs de la API.",
+    "admin_alert_fetch_failing_resolved": "La lectura de los sitios vuelve a funcionar",
+    "admin_alert_sweep_stale_title": "El barrido de datos en vivo se detuvo",
+    "admin_alert_sweep_stale_body": "El barrido de 15 minutos corrió por última vez hace {minutes} minutos, así que todos los paneles y alertas están desactualizados. Revisa el job del programador y el servicio de la API.",
+    "admin_alert_sweep_stale_resolved": "El barrido de datos en vivo corre de nuevo",
+    "admin_alert_history_stale_title": "El historial diario está atrasado",
+    "admin_alert_history_stale_body": "Las cifras diarias más recientes son del {day} (hace {days} días). Revisa el job de sincronización del historial diario.",
+    "admin_alert_history_stale_resolved": "El historial diario está al día",
 })
 
 TRANSLATIONS = {"en": EN, "es": ES}
