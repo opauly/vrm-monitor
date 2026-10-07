@@ -252,14 +252,14 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
         </div>
       </div>
 
-      <PeriodProvider>
+      <PeriodProvider siteId={site.site_id} apiBasePath="/api/admin/pipeline/vrm-fleet">
         <FleetLiveSection
           sites={[site]}
           lang={lang}
           siteHrefBase="/admin/fleet/"
           scope="site"
           aside={<SiteHealthCard lang={lang} site={site} />}
-          energy={{ apiBasePath: '/api/admin/pipeline/vrm-fleet' }}
+          energy
         />
       </PeriodProvider>
 

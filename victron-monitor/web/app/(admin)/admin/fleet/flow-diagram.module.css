@@ -270,3 +270,16 @@
   color: var(--mute);
   white-space: nowrap;
 }
+
+/* Fleet roll-up, sites exporting to the grid: an arrowhead on the grid ring's
+   inner edge pointing at the ring, where the connector leaves it. */
+.exportArrow .ring::before {
+  content: '';
+  position: absolute;
+  left: calc(-2px - 11 * var(--u));
+  top: calc(50% + 6 * var(--u));
+  transform: translateY(-50%);
+  border-style: solid;
+  border-width: calc(5 * var(--u)) 0 calc(5 * var(--u)) calc(9 * var(--u));
+  border-color: transparent transparent transparent var(--victron-glow);
+}

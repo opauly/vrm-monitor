@@ -142,3 +142,23 @@
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
+
+/* A small heading above the gauges saying which time frame they describe. */
+.gaugeSection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.gaugeSection .gauges {
+  padding-top: 0;
+  border-top: 0;
+}
+.caption {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mute);
+}

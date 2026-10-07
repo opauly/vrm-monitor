@@ -233,14 +233,14 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
         </div>
       </div>
 
-      <PeriodProvider>
+      <PeriodProvider siteId={site.site_id} apiBasePath="/api/pipeline/vrm-fleet">
         <FleetLiveSection
           sites={[site]}
           lang={lang}
           siteHrefBase="/app/dashboard/"
           scope="site"
           aside={<SiteHealthCard lang={lang} site={site} />}
-          energy={{ apiBasePath: '/api/pipeline/vrm-fleet' }}
+          energy
         />
       </PeriodProvider>
 

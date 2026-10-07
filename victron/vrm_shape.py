@@ -29,6 +29,7 @@ import pandas as pd
 
 from victron.vrm_live import (
     BATTERY_POWER_CODE,
+    SOC_CODE,
     GRID_POWER_CODES,
     INVERTER_INPUT_CODES,
     LOAD_CODES,
@@ -41,7 +42,7 @@ logger = logging.getLogger("victron.vrm_shape")
 
 RANGE_DAYS = {"today": 1, "week": 7, "month": 30}
 
-_EMPTY_SHAPE = {"solar": [None] * 24, "load": [None] * 24, "battery": [None] * 24, "grid": [None] * 24}
+_EMPTY_SHAPE = {"solar": [None] * 24, "load": [None] * 24, "battery": [None] * 24, "grid": [None] * 24, "soc_min": None}
 
 
 def _hourly_average(series: pd.Series) -> list[float | None]:
@@ -95,6 +96,10 @@ def fetch_site_shape(client, id_site, *, range_key: str, tz: str = DEFAULT_TZ_NA
             requested.add(code)
     if BATTERY_POWER_CODE in available:
         requested.add(BATTERY_POWER_CODE)
+    # Battery state of charge, only to report the lowest level reached in a
+    # "today" window (the per-site gauge "depth of discharge so far today").
+    if range_key == "today" and SOC_CODE in available:
+        requested.add(SOC_CODE)
     for code in grid_codes:
         if code in available:
             requested.add(code)
@@ -142,6 +147,10 @@ def fetch_site_shape(client, id_site, *, range_key: str, tz: str = DEFAULT_TZ_NA
                                           start=start_s, end=end_s, zone=zone)
                     if has_pv else pd.Series(dtype=float))
     battery_series = series_by_code.get(BATTERY_POWER_CODE, pd.Series(dtype=float))
+    soc_series = series_by_code.get(SOC_CODE, pd.Series(dtype=float))
+    # The lowest 15-minute reading, not the lowest hourly average — a dip
+    # inside an hour would otherwise be smoothed away. Only for "today".
+    soc_min = round(float(soc_series.min()), 1) if range_key == "today" and not soc_series.empty else None
 
     return {
         "solar": _hourly_average(solar_series),
@@ -152,4 +161,5 @@ def fetch_site_shape(client, id_site, *, range_key: str, tz: str = DEFAULT_TZ_NA
         # series as "unavailable," same convention `grid_power_w: None`
         # already uses on the live-snapshot path.
         "grid": _hourly_average(grid_series) if grid_parts else [None] * 24,
+        "soc_min": soc_min,
     }

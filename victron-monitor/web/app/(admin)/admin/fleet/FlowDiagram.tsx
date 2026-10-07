@@ -265,9 +265,12 @@ export function FlowDiagram({
             className={`${lineClass(gridLine, Boolean(gross))} ${styles.gridHome}`}
             style={gridLine.style}
             d={`M 325 40 Q 220 55 205 ${homeEndY}`}
-            // Drawn grid -> home: importing points at home (end), exporting at the grid (start).
+            // Drawn grid -> home: importing points at home (end). The export direction
+            // (the START of this path, under the grid ring) is drawn as a CSS arrow on
+            // the ring itself — see `exportArrow` — because the ring is pinned to the
+            // frame's edge while this SVG scales, so their positions only line up at
+            // wide widths.
             markerEnd={gross && gross.gridImportW > DEADBAND_W ? 'url(#flow-arrow-grid)' : undefined}
-            markerStart={gross && gross.gridExportW > DEADBAND_W ? 'url(#flow-arrow-grid)' : undefined}
           />
         )}
       </svg>
@@ -284,7 +287,7 @@ export function FlowDiagram({
         {solarNote && <div className={styles.footnote}>{solarNote}</div>}
       </div>
 
-      <div className={`${styles.node} ${styles.grid}`}>
+      <div className={`${styles.node} ${styles.grid} ${gross && gross.gridExportW > DEADBAND_W ? styles.exportArrow : ''}`}>
         <div className={styles.ring}>
           <svg className={styles.icon} viewBox="0 0 24 24" fill="none" stroke="var(--victron-glow)" strokeWidth={1.8}>
             <path d="M6 21V10l6-6 6 6v11M9 21v-6h6v6" />

@@ -467,6 +467,10 @@ class SiteShapeOut(BaseModel):
     load: list[float | None]
     battery: list[float | None]
     grid: list[float | None]
+    # Lowest battery state of charge (%) reached so far in the window, from the
+    # 15-minute readings — filled for range="today" only (None otherwise, and
+    # where the site has no SOC reading). Additive: older callers ignore it.
+    soc_min: float | None = None
 
 
 class SiteSavingsOut(BaseModel):

@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { Gauge } from '@/app/(admin)/admin/fleet/Gauge';
 import { InfoTooltip } from '@/components/ui';
 import { AggregateBreakdown, ScoreBreakdown } from '@/components/app/ScoreBreakdown/ScoreBreakdown';
 import { PeriodPane, PeriodSwitch } from '@/components/app/PeriodView/PeriodView';
@@ -7,6 +6,8 @@ import { scoreBand, type PeriodScore } from '@/lib/healthBreakdown';
 import { gridScoreInfo, systemScoreInfo } from '@/lib/healthScoreInfo';
 import { t, type Lang } from '@/lib/i18n/strings';
 import type { FleetOverviewRow, PeriodSummary } from '@/lib/server/db/fleetOverviewCore';
+import { GaugeStack } from './GaugeStack';
+import { TodayGauges } from './TodayGauges';
 import styles from './SiteHealthCard.module.css';
 
 // The scores card beside the live-flow panels on a site page (admin and
@@ -22,45 +23,6 @@ const bandClass = (score: number | null) => {
 
 const bandLabel = (lang: Lang, score: number) =>
   t(lang, `score_status_${scoreBand(score)}` as 'score_status_excellent' | 'score_status_good' | 'score_status_watch' | 'score_status_attention');
-
-type Gauges = { selfSufficiency: number | null; selfConsumption: number | null; dod: number | null };
-
-function GaugeStack({ lang, gauges }: { lang: Lang; gauges: Gauges }) {
-  return (
-    <div className={styles.gauges}>
-      <Gauge
-        pct={gauges.selfSufficiency}
-        color="var(--good)"
-        label={t(lang, 'admin_fleet_card_self_sufficiency_label')}
-        desc={
-          gauges.selfSufficiency === null
-            ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
-            : t(lang, 'admin_fleetsite_gauge_self_suff_desc').replace('{pct}', String(gauges.selfSufficiency))
-        }
-      />
-      <Gauge
-        pct={gauges.selfConsumption}
-        color="var(--victron-glow)"
-        label={t(lang, 'admin_fleet_card_self_consumption_label')}
-        desc={
-          gauges.selfConsumption === null
-            ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
-            : t(lang, 'admin_fleetsite_gauge_self_cons_desc').replace('{pct}', String(gauges.selfConsumption))
-        }
-      />
-      <Gauge
-        pct={gauges.dod}
-        color="var(--signal)"
-        label={t(lang, 'admin_fleetsite_gauge_dod_label')}
-        desc={
-          gauges.dod === null
-            ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
-            : t(lang, 'admin_fleetsite_gauge_dod_desc').replace('{pct}', String(gauges.dod))
-        }
-      />
-    </div>
-  );
-}
 
 function ScoreBlock({
   lang,
@@ -136,9 +98,15 @@ function DayPane({ lang, site }: { lang: Lang; site: FleetOverviewRow }) {
           emptyText={t(lang, 'admin_fleetsite_no_grid_connection')}
         />
       </div>
-      <GaugeStack
+      <TodayGauges
         lang={lang}
-        gauges={{ selfSufficiency: site.self_sufficiency_pct, selfConsumption: site.self_consumption_pct, dod: site.dod_pct }}
+        fallback={
+          <GaugeStack
+            lang={lang}
+            dodScope="day"
+            gauges={{ selfSufficiency: site.self_sufficiency_pct, selfConsumption: site.self_consumption_pct, dod: site.dod_pct }}
+          />
+        }
       />
       <p className={styles.sub}>{t(lang, 'score_today_note')}</p>
     </div>
@@ -190,7 +158,7 @@ function PeriodBody({ lang, summary, hasGrid, titleKey }: { lang: Lang; summary:
     <div className={styles.pane}>
       <h2 className={styles.title}>{t(lang, titleKey)}</h2>
       <PeriodScoreBlockPair lang={lang} summary={summary} hasGrid={hasGrid} />
-      <GaugeStack lang={lang} gauges={{ selfSufficiency: summary.self_sufficiency_pct, selfConsumption: summary.self_consumption_pct, dod: summary.dod_pct }} />
+      <GaugeStack lang={lang} dodScope="average" gauges={{ selfSufficiency: summary.self_sufficiency_pct, selfConsumption: summary.self_consumption_pct, dod: summary.dod_pct }} />
       {days > 0 && <p className={styles.sub}>{t(lang, 'score_period_days').replace('{n}', String(days))}</p>}
     </div>
   );

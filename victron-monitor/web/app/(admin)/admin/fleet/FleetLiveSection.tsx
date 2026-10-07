@@ -90,8 +90,8 @@ export function FleetLiveSection({
   /** Optional extra card (site pages: health scores + energy sources), shown as a
    * third column on wide screens and below the block otherwise. */
   aside?: ReactNode;
-  /** Site pages: shows the Energy card, fetching today's totals from this API base path. */
-  energy?: { apiBasePath: string };
+  /** Site pages: shows the Energy card (needs a PeriodProvider above, which owns today's fetch). */
+  energy?: boolean;
 }) {
   const single = scope === 'site';
   // A stale site's last snapshot still has real (once-live) readings sitting
@@ -285,8 +285,6 @@ export function FleetLiveSection({
           {single && energy && (
             <EnergyCard
               lang={lang}
-              siteId={sites[0].site_id}
-              apiBasePath={energy.apiBasePath}
               week={{ pv: sites[0].summary_week.pv_kwh, load: sites[0].summary_week.load_kwh, gridImport: sites[0].summary_week.grid_import_kwh, gridExport: sites[0].summary_week.grid_export_kwh }}
               month={{ pv: sites[0].summary_month.pv_kwh, load: sites[0].summary_month.load_kwh, gridImport: sites[0].summary_month.grid_import_kwh, gridExport: sites[0].summary_month.grid_export_kwh }}
             />
