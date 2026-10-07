@@ -164,6 +164,10 @@ export function FlowDiagram({
   const batteryCharging = batteryW !== null && batteryW >= 0;
   const batteryAmt = batteryW === null ? '—' : `${batteryCharging ? '+' : ''}${formatW(batteryW)}`;
 
+  // Where solar/grid connectors meet the home ring. Animated dashes can run on
+  // under the ring edge; an arrowhead can't, so fleet mode stops just above it.
+  const homeEndY = gross ? 106 : 120;
+
   const solarLine = lineFor(solarW, 1);
   // Grid path is drawn grid -> home (import), battery path battery -> home
   // (discharge, which is the NEGATIVE sign convention VRM uses for `bp`).
@@ -230,16 +234,40 @@ export function FlowDiagram({
   const diagram = (
     <div className={styles.flow}>
       <svg className={styles.lines} viewBox="0 0 400 420" preserveAspectRatio="none" aria-hidden="true">
-        <path className={`${lineClass(solarLine, Boolean(gross))} ${styles.solarHome}`} style={solarLine.style} d="M 75 40 Q 180 55 195 120" />
+        {gross && (
+          <defs>
+            {(['solar', 'battery', 'grid'] as const).map((name) => (
+              <marker key={name} id={`flow-arrow-${name}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+                <path d="M 1 1 L 9 5 L 1 9 Z" className={styles[`arrow_${name}`]} />
+              </marker>
+            ))}
+          </defs>
+        )}
+        <path
+          className={`${lineClass(solarLine, Boolean(gross))} ${styles.solarHome}`}
+          style={solarLine.style}
+          d={`M 75 40 Q 180 55 195 ${homeEndY}`}
+          markerEnd={gross && !solarLine.idle ? 'url(#flow-arrow-solar)' : undefined}
+        />
         {/* Ends at 248, not the home node's exact text-bottom (110 + 82 ring +
            name + amt = 236) — that left zero clearance, so the dashed line's
            own start dot sat right on top of the amount text. */}
-        <path className={`${lineClass(batteryLine, Boolean(gross))} ${styles.batteryHome}`} style={batteryLine.style} d="M 200 276 Q 200 262 200 248" />
+        <path
+          className={`${lineClass(batteryLine, Boolean(gross))} ${styles.batteryHome}`}
+          style={batteryLine.style}
+          d="M 200 276 Q 200 262 200 248"
+          // Drawn battery -> home: discharging points at home (end), charging at the battery (start).
+          markerEnd={gross && gross.batteryDischargeW > DEADBAND_W ? 'url(#flow-arrow-battery)' : undefined}
+          markerStart={gross && gross.batteryChargeW > DEADBAND_W ? 'url(#flow-arrow-battery)' : undefined}
+        />
         {hasGridMeter && (
           <path
             className={`${lineClass(gridLine, Boolean(gross))} ${styles.gridHome}`}
             style={gridLine.style}
-            d="M 325 40 Q 220 55 205 120"
+            d={`M 325 40 Q 220 55 205 ${homeEndY}`}
+            // Drawn grid -> home: importing points at home (end), exporting at the grid (start).
+            markerEnd={gross && gross.gridImportW > DEADBAND_W ? 'url(#flow-arrow-grid)' : undefined}
+            markerStart={gross && gross.gridExportW > DEADBAND_W ? 'url(#flow-arrow-grid)' : undefined}
           />
         )}
       </svg>

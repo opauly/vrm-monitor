@@ -214,14 +214,26 @@
   stroke: var(--victron-glow);
 }
 
-/* Fleet roll-up: connectors that don't move (no single direction is true across
-   many sites); their thickness still follows the size of the flow. */
+/* Fleet roll-up: solid connectors — dashes read as "frozen animation" when
+   they don't move. Thickness follows the size of the flow, and an arrowhead
+   marks each direction that actually carries power (both ends when sites go
+   both ways). */
 .still {
   animation: none;
-  opacity: 0.75;
+  stroke-dasharray: none;
+  opacity: 0.85;
 }
 .still.idle {
   opacity: 0.3;
+}
+.arrow_solar {
+  fill: var(--signal);
+}
+.arrow_battery {
+  fill: var(--good);
+}
+.arrow_grid {
+  fill: var(--victron-glow);
 }
 /* Per-direction figures under a grid/battery node, in place of one net number. */
 .gross {
