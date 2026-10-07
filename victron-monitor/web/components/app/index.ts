@@ -16,7 +16,10 @@ export { FeedbackWidget } from './FeedbackWidget/FeedbackWidget';
 export type { FeedbackWidgetProps, FeedbackWidgetSite } from './FeedbackWidget/FeedbackWidget';
 
 export { PushPanel } from './PushPanel/PushPanel';
-export { ScoreBreakdown } from './ScoreBreakdown/ScoreBreakdown';
+export { ScoreBreakdown, AggregateBreakdown } from './ScoreBreakdown/ScoreBreakdown';
 
 export { DataSourceDiagram } from './HelpDiagrams/DataSourceDiagram';
 export { ScoreLegend } from './HelpDiagrams/ScoreLegend';
+export { PeriodProvider, PeriodSwitch, PeriodPane } from './PeriodView/PeriodView';
+export { EnergyCard } from './EnergyCard/EnergyCard';
+export { SiteHealthCard } from './SiteHealthCard/SiteHealthCard';

@@ -1,4 +1,4 @@
-import type { HealthBreakdownItem } from '@/lib/healthBreakdown';
+import type { HealthBreakdownItem, PeriodScore } from '@/lib/healthBreakdown';
 import { t, type Lang, type StringKey } from '@/lib/i18n/strings';
 import styles from './ScoreBreakdown.module.css';
 
@@ -27,6 +27,17 @@ function describe(lang: Lang, item: HealthBreakdownItem): { title: string; detai
 }
 
 const signed = (points: number) => (points < 0 ? `−${Math.abs(points)}` : points > 0 ? `+${points}` : '0');
+
+function Legend({ lang }: { lang: Lang }) {
+  return (
+    <ul className={styles.legend}>
+      <li className={styles.excellent}>{t(lang, 'score_band_excellent')}</li>
+      <li className={styles.good}>{t(lang, 'score_band_good')}</li>
+      <li className={styles.watch}>{t(lang, 'score_band_watch')}</li>
+      <li className={styles.attention}>{t(lang, 'score_band_attention')}</li>
+    </ul>
+  );
+}
 
 export function ScoreBreakdown({
   lang,
@@ -88,12 +99,50 @@ export function ScoreBreakdown({
         <span>{t(lang, 'score_breakdown_total')}</span>
         <span className={styles.points}>{score === null ? '—' : `${score}/100`}</span>
       </div>
-      <ul className={styles.legend}>
-        <li className={styles.excellent}>{t(lang, 'score_band_excellent')}</li>
-        <li className={styles.good}>{t(lang, 'score_band_good')}</li>
-        <li className={styles.watch}>{t(lang, 'score_band_watch')}</li>
-        <li className={styles.attention}>{t(lang, 'score_band_attention')}</li>
-      </ul>
+      <Legend lang={lang} />
+    </div>
+  );
+}
+
+/**
+ * The same calculation over a period: each reason with how many of the days it
+ * applied on and what it cost per day on average, so "Starts at 100" minus the
+ * lines gives the period's average score.
+ */
+export function AggregateBreakdown({ lang, period }: { lang: Lang; period: PeriodScore }) {
+  const avg = (points: number) => (points === 0 ? '0' : `${points < 0 ? '−' : '+'}${Math.abs(points).toFixed(1)}`);
+  return (
+    <div className={styles.breakdown}>
+      <div className={styles.line}>
+        <span>{t(lang, 'score_breakdown_start')}</span>
+        <span className={styles.points}>100</span>
+      </div>
+
+      {period.items.length === 0 && <p className={styles.none}>{t(lang, 'score_breakdown_none')}</p>}
+
+      {period.items.map((item) => {
+        const { title, detail } = describe(lang, item.latest);
+        return (
+          <div key={item.code} className={styles.line}>
+            <div>
+              <div className={styles.label}>{title}</div>
+              <div className={styles.why}>
+                {t(lang, 'score_period_hit').replace('{n}', String(item.days)).replace('{total}', String(period.days))}
+                {detail ? ` · ${detail}` : ''}
+              </div>
+            </div>
+            <span className={`${styles.points} ${item.points < 0 ? styles.taken : styles.free}`}>
+              {avg(item.points)} <span className={styles.avg}>{t(lang, 'score_period_avg')}</span>
+            </span>
+          </div>
+        );
+      })}
+
+      <div className={`${styles.line} ${styles.total}`}>
+        <span>{t(lang, 'score_breakdown_total')}</span>
+        <span className={styles.points}>{period.score}/100</span>
+      </div>
+      <Legend lang={lang} />
     </div>
   );
 }

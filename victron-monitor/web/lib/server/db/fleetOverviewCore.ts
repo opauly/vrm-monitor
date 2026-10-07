@@ -1,4 +1,4 @@
-import { parseBreakdown, type HealthBreakdownItem } from '@/lib/healthBreakdown';
+import { aggregateScores, parseBreakdown, type HealthBreakdownItem, type PeriodScore } from '@/lib/healthBreakdown';
 import 'server-only';
 
 // ══════════════════════════════════════════════════════════════════════
@@ -207,6 +207,26 @@ export type FleetOverviewRow = {
   // every VRM-API site (migration 012, unfixed).
   week: PeriodIndicators;
   month: PeriodIndicators;
+  // Same two windows, for the per-site Energy and scores cards (see PeriodSummary).
+  summary_week: PeriodSummary;
+  summary_month: PeriodSummary;
+};
+
+/** One window (last 7 or 30 days) of a site's energy and scores, for the per-site
+ * cards' period toggle. Energy figures are PER-DAY averages (kWh/day). */
+export type PeriodSummary = {
+  /** Days of `energy_daily` behind the energy figures. */
+  energy_days: number;
+  pv_kwh: number | null;
+  load_kwh: number | null;
+  grid_import_kwh: number | null;
+  grid_export_kwh: number | null;
+  self_sufficiency_pct: number | null;
+  self_consumption_pct: number | null;
+  dod_pct: number | null;
+  /** Mean scores over the window, with the reasons behind them; `null` when no day has a stored breakdown yet. */
+  system: PeriodScore | null;
+  grid: PeriodScore | null;
 };
 
 export type FleetOverview = {
@@ -435,16 +455,9 @@ function _activeCountFromRaw(raw: unknown, key: 'alarms' | 'critical_alerts'): n
 export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<FleetOverview> {
   const admin = getSupabaseAdmin();
   const now = Date.now();
-  // Generous enough to always contain the real most-recent health row (a
-  // site can go a few days without a fresh sync) and any genuinely open
-  // alarm/critical-alert episode (an episode that's been open longer than
-  // this would be a real, separate "stuck" bug worth its own investigation,
-  // not something this dashboard needs to keep scanning further back for).
-  const lookbackIso = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString();
-  const lookbackDate = lookbackIso.slice(0, 10);
-  // `energy_daily` alone needs a deeper window than the other tables above —
-  // the "This month" toggle on the per-site page needs 30 real days to sum
-  // over, not just 14.
+  // 30 days of `daily_health` and `energy_daily`: the per-site cards' 30-day
+  // toggle averages over them, and it always contains the real most-recent
+  // health row (a site can go a few days without a fresh sync).
   const lookback30Date = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   const siteIds = siteRows.map((s) => s.site_id);
@@ -484,9 +497,9 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
     // until that has run the columns don't exist and PostgREST rejects the
     // whole select, so retry without them rather than take the dashboard down.
     (async () => {
-      const withBreakdown = await admin.schema('vrm').from('daily_health').select('site_id, date, system_score, system_status, system_notes, system_breakdown, grid_score, grid_status, grid_notes, grid_breakdown, grid_dependency_pct').in('site_id', siteIds).gte('date', lookbackDate);
+      const withBreakdown = await admin.schema('vrm').from('daily_health').select('site_id, date, system_score, system_status, system_notes, system_breakdown, grid_score, grid_status, grid_notes, grid_breakdown, grid_dependency_pct').in('site_id', siteIds).gte('date', lookback30Date);
       if (!withBreakdown.error) return withBreakdown;
-      return admin.schema('vrm').from('daily_health').select('site_id, date, system_score, system_status, system_notes, grid_score, grid_status, grid_notes, grid_dependency_pct').in('site_id', siteIds).gte('date', lookbackDate);
+      return admin.schema('vrm').from('daily_health').select('site_id, date, system_score, system_status, system_notes, grid_score, grid_status, grid_notes, grid_dependency_pct').in('site_id', siteIds).gte('date', lookback30Date);
     })(),
     // `alarm_events`/`critical_alerts` deliberately NOT fetched here any
     // more (2026-09-01) — this is a live monitoring dashboard, and those
@@ -611,6 +624,10 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
   // much alone; a week's or month's total/spread is the same grain the PDF
   // report already shows.
   type EnergyRowPeriod = {
+    date: string;
+    pv_kwh: number | null;
+    load_kwh: number | null;
+    grid_export_kwh: number | null;
     grid_kwh: number | null;
     min_soc: number | null;
     max_soc: number | null;
@@ -625,6 +642,10 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
   const last30dEnergyBySite = new Map<string, EnergyRowPeriod[]>();
   for (const row of energyDaily ?? []) {
     const entry: EnergyRowPeriod = {
+      date: row.date,
+      pv_kwh: row.pv_kwh,
+      load_kwh: row.load_kwh,
+      grid_export_kwh: row.grid_export_kwh,
       grid_kwh: row.grid_kwh,
       min_soc: row.min_soc,
       max_soc: row.max_soc,
@@ -646,6 +667,33 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
       last7dEnergyBySite.set(row.site_id, weekList);
     }
   }
+
+  const meanOf = (values: (number | null)[]): number | null => {
+    const present = values.filter((v): v is number => v !== null);
+    return present.length > 0 ? Math.round((present.reduce((a, b) => a + b, 0) / present.length) * 10) / 10 : null;
+  };
+  const sumOf = (values: (number | null)[]) => values.reduce<number>((a, v) => a + (v ?? 0), 0);
+  const summarize = (siteId: string, energyRows: EnergyRowPeriod[], sinceDate: string): PeriodSummary => {
+    const pv = sumOf(energyRows.map((r) => r.pv_kwh));
+    const exported = sumOf(energyRows.map((r) => r.grid_export_kwh));
+    const imported = sumOf(energyRows.map((r) => r.grid_kwh));
+    // Same formulas as the single-day gauges (_dailyIndicators), over summed totals.
+    const consumed = Math.max(pv - exported, 0);
+    const totalLoad = consumed + imported;
+    const healthDays = (healthRowsBySite.get(siteId) ?? []).filter((r) => r.date >= sinceDate && !isPartialDay(r.system_notes));
+    return {
+      energy_days: energyRows.length,
+      pv_kwh: meanOf(energyRows.map((r) => r.pv_kwh)),
+      load_kwh: meanOf(energyRows.map((r) => r.load_kwh)),
+      grid_import_kwh: meanOf(energyRows.map((r) => r.grid_kwh)),
+      grid_export_kwh: meanOf(energyRows.map((r) => r.grid_export_kwh)),
+      self_sufficiency_pct: energyRows.length > 0 && totalLoad > 0 ? Math.round((1 - imported / totalLoad) * 1000) / 10 : null,
+      self_consumption_pct: energyRows.length > 0 && pv > 0 ? Math.round((consumed / pv) * 1000) / 10 : null,
+      dod_pct: meanOf(energyRows.map((r) => (r.min_soc === null ? null : 100 - r.min_soc))),
+      system: aggregateScores(healthDays.filter((r) => r.system_score !== null).map((r) => ({ date: r.date, score: r.system_score as number, items: r.system_breakdown }))),
+      grid: aggregateScores(healthDays.filter((r) => r.grid_score !== null).map((r) => ({ date: r.date, score: r.grid_score as number, items: r.grid_breakdown }))),
+    };
+  };
 
   const rows: FleetOverviewRow[] = siteRows.map((s) => {
     const latestHealth = latestHealthBySite.get(s.site_id);
@@ -697,6 +745,8 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
       grid_dependency_pct: latestHealth?.grid_dependency_pct ?? null,
       week: _periodIndicators(last7dEnergyBySite.get(s.site_id) ?? [], s.battery_usable_kwh),
       month: _periodIndicators(last30dEnergyBySite.get(s.site_id) ?? [], s.battery_usable_kwh),
+      summary_week: summarize(s.site_id, last7dEnergyBySite.get(s.site_id) ?? [], sevenDaysAgo),
+      summary_month: summarize(s.site_id, last30dEnergyBySite.get(s.site_id) ?? [], lookback30Date),
     };
   });
 

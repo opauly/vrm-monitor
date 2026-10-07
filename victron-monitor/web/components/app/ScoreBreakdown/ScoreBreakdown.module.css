@@ -108,3 +108,8 @@
   left: 0;
   color: var(--mute);
 }
+
+.avg {
+  font-size: 10px;
+  color: var(--mute);
+}

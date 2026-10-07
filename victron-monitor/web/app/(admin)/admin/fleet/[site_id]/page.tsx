@@ -4,12 +4,9 @@ import { notFound } from 'next/navigation';
 import { requireAdmin } from '@/lib/server/auth';
 import { getFleetSiteDetail, type SiteAnomalyRow } from '@/lib/server/db/admin';
 import { formatDateTimeInZone } from '@/lib/dates';
-import { InfoTooltip } from '@/components/ui';
-import { ScoreBreakdown } from '@/components/app';
-import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
+import { PeriodProvider, SiteHealthCard } from '@/components/app';
 import { t, type Lang } from '@/lib/i18n/strings';
 import { FleetLiveSection } from '../FleetLiveSection';
-import { Gauge } from '../Gauge';
 import { PeriodStatsPanel } from '../PeriodStatsPanel';
 import { ShapeChart } from '../ShapeChart';
 import styles from './site.module.css';
@@ -29,25 +26,6 @@ export async function generateMetadata({ params }: { params: Promise<{ site_id: 
 function formatWatts(w: number | null): string {
   if (w === null) return '—';
   return Math.abs(w) >= 1000 ? `${(w / 1000).toFixed(1)}kW` : `${Math.round(w)}W`;
-}
-
-// Same 4-tier thresholds as fleet/page.tsx's own healthClass() — a health
-// score must read the same way everywhere it's shown.
-function healthClass(score: number | null): string {
-  if (score === null) return styles.healthNone;
-  if (score >= 90) return styles.healthExcellent;
-  if (score >= 80) return styles.healthGood;
-  if (score >= 70) return styles.healthFair;
-  return styles.healthPoor;
-}
-
-// `vrm.compute_daily_health()` (migration 012) joins its reasons with
-// "; " — split back into a list so "High grid dependency; Low battery
-// voltage (45.2V)" reads as two distinct, scannable points instead of one
-// run-on sentence.
-function healthNotesList(notes: string | null): string[] {
-  if (!notes) return [];
-  return notes.split(';').map((n) => n.trim()).filter(Boolean);
 }
 
 // "America/Costa_Rica" -> "Costa Rica" — the site's own configured
@@ -177,98 +155,6 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
   const site = await getFleetSiteDetail(site_id);
   if (!site) notFound();
 
-  // Scores and today's energy sources, as one compact card beside the live-flow
-  // panels (a third column on wide screens, below them otherwise).
-  const healthAside = (
-    <div className={styles.healthCard}>
-      <h2 className={styles.healthTitle}>
-        {site.health_metrics_date
-          ? t(lang, 'admin_fleetsite_as_of_date').replace('{date}', site.health_metrics_date)
-          : t(lang, 'admin_fleetsite_today_glance')}
-      </h2>
-      <div className={styles.scoreBlockRow}>
-          <div className={styles.scoreBlock}>
-            <div className={styles.scoreBlockLabel}>
-              {t(lang, 'admin_fleetsite_score_system_label')}
-              <InfoTooltip label={t(lang, 'score_info_system_tooltip_label')}>{systemScoreInfo(lang)}</InfoTooltip>
-            </div>
-            <div className={styles.healthRow}>
-              <span className={`${styles.healthBadge} ${healthClass(site.system_score)}`}>
-                {site.system_score === null ? '—' : `${site.system_score}/100`}
-              </span>
-              {site.system_status && <span className={styles.healthStatus}>{site.system_status}</span>}
-            </div>
-            {site.system_score !== null && healthNotesList(site.system_notes).length > 0 && (
-              <details className={styles.notesDetails}>
-                <summary className={styles.notesToggle}>{t(lang, 'score_notes_toggle')}</summary>
-                <ScoreBreakdown lang={lang} items={site.system_breakdown} notes={site.system_notes} score={site.system_score} />
-              </details>
-            )}
-          </div>
-          <div className={styles.scoreBlock}>
-            <div className={styles.scoreBlockLabel}>
-              {t(lang, 'admin_fleetsite_kpi_grid')}
-              <InfoTooltip label={t(lang, 'score_info_grid_tooltip_label')}>{gridScoreInfo(lang)}</InfoTooltip>
-            </div>
-            {site.grid_score === null ? (
-              <div className={styles.sub}>{t(lang, 'admin_fleetsite_no_grid_connection')}</div>
-            ) : (
-              <>
-                <div className={styles.healthRow}>
-                  <span className={`${styles.healthBadge} ${healthClass(site.grid_score)}`}>
-                    {site.grid_score}/100
-                  </span>
-                  {site.grid_status && <span className={styles.healthStatus}>{site.grid_status}</span>}
-                </div>
-                {healthNotesList(site.grid_notes).length > 0 && (
-                  <details className={styles.notesDetails}>
-                    <summary className={styles.notesToggle}>{t(lang, 'score_notes_toggle')}</summary>
-                    <ScoreBreakdown lang={lang} items={site.grid_breakdown} notes={site.grid_notes} score={site.grid_score} />
-                  </details>
-                )}
-              </>
-            )}
-          </div>
-      </div>
-      <div className={styles.gaugeStack}>
-          <Gauge
-            pct={site.self_sufficiency_pct}
-            color="var(--good)"
-            label={t(lang, 'admin_fleet_card_self_sufficiency_label')}
-            desc={
-              site.self_sufficiency_pct === null
-                ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
-                : t(lang, 'admin_fleetsite_gauge_self_suff_desc').replace('{pct}', String(site.self_sufficiency_pct))
-            }
-          />
-          <Gauge
-            pct={site.self_consumption_pct}
-            color="var(--victron-glow)"
-            label={t(lang, 'admin_fleet_card_self_consumption_label')}
-            desc={
-              site.self_consumption_pct === null
-                ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
-                : t(lang, 'admin_fleetsite_gauge_self_cons_desc').replace('{pct}', String(site.self_consumption_pct))
-            }
-          />
-          <Gauge
-            pct={site.dod_pct}
-            color="var(--signal)"
-            label={t(lang, 'admin_fleetsite_gauge_dod_label')}
-            desc={
-              site.dod_pct === null
-                ? t(lang, 'admin_fleetsite_gauge_not_enough_data')
-                : t(lang, 'admin_fleetsite_gauge_dod_desc').replace('{pct}', String(site.dod_pct))
-            }
-          />
-      </div>
-      <p className={styles.healthSub}>
-        {t(lang, 'admin_fleetsite_gauge_sub_1')} <code>vrm.energy_daily</code> / <code>vrm.daily_health</code>{' '}
-        {t(lang, 'admin_fleetsite_gauge_sub_2')}
-      </p>
-    </div>
-  );
-
   return (
     <div>
       <div className={styles.crumb}>
@@ -366,7 +252,16 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
         </div>
       </div>
 
-      <FleetLiveSection sites={[site]} lang={lang} siteHrefBase="/admin/fleet/" scope="site" aside={healthAside} />
+      <PeriodProvider>
+        <FleetLiveSection
+          sites={[site]}
+          lang={lang}
+          siteHrefBase="/admin/fleet/"
+          scope="site"
+          aside={<SiteHealthCard lang={lang} site={site} />}
+          energy={{ apiBasePath: '/api/admin/pipeline/vrm-fleet' }}
+        />
+      </PeriodProvider>
 
 
       <div className={styles.gaugeCard} style={{ marginBottom: 24 }}>

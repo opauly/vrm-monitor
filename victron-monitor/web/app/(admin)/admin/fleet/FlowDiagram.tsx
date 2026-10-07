@@ -10,7 +10,7 @@
 // speeds up and thickens with the size of the reading (log scale — a
 // fleet's 10 kW and a single site's 300 W must both look alive), and goes
 // still and dim when idle, instead of always animating the same way.
-import { t, type Lang } from '@/lib/i18n/strings';
+import { t, type Lang, type StringKey } from '@/lib/i18n/strings';
 import styles from './flow-diagram.module.css';
 
 function formatW(w: number | null): string {
@@ -38,6 +38,22 @@ export function splitCounts(values: (number | null)[]): FlowSplit {
   return { positive, negative };
 }
 
+/** Fleet roll-up only: what each side of the grid and battery actually carries.
+ * A fleet has sites importing while others export (charging while others
+ * discharge), so one net number — and one arrow direction — would mislead; with
+ * this the diagram shows both directions, still lines, and a mix built from
+ * every site's own contribution. Watts, all >= 0. */
+export type GrossFlows = {
+  gridImportW: number;
+  gridImportSites: number;
+  gridExportW: number;
+  gridExportSites: number;
+  batteryChargeW: number;
+  batteryChargeSites: number;
+  batteryDischargeW: number;
+  batteryDischargeSites: number;
+};
+
 type Line = { idle: boolean; reverse: boolean; style: React.CSSProperties };
 
 // `forwardSign` is the sign of the reading for which the path's own drawn
@@ -55,7 +71,8 @@ function lineFor(w: number | null, forwardSign: 1 | -1): Line {
   };
 }
 
-const lineClass = (line: Line) => `${styles.path} ${line.idle ? styles.idle : ''} ${line.reverse ? styles.reverse : ''}`;
+const lineClass = (line: Line, still = false) =>
+  `${styles.path} ${line.idle ? styles.idle : ''} ${line.reverse ? styles.reverse : ''} ${still ? styles.still : ''}`;
 
 // Where a segment's percentage sits on the home ring, as degrees clockwise
 // from 12 o'clock. Two arcs of the ring are off-limits: the top (solar and
@@ -77,6 +94,37 @@ const SOC_RING_CIRCUMFERENCE = 2 * Math.PI * 31;
 const MIX_RING_RADIUS = 40;
 const MIX_RING_CIRCUMFERENCE = 2 * Math.PI * MIX_RING_RADIUS;
 
+// One line per direction ("↓ 1.9kW imported · 4 sites"), only for directions
+// that carry something, and the net as a quiet footnote — never as the headline.
+function GrossRows({
+  lang,
+  rows,
+  netW,
+}: {
+  lang: Lang;
+  rows: { arrow: string; w: number; sites: number; labelKey: StringKey }[];
+  netW: number | null;
+}) {
+  const active = rows.filter((row) => row.sites > 0);
+  const sitesText = (n: number) => t(lang, n === 1 ? 'flow_fleet_site_one' : 'flow_fleet_sites_many').replace('{n}', String(n));
+  return (
+    <div className={styles.gross}>
+      {active.length === 0 && <div className={styles.state}>{t(lang, 'flow_diagram_idle')}</div>}
+      {active.map((row) => (
+        <div key={row.labelKey} className={styles.grossRow}>
+          <span className={styles.grossAmt}>
+            {row.arrow} {formatW(row.w)}
+          </span>
+          <span className={styles.grossWhat}>
+            {t(lang, row.labelKey)} · {sitesText(row.sites)}
+          </span>
+        </div>
+      ))}
+      {netW !== null && active.length > 1 && <div className={styles.grossNet}>{t(lang, 'flow_fleet_net').replace('{w}', `${netW > 0 ? '+' : ''}${formatW(netW)}`)}</div>}
+    </div>
+  );
+}
+
 export function FlowDiagram({
   lang,
   solarW,
@@ -91,6 +139,7 @@ export function FlowDiagram({
   hasGridMeter,
   gridNote,
   gridSplit,
+  gross,
 }: {
   lang: Lang;
   solarW: number | null;
@@ -108,6 +157,9 @@ export function FlowDiagram({
   gridNote?: string;
   /** Fleet roll-up only: positive = importing sites, negative = exporting. */
   gridSplit?: FlowSplit;
+  /** Fleet roll-up: gross flows per direction (see GrossFlows). Replaces the
+   * net-direction animation and the netted mix with per-direction figures. */
+  gross?: GrossFlows;
 }) {
   const batteryCharging = batteryW !== null && batteryW >= 0;
   const batteryAmt = batteryW === null ? '—' : `${batteryCharging ? '+' : ''}${formatW(batteryW)}`;
@@ -115,8 +167,10 @@ export function FlowDiagram({
   const solarLine = lineFor(solarW, 1);
   // Grid path is drawn grid -> home (import), battery path battery -> home
   // (discharge, which is the NEGATIVE sign convention VRM uses for `bp`).
-  const gridLine = lineFor(gridW, 1);
-  const batteryLine = lineFor(batteryW, -1);
+  // In a fleet roll-up the connectors don't move (no single direction is true);
+  // their thickness follows the larger of the two directions instead.
+  const gridLine = gross ? lineFor(Math.max(gross.gridImportW, gross.gridExportW), 1) : lineFor(gridW, 1);
+  const batteryLine = gross ? lineFor(Math.max(gross.batteryChargeW, gross.batteryDischargeW), 1) : lineFor(batteryW, -1);
 
   const splitText = (split: FlowSplit, positiveKey: Parameters<typeof t>[1], negativeKey: Parameters<typeof t>[1]) => {
     const parts: string[] = [];
@@ -141,8 +195,8 @@ export function FlowDiagram({
   // the mix would overstate how self-powered the home is.
   const sources = {
     solar: Math.max(solarW ?? 0, 0),
-    battery: Math.max(-(batteryW ?? 0), 0),
-    grid: hasGridMeter ? Math.max(gridW ?? 0, 0) : 0,
+    battery: gross ? gross.batteryDischargeW : Math.max(-(batteryW ?? 0), 0),
+    grid: hasGridMeter ? (gross ? gross.gridImportW : Math.max(gridW ?? 0, 0)) : 0,
   };
   const sourceTotal = sources.solar + sources.battery + sources.grid;
   const showMix = hasGridMeter && loadW !== null && sourceTotal >= DEADBAND_W;
@@ -176,14 +230,14 @@ export function FlowDiagram({
   const diagram = (
     <div className={styles.flow}>
       <svg className={styles.lines} viewBox="0 0 400 420" preserveAspectRatio="none" aria-hidden="true">
-        <path className={`${lineClass(solarLine)} ${styles.solarHome}`} style={solarLine.style} d="M 75 40 Q 180 55 195 120" />
+        <path className={`${lineClass(solarLine, Boolean(gross))} ${styles.solarHome}`} style={solarLine.style} d="M 75 40 Q 180 55 195 120" />
         {/* Ends at 248, not the home node's exact text-bottom (110 + 82 ring +
            name + amt = 236) — that left zero clearance, so the dashed line's
            own start dot sat right on top of the amount text. */}
-        <path className={`${lineClass(batteryLine)} ${styles.batteryHome}`} style={batteryLine.style} d="M 200 276 Q 200 262 200 248" />
+        <path className={`${lineClass(batteryLine, Boolean(gross))} ${styles.batteryHome}`} style={batteryLine.style} d="M 200 276 Q 200 262 200 248" />
         {hasGridMeter && (
           <path
-            className={`${lineClass(gridLine)} ${styles.gridHome}`}
+            className={`${lineClass(gridLine, Boolean(gross))} ${styles.gridHome}`}
             style={gridLine.style}
             d="M 325 40 Q 220 55 205 120"
           />
@@ -209,10 +263,23 @@ export function FlowDiagram({
           </svg>
         </div>
         <div className={styles.name}>{t(lang, 'flow_diagram_grid')}</div>
-        <div className={styles.amt} style={!hasGridMeter ? { color: 'var(--mute)' } : undefined}>
-          {hasGridMeter ? formatW(gridW) : t(lang, 'flow_diagram_no_reading')}
-        </div>
-        {gridState && <div className={styles.state}>{gridState}</div>}
+        {gross && hasGridMeter ? (
+          <GrossRows
+            lang={lang}
+            rows={[
+              { arrow: '↓', w: gross.gridImportW, sites: gross.gridImportSites, labelKey: 'flow_fleet_imported' },
+              { arrow: '↑', w: gross.gridExportW, sites: gross.gridExportSites, labelKey: 'flow_fleet_exported' },
+            ]}
+            netW={gridW}
+          />
+        ) : (
+          <>
+            <div className={styles.amt} style={!hasGridMeter ? { color: 'var(--mute)' } : undefined}>
+              {hasGridMeter ? formatW(gridW) : t(lang, 'flow_diagram_no_reading')}
+            </div>
+            {gridState && <div className={styles.state}>{gridState}</div>}
+          </>
+        )}
         {gridNote && <div className={styles.footnote}>{gridNote}</div>}
       </div>
 
@@ -304,10 +371,23 @@ export function FlowDiagram({
         </div>
         <div className={styles.name}>
           {t(lang, 'flow_diagram_battery')}
-          {batteryNote ? `, ${batteryNote}` : ''}
+          {batteryNote && !gross ? `, ${batteryNote}` : ''}
         </div>
-        <div className={styles.amt}>{batteryAmt}</div>
-        {batteryState && <div className={styles.state}>{batteryState}</div>}
+        {gross ? (
+          <GrossRows
+            lang={lang}
+            rows={[
+              { arrow: '↓', w: gross.batteryChargeW, sites: gross.batteryChargeSites, labelKey: 'flow_fleet_charging' },
+              { arrow: '↑', w: gross.batteryDischargeW, sites: gross.batteryDischargeSites, labelKey: 'flow_fleet_discharging' },
+            ]}
+            netW={batteryW}
+          />
+        ) : (
+          <>
+            <div className={styles.amt}>{batteryAmt}</div>
+            {batteryState && <div className={styles.state}>{batteryState}</div>}
+          </>
+        )}
       </div>
     </div>
   );

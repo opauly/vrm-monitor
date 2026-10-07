@@ -211,19 +211,3 @@
   }
 }
 
-.energyGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 16px;
-}
-.energyValue {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--paper);
-  font-variant-numeric: tabular-nums;
-}
-.energyUnit {
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--mute);
-}

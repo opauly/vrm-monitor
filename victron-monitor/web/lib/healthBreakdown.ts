@@ -35,3 +35,58 @@ export function parseBreakdown(raw: unknown): HealthBreakdownItem[] | null {
   }
   return items;
 }
+
+// ── Over a period (last 7 / 30 days) ─────────────────────────────────────
+
+/** One reason, across the days of a period it applied. */
+export type AggregatedItem = {
+  code: string;
+  /** How many of the period's days this reason applied on. */
+  days: number;
+  /** Average points per day across the WHOLE period (days it didn't apply count as 0). */
+  points: number;
+  /** The most recent day's entry — supplies the measured value / limit shown. */
+  latest: HealthBreakdownItem;
+};
+
+export type PeriodScore = {
+  /** Mean of the daily scores, rounded. */
+  score: number;
+  /** Days this covers (those scored with a stored breakdown). */
+  days: number;
+  items: AggregatedItem[];
+};
+
+export function scoreBand(score: number): 'excellent' | 'good' | 'watch' | 'attention' {
+  if (score >= 90) return 'excellent';
+  if (score >= 80) return 'good';
+  if (score >= 70) return 'watch';
+  return 'attention';
+}
+
+/**
+ * Folds several scored days into one period score. Only days that have a stored
+ * breakdown count — older days were scored before the points were stored — so
+ * the lines and the headline always describe the same set of days. `days` is
+ * newest-first or any order; each reason's `latest` is chosen by `date`.
+ */
+export function aggregateScores(days: { date: string; score: number; items: HealthBreakdownItem[] | null }[]): PeriodScore | null {
+  const usable = days.filter((d): d is { date: string; score: number; items: HealthBreakdownItem[] } => d.items !== null);
+  if (usable.length === 0) return null;
+  const sorted = [...usable].sort((a, b) => a.date.localeCompare(b.date));
+
+  const byCode = new Map<string, { days: number; points: number; latest: HealthBreakdownItem }>();
+  for (const day of sorted) {
+    for (const item of day.items) {
+      const entry = byCode.get(item.code);
+      byCode.set(item.code, { days: (entry?.days ?? 0) + 1, points: (entry?.points ?? 0) + item.points, latest: item });
+    }
+  }
+  const items: AggregatedItem[] = [...byCode.entries()]
+    .map(([code, e]) => ({ code, days: e.days, points: Math.round((e.points / usable.length) * 10) / 10, latest: e.latest }))
+    // Biggest cost first; informational (0-point) reasons last.
+    .sort((a, b) => a.points - b.points);
+
+  const score = Math.round(usable.reduce((sum, d) => sum + d.score, 0) / usable.length);
+  return { score, days: usable.length, items };
+}

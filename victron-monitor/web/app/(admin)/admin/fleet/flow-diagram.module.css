@@ -213,3 +213,48 @@
 .gridHome {
   stroke: var(--victron-glow);
 }
+
+/* Fleet roll-up: connectors that don't move (no single direction is true across
+   many sites); their thickness still follows the size of the flow. */
+.still {
+  animation: none;
+  opacity: 0.75;
+}
+.still.idle {
+  opacity: 0.3;
+}
+/* Per-direction figures under a grid/battery node, in place of one net number. */
+.gross {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(3 * var(--u));
+}
+.grossRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.25;
+}
+.grossAmt {
+  font-family: var(--font-mono);
+  font-size: calc(14 * var(--u));
+  font-weight: 600;
+  color: var(--paper);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.grossWhat {
+  font-family: var(--font-mono);
+  font-size: calc(9.5 * var(--u));
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+  white-space: nowrap;
+}
+.grossNet {
+  font-family: var(--font-mono);
+  font-size: calc(9.5 * var(--u));
+  color: var(--mute);
+  white-space: nowrap;
+}

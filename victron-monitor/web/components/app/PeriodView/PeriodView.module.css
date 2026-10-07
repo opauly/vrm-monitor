@@ -1,0 +1,28 @@
+.switch {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  flex: none;
+}
+.option {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--mute);
+  border: 0;
+  cursor: pointer;
+}
+.option:hover {
+  color: var(--paper);
+}
+.option:focus-visible {
+  outline: 2px solid var(--victron-glow);
+  outline-offset: -2px;
+}
+.active {
+  background: rgba(var(--victron-glow-rgb), 0.18);
+  color: var(--victron-glow);
+}

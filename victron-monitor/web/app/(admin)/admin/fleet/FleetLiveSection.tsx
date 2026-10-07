@@ -7,15 +7,39 @@
 // rows the page already fetched, no extra queries, no client state.
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { EnergyCard } from '@/components/app/EnergyCard/EnergyCard';
 import type { FleetOverviewRow } from '@/lib/server/db/fleetOverviewCore';
 import { t, type Lang } from '@/lib/i18n/strings';
-import { FlowDiagram, splitCounts } from './FlowDiagram';
+import { FlowDiagram, splitCounts, type GrossFlows } from './FlowDiagram';
 import styles from './fleet-live.module.css';
 
 const LOW_SOC_PCT = 20;
 const ATTENTION_ROWS_SHOWN = 5;
 
 const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
+
+// Below this a reading is noise, not a flow (same deadband as the diagram).
+const DEADBAND_W = 10;
+
+/** Per-direction totals across sites: positive readings and negative readings
+ * summed (and counted) separately instead of netted against each other. */
+function directions(values: (number | null)[]) {
+  let up = 0;
+  let upSites = 0;
+  let down = 0;
+  let downSites = 0;
+  for (const v of values) {
+    if (v === null) continue;
+    if (v > DEADBAND_W) {
+      up += v;
+      upSites += 1;
+    } else if (v < -DEADBAND_W) {
+      down += -v;
+      downSites += 1;
+    }
+  }
+  return { up, upSites, down, downSites };
+}
 const kw = (w: number) => (w / 1000).toFixed(1);
 
 // `insights` reasons deep-link to the site page's insights section, where each
@@ -52,6 +76,7 @@ export function FleetLiveSection({
   siteHrefBase,
   scope = 'fleet',
   aside,
+  energy,
 }: {
   sites: FleetOverviewRow[];
   lang: Lang;
@@ -65,6 +90,8 @@ export function FleetLiveSection({
   /** Optional extra card (site pages: health scores + energy sources), shown as a
    * third column on wide screens and below the block otherwise. */
   aside?: ReactNode;
+  /** Site pages: shows the Energy card, fetching today's totals from this API base path. */
+  energy?: { apiBasePath: string };
 }) {
   const single = scope === 'site';
   // A stale site's last snapshot still has real (once-live) readings sitting
@@ -85,6 +112,21 @@ export function FleetLiveSection({
   const totalGrid = sum(meteredSites.map((s) => s.live_grid_power_w ?? 0));
   const avgSoc = socSites.length > 0 ? Math.round((sum(socSites.map((s) => s.live_soc_pct ?? 0)) / socSites.length) * 10) / 10 : null;
 
+  // Fleet roll-up: what each direction carries. Battery: positive = charging;
+  // grid: positive = importing. (A single site just has one direction at a time.)
+  const gridDirections = directions(meteredSites.map((s) => s.live_grid_power_w));
+  const batteryDirections = directions(batterySites.map((s) => s.live_battery_power_w));
+  const gross: GrossFlows = {
+    gridImportW: gridDirections.up,
+    gridImportSites: gridDirections.upSites,
+    gridExportW: gridDirections.down,
+    gridExportSites: gridDirections.downSites,
+    batteryChargeW: batteryDirections.up,
+    batteryChargeSites: batteryDirections.upSites,
+    batteryDischargeW: batteryDirections.down,
+    batteryDischargeSites: batteryDirections.downSites,
+  };
+
   const siteCount = String(sites.length);
   const ofSites = (n: number) => t(lang, 'admin_fleet_flow_note_of_sites').replace('{n}', String(n)).replace('{m}', siteCount);
 
@@ -103,16 +145,6 @@ export function FleetLiveSection({
   const installedKwp = sum(capacitySites.map((s) => s.pv_kwp ?? 0));
   const solarNowW = sum(capacitySites.map((s) => s.live_pv_power_w ?? 0));
   const solarPct = installedKwp > 0 ? (solarNowW / 1000 / installedKwp) * 100 : null;
-
-  // The latest scored day's energy totals — the site page's fourth panel.
-  const energyRows = (
-    [
-      { key: 'site_live_energy_solar', value: sites[0]?.energy_pv_kwh },
-      { key: 'site_live_energy_load', value: sites[0]?.energy_load_kwh },
-      { key: 'site_live_energy_import', value: sites[0]?.energy_grid_import_kwh },
-      { key: 'site_live_energy_export', value: sites[0]?.energy_grid_export_kwh },
-    ] as const
-  ).filter((row): row is { key: typeof row.key; value: number } => row.value !== null && row.value !== undefined);
 
   const attention = sites
     .map((site) => ({ site, reasons: attentionReasons(site, lang) }))
@@ -145,6 +177,7 @@ export function FleetLiveSection({
             hasGridMeter={meteredSites.length > 0}
             gridSplit={single ? undefined : splitCounts(meteredSites.map((s) => s.live_grid_power_w))}
             gridNote={single ? undefined : ofSites(meteredSites.length)}
+            gross={single ? undefined : gross}
           />
         </div>
 
@@ -249,20 +282,14 @@ export function FleetLiveSection({
             )}
           </div>
 
-          {single && energyRows.length > 0 && (
-            <div className={styles.card}>
-              <div className={styles.label}>{t(lang, 'site_live_energy_title').replace('{date}', sites[0].health_metrics_date ?? '')}</div>
-              <div className={styles.energyGrid}>
-                {energyRows.map((row) => (
-                  <div key={row.key}>
-                    <div className={styles.energyValue}>
-                      {row.value.toFixed(1)} <span className={styles.energyUnit}>kWh</span>
-                    </div>
-                    <div className={styles.note}>{t(lang, row.key)}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {single && energy && (
+            <EnergyCard
+              lang={lang}
+              siteId={sites[0].site_id}
+              apiBasePath={energy.apiBasePath}
+              week={{ pv: sites[0].summary_week.pv_kwh, load: sites[0].summary_week.load_kwh, gridImport: sites[0].summary_week.grid_import_kwh, gridExport: sites[0].summary_week.grid_export_kwh }}
+              month={{ pv: sites[0].summary_month.pv_kwh, load: sites[0].summary_month.load_kwh, gridImport: sites[0].summary_month.grid_import_kwh, gridExport: sites[0].summary_month.grid_export_kwh }}
+            />
           )}
         </div>
       </div>
