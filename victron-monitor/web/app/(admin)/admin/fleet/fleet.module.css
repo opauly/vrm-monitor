@@ -9,6 +9,42 @@
   gap: 12px;
   margin-bottom: 4px;
 }
+.headActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+/* The way into /admin/fleet/alerts: a pill with the number of open alerts. */
+.alertsButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--victron-glow);
+  text-decoration: none;
+}
+.alertsButton:hover {
+  border-color: var(--victron-glow);
+  color: var(--paper);
+}
+.alertsCount {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  text-align: center;
+  background: var(--panel-2);
+  color: var(--mute);
+}
+.alertsCountOpen {
+  background: rgba(242, 169, 59, 0.2);
+  color: var(--signal);
+}
 .manageLink {
   display: inline-block;
   font-family: var(--font-mono);

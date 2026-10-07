@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/server/auth';
+import { listOpenAlerts } from '@/lib/server/db';
+import { fleetAlertCustomerId } from '@/lib/server/fleetAlertCustomer';
 import { getFleetOverview, type FleetConnectionStatus, type FleetOverviewRow } from '@/lib/server/db/admin';
 import { InfoTooltip } from '@/components/ui';
 import { formatDateTime, isWithinLastHours } from '@/lib/dates';
@@ -65,6 +67,10 @@ export default async function AdminFleetPage() {
   const session = await requireAdmin();
   const lang = session.uiLanguage;
   const overview = await getFleetOverview();
+  // Open alerts on the admin's own fleet, for the button's badge. A failure here
+  // must not take the dashboard down; the button just shows without a count.
+  const fleetAlertsOwner = fleetAlertCustomerId();
+  const openAlertCount = fleetAlertsOwner ? await listOpenAlerts(fleetAlertsOwner).then((a) => a.length).catch(() => null) : null;
 
   const sites = overview.sites;
   // A stale site's last snapshot still has real (once-live) readings sitting
@@ -130,18 +136,23 @@ export default async function AdminFleetPage() {
     <div>
       <div className={styles.pageHead}>
         <h1>{t(lang, 'admin_fleet_title')}</h1>
-        {mostRecentCapturedAt && (
-          <div className={styles.liveBadge}>
-            <span className={styles.pulse} />
-            <FleetFreshness mostRecentCapturedAt={mostRecentCapturedAt} lang={lang} />
-          </div>
-        )}
+        <div className={styles.headActions}>
+          <Link href="/admin/fleet/alerts" className={styles.alertsButton}>
+            {t(lang, 'admin_fleet_alerts_link')}
+            {openAlertCount !== null && (
+              <span className={`${styles.alertsCount} ${openAlertCount > 0 ? styles.alertsCountOpen : ''}`}>{openAlertCount}</span>
+            )}
+          </Link>
+          {mostRecentCapturedAt && (
+            <div className={styles.liveBadge}>
+              <span className={styles.pulse} />
+              <FleetFreshness mostRecentCapturedAt={mostRecentCapturedAt} lang={lang} />
+            </div>
+          )}
+        </div>
       </div>
       <Link href="/admin/vrm-fleet" className={styles.manageLink}>
         {t(lang, 'admin_fleet_link_new')} →
-      </Link>{' '}
-      <Link href="/admin/fleet/alerts" className={styles.manageLink}>
-        {t(lang, 'admin_fleet_alerts_link')} →
       </Link>
       <p className="mono page-desc">
         {t(lang, 'admin_fleet_desc_1')} <code>source=&apos;vrm_api&apos;</code> {t(lang, 'admin_fleet_desc_2')}{' '}
