@@ -271,15 +271,21 @@
   white-space: nowrap;
 }
 
-/* Fleet roll-up, sites exporting to the grid: an arrowhead on the grid ring's
-   inner edge pointing at the ring, where the connector leaves it. */
+/* Fleet roll-up, sites exporting to the grid: the arrowhead where the grid
+   connector leaves the grid ring. The other arrowheads are SVG markers (a
+   7.2-unit triangle at a line's end); this one is drawn to the same size, shape
+   and colour, tip touching the ring, and tilted to the connector's angle there
+   (it runs slightly down-left from the ring). It is a CSS shape rather than a
+   marker because the ring is pinned to the diagram's edge while the SVG scales,
+   so a marker at the path's start only lands outside the ring at wide widths. */
 .exportArrow .ring::before {
   content: '';
   position: absolute;
-  left: calc(-2px - 11 * var(--u));
-  top: calc(50% + 6 * var(--u));
-  transform: translateY(-50%);
+  left: calc(-2px - 7.2 * var(--u));
+  top: calc(37 * var(--u));
+  transform: translateY(-50%) rotate(-8deg);
+  transform-origin: 100% 50%;
   border-style: solid;
-  border-width: calc(5 * var(--u)) 0 calc(5 * var(--u)) calc(9 * var(--u));
+  border-width: calc(3.6 * var(--u)) 0 calc(3.6 * var(--u)) calc(7.2 * var(--u));
   border-color: transparent transparent transparent var(--victron-glow);
 }
