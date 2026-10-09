@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { fontVariables } from './fonts';
 import { SITE_URL } from '@/lib/site';
 import { PostHogProvider } from '@/components/analytics/PostHogProvider';
+import { PendingNotificationNav } from '@/components/app/PendingNotificationNav';
 import '../styles/tokens.css';
 import '../styles/base.css';
 
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
     <html lang="en" className={fontVariables}>
       <body>
         <PostHogProvider>{children}</PostHogProvider>
+        <PendingNotificationNav />
       </body>
     </html>
   );

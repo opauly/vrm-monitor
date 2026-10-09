@@ -1,9 +1,10 @@
 /* VRM Monitor service worker — push notifications only.
  *
- * It caches nothing and intercepts no requests (no `fetch` handler), so it can
+ * It caches no pages and intercepts no requests (no `fetch` handler), so it can
  * never serve stale pages or break navigation; its one job is to wake up when
  * the push service delivers an alert, show it, and open the right page when it
- * is tapped.
+ * is tapped. The one thing it stores is the tapped notification's target (see
+ * PENDING_NAV), for the reason given at `notificationclick`.
  *
  * Every push MUST end in a visible notification: iOS and Chrome revoke the
  * subscription of a site that receives a push and shows nothing.
@@ -12,6 +13,24 @@
  * severity }. `tag` makes a later notice about the same alert replace the
  * earlier one; `url` is a path on this site.
  */
+// Where the last tapped notification wanted to go. On an installed iPhone app,
+// `clients.openWindow(url)` / `client.navigate(url)` are not reliable: the app
+// can open at its start page (or stay on whatever page it was on) and ignore the
+// URL, which for the admin means the Customers tab instead of the site that
+// raised the alert. So the tap ALSO leaves the target here, and the page itself
+// (components/app/PendingNotificationNav) reads it on load / when the app comes
+// to the front, and goes there. Entries older than two minutes are ignored.
+const PENDING_NAV = { cache: 'vrm-pending-nav', key: '/__pending-nav' };
+
+async function rememberTarget(url) {
+  try {
+    const cache = await caches.open(PENDING_NAV.cache);
+    await cache.put(PENDING_NAV.key, new Response(JSON.stringify({ url, at: Date.now() })));
+  } catch {
+    /* storage unavailable: the direct navigation below is all we have */
+  }
+}
+
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
 
@@ -45,6 +64,7 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     (async () => {
+      await rememberTarget(url);
       const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const client of windows) {
         if (new URL(client.url).origin === self.location.origin && 'focus' in client) {
