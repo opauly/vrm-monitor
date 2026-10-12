@@ -23,3 +23,4 @@ export { ScoreLegend } from './HelpDiagrams/ScoreLegend';
 export { PeriodProvider, PeriodSwitch, PeriodPane } from './PeriodView/PeriodView';
 export { EnergyCard } from './EnergyCard/EnergyCard';
 export { SiteHealthCard } from './SiteHealthCard/SiteHealthCard';
+export { AiSummary } from './AiSummary/AiSummary';

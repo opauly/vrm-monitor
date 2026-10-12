@@ -6,7 +6,7 @@ import { getCustomer, getDashboardAccess, getCustomerFleetSiteDetail, type SiteA
 import { formatDateTimeInZone } from '@/lib/dates';
 import { t } from '@/lib/i18n/strings';
 import { Panel, Button } from '@/components/ui';
-import { PeriodProvider, SiteHealthCard } from '@/components/app';
+import { AiSummary, PeriodProvider, SiteHealthCard } from '@/components/app';
 import { FleetLiveSection } from '../../../../(admin)/admin/fleet/FleetLiveSection';
 import { PeriodStatsPanel } from '../../../../(admin)/admin/fleet/PeriodStatsPanel';
 import { ShapeChart } from '../../../../(admin)/admin/fleet/ShapeChart';
@@ -232,6 +232,8 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
           <div className={styles.kpiValue}>{site.live_soc_pct === null ? '—' : `${site.live_soc_pct}%`}</div>
         </div>
       </div>
+
+      <AiSummary lang={lang} endpoint={`/api/pipeline/insights/site?siteId=${encodeURIComponent(site.site_id)}`} />
 
       <PeriodProvider siteId={site.site_id} apiBasePath="/api/pipeline/vrm-fleet">
         <FleetLiveSection

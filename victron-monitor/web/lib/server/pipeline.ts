@@ -381,6 +381,32 @@ export async function getSiteSavings(siteId: string, range: SiteShapeRange): Pro
   return pipelineJson(`/v1/vrm-fleet/site-savings?${qs.toString()}`, { method: 'GET' });
 }
 
+// ── Daily AI summaries (vrm_api/insights_service.py) ────────────────────
+
+/** Mirrors `vrm_api/routers/insights.py:SummaryOut`. `enabled: false` = summaries
+ * are switched off server-side; callers render nothing. */
+export type InsightOut = {
+  enabled: boolean;
+  headline: string | null;
+  points: string[];
+  suggestion: string | null;
+  source: 'ai' | 'template' | null;
+  date: string | null;
+  generated_at: string | null;
+};
+
+export async function getSiteInsight(siteId: string, lang: 'en' | 'es'): Promise<InsightOut> {
+  const qs = new URLSearchParams({ site_id: siteId, lang });
+  return pipelineJson(`/v1/insights/site?${qs.toString()}`, { method: 'GET' });
+}
+
+/** A customer's fleet summary, or every site's when `customerId` is omitted (admin). */
+export async function getFleetInsight(customerId: string | null, lang: 'en' | 'es'): Promise<InsightOut> {
+  const qs = new URLSearchParams({ lang });
+  if (customerId) qs.set('customer_id', customerId);
+  return pipelineJson(`/v1/insights/fleet?${qs.toString()}`, { method: 'GET' });
+}
+
 // ── VRM link (PLAN_PHASE15.md §3.1 / §8 Step 5) ─────────────────────────
 // A CUSTOMER'S OWN VRM personal access token — never `VRM_ADMIN_TOKEN`
 // (that's the `VrmFleet*` functions above). Mirrors `vrm_api/schemas.py`'s

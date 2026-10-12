@@ -10,6 +10,7 @@ import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
 import { t, type Lang } from '@/lib/i18n/strings';
 import { FleetFreshness } from './FleetFreshness';
 import { FleetSitesTable } from './FleetSitesTable';
+import { AiSummary } from '@/components/app';
 import { FleetLiveSection } from './FleetLiveSection';
 import { ShapeChart } from './ShapeChart';
 import styles from './fleet.module.css';
@@ -168,14 +169,12 @@ export default async function AdminFleetPage() {
       <Link href="/admin/vrm-fleet" className={styles.manageLink}>
         {t(lang, 'admin_fleet_link_new')} →
       </Link>
-      <p className="mono page-desc">
-        {t(lang, 'admin_fleet_desc_1')} <code>source=&apos;vrm_api&apos;</code> {t(lang, 'admin_fleet_desc_2')}{' '}
-        <code>vrm.daily_health</code>/<code>vrm.energy_daily</code> {t(lang, 'admin_fleet_desc_3')}{' '}
-        <code>vrm-fleet/refresh-snapshots</code>. {t(lang, 'admin_fleet_desc_4')}
-      </p>
 
       {sites.length > 0 && (
-        <FleetLiveSection sites={sites} lang={lang} loadLabel={t(lang, 'admin_fleet_flow_load_label')} siteHrefBase="/admin/fleet/" />
+        <>
+          <AiSummary lang={lang} endpoint="/api/admin/pipeline/insights/fleet" />
+          <FleetLiveSection sites={sites} lang={lang} loadLabel={t(lang, 'admin_fleet_flow_load_label')} siteHrefBase="/admin/fleet/" />
+        </>
       )}
 
       <p className={styles.rollupHint}>{t(lang, 'admin_fleet_rollup_hint')}</p>

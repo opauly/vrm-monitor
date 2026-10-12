@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { requireAdmin } from '@/lib/server/auth';
 import { getFleetSiteDetail, type SiteAnomalyRow } from '@/lib/server/db/admin';
 import { formatDateTimeInZone } from '@/lib/dates';
-import { PeriodProvider, SiteHealthCard } from '@/components/app';
+import { AiSummary, PeriodProvider, SiteHealthCard } from '@/components/app';
 import { t, type Lang } from '@/lib/i18n/strings';
 import { FleetLiveSection } from '../FleetLiveSection';
 import { PeriodStatsPanel } from '../PeriodStatsPanel';
@@ -251,6 +251,8 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
           <div className={styles.kpiValue}>{site.live_soc_pct === null ? '—' : `${site.live_soc_pct}%`}</div>
         </div>
       </div>
+
+      <AiSummary lang={lang} endpoint={`/api/admin/pipeline/insights/site?siteId=${encodeURIComponent(site.site_id)}`} />
 
       <PeriodProvider siteId={site.site_id} apiBasePath="/api/admin/pipeline/vrm-fleet">
         <FleetLiveSection

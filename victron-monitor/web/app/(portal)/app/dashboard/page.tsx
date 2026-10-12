@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { requireCustomerAllowPending } from '@/lib/server/auth';
 import { getCustomer, getDashboardAccess, getCustomerFleetOverview, type FleetConnectionStatus, type FleetOverviewRow } from '@/lib/server/db';
 import { Table, Panel, Button, InfoTooltip } from '@/components/ui';
-import { PendingSubscriptionUpsell } from '@/components/app';
+import { AiSummary, PendingSubscriptionUpsell } from '@/components/app';
 import { formatDateTime, formatDateTimeInZone, isWithinLastHours } from '@/lib/dates';
 import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
 import { t, type Lang } from '@/lib/i18n/strings';
@@ -223,7 +223,10 @@ export default async function CustomerDashboardPage() {
       <p className={`mono ${styles.pageDesc}`}>{t(lang, 'dashboard_intro')}</p>
 
       {sites.length > 0 && (
-        <FleetLiveSection sites={sites} lang={lang} loadLabel={t(lang, 'dashboard_flow_load_label')} siteHrefBase="/app/dashboard/" />
+        <>
+          <AiSummary lang={lang} endpoint="/api/pipeline/insights/fleet" />
+          <FleetLiveSection sites={sites} lang={lang} loadLabel={t(lang, 'dashboard_flow_load_label')} siteHrefBase="/app/dashboard/" />
+        </>
       )}
 
       <p className={styles.rollupHint}>{t(lang, 'admin_fleet_rollup_hint')}</p>
