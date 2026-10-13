@@ -21,7 +21,7 @@ def history(**latest):
 
 def build(rows=None, snapshot=None, alerts=None, anomalies=None, site=SITE, **kw):
     snap = snapshot if snapshot is not None else {"captured_at": (NOW - timedelta(minutes=5)).isoformat(), "soc_pct": 80.0, "pv_power_w": 1200.0, "load_power_w": 600.0}
-    return F.build_site_facts(site=site, energy_rows=rows if rows is not None else history(), health_row=kw.get("health"),
+    return F.build_site_facts(site=site, energy_rows=rows if rows is not None else history(), health_row=kw.get("health"), forecast=kw.get("forecast"),
                               anomalies=anomalies or [], alerts_open=alerts or [], snapshot=snap, now=NOW)
 
 
@@ -157,3 +157,32 @@ def test_the_battery_not_filling_anomaly_replaces_the_plain_no_full_charge_note(
     assert "no_float" in codes(build(rows))
     f = build(rows, anomalies=[{"anomaly_type": "incomplete_charging", "detected_at": "x"}])
     assert "no_float" not in codes(f) and "anomaly_incomplete_charging" in codes(f)
+
+
+# ── forecast ─────────────────────────────────────────────────────────────
+
+AHEAD = {"tomorrow_sky": "sunny", "tomorrow_pv_kwh": 20.0, "tomorrow_vs_typical_pct": 0, "typical_pv_kwh": 20.0, "storm": False,
+         "backup_hours": 8.0, "backup_reaches_sunrise": True, "soc_at_sunrise_pct": 40.0}
+
+
+def test_a_normal_forecast_adds_nothing():
+    assert codes(build(forecast=AHEAD)) == []
+
+
+def test_forecast_findings_are_reported_with_their_numbers():
+    f = build(forecast={**AHEAD, "storm": True, "backup_reaches_sunrise": False, "backup_hours": 5.3, "tomorrow_pv_kwh": 8.0, "tomorrow_vs_typical_pct": -60})
+    assert codes(f) == ["storm_ahead", "tonight_short", "tomorrow_low_solar"]
+    assert f["observations"][1]["params"] == {"hours": 5.3} and f["observations"][2]["params"] == {"pv": 8.0, "typical": 20.0, "change_pct": -60}
+    assert f["forecast"]["storm"] is True
+
+
+def test_a_bright_day_needs_a_real_margin_to_be_news():
+    assert "tomorrow_high_solar" in codes(build(forecast={**AHEAD, "tomorrow_pv_kwh": 26.0, "tomorrow_vs_typical_pct": 30}))
+    assert "tomorrow_high_solar" not in codes(build(forecast={**AHEAD, "tomorrow_pv_kwh": 3.5, "typical_pv_kwh": 2.5, "tomorrow_vs_typical_pct": 40}))
+
+
+def test_fleet_names_the_sites_with_a_storm_coming():
+    a = site_facts("A", forecast={**AHEAD, "storm": True})
+    b = site_facts("B", forecast=AHEAD)
+    fleet = F.build_fleet_facts(site_facts=[a, b], name="All", now=NOW)
+    assert fleet["observations"][0] == {"code": "fleet_storm", "severity": "attention", "params": {"count": 1, "sites": ["A"]}}

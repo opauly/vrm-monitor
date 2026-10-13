@@ -27,8 +27,9 @@ OFFLINE_AFTER = timedelta(minutes=45)  # same freshness the dashboard and alerts
 ATTENTION, GOOD, INFO = "attention", "good", "info"
 
 _ORDER = [
-    "offline", "offline_days", "alert_", "outage_deep", "anomaly_", "battery_low", "solar_below", "import_high",
-    "outage_held", "load_above", "no_float", "export", "solar_above", "load_below", "self_sufficient",
+    "offline", "offline_days", "alert_", "storm_ahead", "outage_deep", "tonight_short", "anomaly_", "battery_low", "solar_below",
+    "tomorrow_low_solar", "import_high", "outage_held", "load_above", "no_float", "export", "solar_above", "tomorrow_high_solar",
+    "load_below", "self_sufficient",
 ]
 
 
@@ -90,7 +91,7 @@ def _pct_change(now_value: float | None, baseline: float | None) -> float | None
 
 
 def build_site_facts(*, site: dict, energy_rows: list[dict], health_row: dict | None, anomalies: list[dict],
-                     alerts_open: list[dict], snapshot: dict | None, now: datetime) -> dict:
+                     alerts_open: list[dict], snapshot: dict | None, now: datetime, forecast: dict | None = None) -> dict:
     """One site's facts. `energy_rows` = recent `energy_daily` rows (any order),
     `health_row` = that latest day's `daily_health` row, `anomalies`/`alerts_open`
     = this site's open `site_anomalies` / `alerts` rows, `snapshot` = its live row."""
@@ -138,6 +139,7 @@ def build_site_facts(*, site: dict, energy_rows: list[dict], health_row: dict | 
         "pv_w": _r(_num((snapshot or {}).get("pv_power_w")), 0) if online else None,
         "load_w": _r(_num((snapshot or {}).get("load_power_w")), 0) if online else None,
     }
+    facts["forecast"] = forecast
     facts["open_alerts"] = [{"kind": a["kind"], "severity": a.get("severity"), "since": a.get("opened_at")} for a in alerts_open]
     facts["open_anomalies"] = [{"type": a.get("anomaly_type"), "since": a.get("detected_at")} for a in anomalies]
 
@@ -165,6 +167,19 @@ def observations(facts: dict, *, system_type: str | None) -> list[dict]:
     for anomaly in facts.get("open_anomalies") or []:
         if anomaly.get("type"):
             add(f"anomaly_{anomaly['type']}", ATTENTION)
+
+    ahead = facts.get("forecast") or {}
+    if ahead.get("storm"):
+        add("storm_ahead", ATTENTION)
+    if ahead.get("backup_reaches_sunrise") is False:
+        add("tonight_short", ATTENTION, hours=ahead.get("backup_hours"))
+    pct = ahead.get("tomorrow_vs_typical_pct")
+    if pct is not None and ahead.get("tomorrow_pv_kwh") is not None and ahead.get("typical_pv_kwh"):
+        params = {"pv": ahead["tomorrow_pv_kwh"], "typical": ahead["typical_pv_kwh"], "change_pct": pct}
+        if pct <= -30:
+            add("tomorrow_low_solar", INFO, **params)
+        elif pct >= 20 and ahead["tomorrow_pv_kwh"] >= ahead["typical_pv_kwh"] + 2:
+            add("tomorrow_high_solar", GOOD, **params)
 
     day = facts.get("day")
     if not day:
@@ -267,6 +282,9 @@ def build_fleet_facts(*, site_facts: list[dict], name: str, now: datetime) -> di
         "average_system_score": _r(sum(scores) / len(scores), 0) if scores else None,
     }
     obs: list[dict] = []
+    storm_sites = [f["site"]["name"] for f in site_facts if (f.get("forecast") or {}).get("storm")]
+    if storm_sites:
+        obs.append({"code": "fleet_storm", "severity": ATTENTION, "params": {"count": len(storm_sites), "sites": storm_sites[:4]}})
     if silent:
         obs.append({"code": "fleet_silent", "severity": ATTENTION, "params": {"count": len(silent), "sites": [f["site"]["name"] for f in silent][:4]}})
     if needs_attention:

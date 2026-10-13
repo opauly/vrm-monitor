@@ -51,7 +51,7 @@ from fastapi.responses import JSONResponse
 from vrm_api import jobs, storage
 from vrm_api.deps import require_pipeline_key
 from vrm_api.report_limits import ReportRateLimited
-from vrm_api.routers import alerts, billing, ingest, insights, meta, monitoring_sync, public_tariffs, reports, vrm_fleet, vrm_link, vrm_sync
+from vrm_api.routers import alerts, billing, forecast, ingest, insights, meta, monitoring_sync, public_tariffs, reports, vrm_fleet, vrm_link, vrm_sync
 from vrm_api.schemas import JobOut
 from vrm_api.tenancy import NotAuthorized, VrmAccountAlreadyLinked
 
@@ -181,3 +181,4 @@ app.include_router(billing.router)
 app.include_router(public_tariffs.router)
 app.include_router(alerts.router)
 app.include_router(insights.router)
+app.include_router(forecast.router)

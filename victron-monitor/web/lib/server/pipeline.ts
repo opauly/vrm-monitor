@@ -407,6 +407,38 @@ export async function getFleetInsight(customerId: string | null, lang: 'en' | 'e
   return pipelineJson(`/v1/insights/fleet?${qs.toString()}`, { method: 'GET' });
 }
 
+// ── Tonight / tomorrow forecast (vrm_api/forecast_service.py) ───────────
+
+export type ForecastDay = {
+  date: string;
+  sky: 'sunny' | 'partly' | 'cloudy' | 'rain' | 'storm' | null;
+  cloud_pct: number | null;
+  temp_max_c: number | null;
+  rain_prob_pct: number | null;
+  storm: boolean;
+  solar: { kwh: number | null; low_kwh: number | null; high_kwh: number | null; vs_typical_pct: number | null } | null;
+};
+
+/** Mirrors `vrm_api/forecast_service.py:get_forecast()`. `available: false` = nothing to show. */
+export type ForecastOut =
+  | { available: false; reason?: string }
+  | {
+      available: true;
+      generated_at: string;
+      tomorrow: ForecastDay;
+      today: ForecastDay;
+      storm_ahead: boolean;
+      calibration: { source: 'history' | 'size' | null; days: number; typical_pv_kwh: number | null };
+      backup: { until_sunrise: string; reaches_sunrise: boolean; empty_at: string | null; hours: number | null; soc_at_sunrise_pct: number | null } | null;
+      tomorrow_battery: { full_by: string | null; peak_pct: number | null; soc_at_sunset_pct: number | null } | null;
+      advice: { code: 'storm' | 'backup_short' | 'low_solar_tomorrow' | 'high_solar_tomorrow' | 'battery_wont_fill'; params: Record<string, number> }[];
+    };
+
+export async function getSiteForecast(siteId: string): Promise<ForecastOut> {
+  const qs = new URLSearchParams({ site_id: siteId });
+  return pipelineJson(`/v1/forecast/site?${qs.toString()}`, { method: 'GET' });
+}
+
 // ── VRM link (PLAN_PHASE15.md §3.1 / §8 Step 5) ─────────────────────────
 // A CUSTOMER'S OWN VRM personal access token — never `VRM_ADMIN_TOKEN`
 // (that's the `VrmFleet*` functions above). Mirrors `vrm_api/schemas.py`'s

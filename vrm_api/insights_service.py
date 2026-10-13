@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 
 from database.supabase_client import get_client
 from victron import insight_ai, insight_facts
+from vrm_api import forecast_service
 
 logger = logging.getLogger("vrm_api.insights")
 
@@ -54,10 +55,28 @@ def _active_sites(*, site_id: str | None = None, customer_id: str | None = None)
     return query.execute().data or []
 
 
+def _forecasts_for(sites: list[dict], now: datetime) -> dict[str, dict]:
+    """Compact forecast figures per site (cached, or built now), when forecasts are switched on.
+    A site whose forecast fails simply has none — the summary then says nothing about tomorrow."""
+    if forecast_service.forecast_mode() != "on":
+        return {}
+    out: dict[str, dict] = {}
+    for site in sites:
+        try:
+            compact = forecast_service.compact(forecast_service.get_forecast(site["site_id"], now=now))
+        except Exception:  # noqa: BLE001
+            logger.warning("insights: no forecast for %s", site["site_id"], exc_info=True)
+            continue
+        if compact:
+            out[site["site_id"]] = compact
+    return out
+
+
 def site_facts_for(sites: list[dict], now: datetime) -> dict[str, dict]:
     """Facts for every site in `sites`, with one query per table for the batch."""
     if not sites:
         return {}
+    forecasts = _forecasts_for(sites, now)
     ids = [s["site_id"] for s in sites]
     since = (now - timedelta(days=ENERGY_LOOKBACK_DAYS)).date().isoformat()
 
@@ -99,7 +118,8 @@ def site_facts_for(sites: list[dict], now: datetime) -> dict[str, dict]:
         latest = insight_facts.latest_day(rows)
         out[sid] = insight_facts.build_site_facts(
             site=site, energy_rows=rows, health_row=health.get((sid, str(latest["date"]))) if latest else None,
-            anomalies=anomalies.get(sid, []), alerts_open=alerts.get(sid, []), snapshot=snapshots.get(sid), now=now)
+            anomalies=anomalies.get(sid, []), alerts_open=alerts.get(sid, []), snapshot=snapshots.get(sid), now=now,
+            forecast=forecasts.get(sid))
     return out
 
 

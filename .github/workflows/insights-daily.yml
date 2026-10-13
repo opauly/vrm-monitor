@@ -1,0 +1,33 @@
+name: Daily AI summaries
+
+# One call against vrm_api: POST /v1/insights/generate-daily
+# (vrm_api/routers/insights.py). Refreshes the daily summary of every site, every
+# customer's fleet and the admin fleet, in English and Spanish, so a page opened
+# in the morning already has its summary. The endpoint answers at once and does
+# the work in the background (dozens of model calls take far longer than a
+# scheduler will wait for a response), so a green run here means "started".
+#
+# Does nothing (and says so in the response) unless INSIGHTS_AI is `template` or
+# `on` on the API service, so this workflow is safe to enable before switching
+# the feature on.
+
+on:
+  schedule:
+    # 12:00 UTC daily (06:00 America/Costa_Rica): after the overnight history
+    # syncs have written yesterday's totals, before people open the dashboard.
+    - cron: "0 12 * * *"
+  workflow_dispatch: {} # manual trigger from the Actions tab, for a spot check
+
+jobs:
+  generate-summaries:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start the daily summary refresh
+        env:
+          PIPELINE_API_URL: ${{ secrets.PIPELINE_API_URL }}
+          PIPELINE_API_KEY: ${{ secrets.PIPELINE_API_KEY }}
+        run: |
+          curl -sS -f \
+            -X POST "${PIPELINE_API_URL}/v1/insights/generate-daily" \
+            -H "Authorization: Bearer ${PIPELINE_API_KEY}" \
+            -H "Content-Type: application/json"
