@@ -144,6 +144,8 @@ client = TestClient(app)
 
 
 def test_router_needs_the_pipeline_key_and_returns_the_forecast(db, monkeypatch):
+    real = svc.get_forecast
+    monkeypatch.setattr(svc, "get_forecast", lambda site_id, **kw: real(site_id, now=NOW, **kw))     # the synthetic weather is dated; don't depend on today's date
     assert client.get("/v1/forecast/site?site_id=s1").status_code in (401, 403)
     monkeypatch.setenv("PIPELINE_API_KEY", "k")
     monkeypatch.setenv("FORECAST", "on")
