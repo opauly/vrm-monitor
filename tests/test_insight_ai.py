@@ -129,3 +129,16 @@ def test_forecast_findings_have_text_and_a_suggestion_in_both_languages():
     es = AI.render_template(f, "es", "site")
     assert es["points"][0].startswith("Se pronostica una tormenta") and "8 kWh" in es["points"][2] and es["suggestion"]
     assert AI.numbers_ok(en["points"], f)
+
+
+def test_a_drop_written_as_down_n_percent_matches_the_negative_fact():
+    f = facts(pv=8.0)                                        # vs_previous_pct.pv is -60
+    assert f["vs_previous_pct"]["pv"] == -60
+    assert AI.numbers_ok(["Solar fell 60% against the recent average."], f)
+
+
+def test_rounding_a_fact_to_a_whole_number_is_allowed_but_inventing_one_is_not():
+    f = facts(pv=8.0)                                        # facts hold 20.0 (the average) and 8.0 and 15.0
+    assert AI.numbers_ok(["Around 15 kWh were used."], f) and AI.numbers_ok(["About 8 kWh of solar."], f)
+    assert AI.unexplained_numbers(["Solar made 9 kWh, 12 more than usual."], f) == ["9", "12"]
+    assert AI.unexplained_numbers(["Used 15.3 kWh."], f) == ["15.3"]

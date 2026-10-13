@@ -224,7 +224,8 @@ def _walk_numbers(value, out: set[float]) -> None:
     if isinstance(value, bool) or value is None:
         return
     if isinstance(value, (int, float)):
-        out.add(float(value))
+        # A change of -30 is written "down 30%": the magnitude is the same fact.
+        out.add(abs(float(value)))
     elif isinstance(value, str):
         for m in _NUMBER.findall(value):
             out.add(float(m.replace(",", ".")))
@@ -236,17 +237,28 @@ def _walk_numbers(value, out: set[float]) -> None:
             _walk_numbers(v, out)
 
 
-def numbers_ok(texts: list[str], facts: dict) -> bool:
-    """True if every number in `texts` appears in `facts` (to rounding), or is 0/1."""
+def unexplained_numbers(texts: list[str], facts: dict) -> list[str]:
+    """The numbers in `texts` that the facts do not account for (as written)."""
     allowed: set[float] = {0.0, 1.0}
     _walk_numbers(facts, allowed)
-    # Percentages and kWh are written to 0-2 decimals; allow either side of a rounding.
+    bad: list[str] = []
     for text in texts:
         for raw in _NUMBER.findall(text):
             x = float(raw.replace(",", "."))
-            if not any(abs(x - a) <= 0.051 for a in allowed):
-                return False
-    return True
+            decimals = len(raw.replace(",", ".").split(".")[1]) if "." in raw.replace(",", ".") else 0
+            if decimals == 0:
+                # A whole number is fine if it is a fact, or a fact rounded (or cut) to a whole number.
+                ok = any(x == round(a) or x == int(a) for a in allowed)
+            else:
+                ok = any(abs(x - a) <= 0.051 or x == round(a, decimals) for a in allowed)
+            if not ok:
+                bad.append(raw)
+    return bad
+
+
+def numbers_ok(texts: list[str], facts: dict) -> bool:
+    """True if every number in `texts` appears in `facts` (to rounding), or is 0/1."""
+    return not unexplained_numbers(texts, facts)
 
 
 def _system_prompt(lang: str, scope: str) -> str:
@@ -310,7 +322,8 @@ def generate(facts: dict, lang: str, scope: str, *, today: str | None = None, cl
     if parsed is None:
         logger.warning("insight_ai: model reply was not the expected JSON — using the template")
         return fallback
-    if not numbers_ok([parsed["headline"], *parsed["points"], parsed["suggestion"] or ""], facts):
-        logger.warning("insight_ai: model wrote a number that is not in the facts — using the template")
+    bad = unexplained_numbers([parsed["headline"], *parsed["points"], parsed["suggestion"] or ""], facts)
+    if bad:
+        logger.warning("insight_ai: model wrote numbers that are not in the facts (%s) — using the template", ", ".join(bad))
         return fallback
     return {**parsed, "source": "ai", "model": model}
