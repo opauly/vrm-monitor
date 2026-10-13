@@ -55,8 +55,8 @@ OBS = {
         "self_sufficient": "{pct}% of the load was covered by solar and battery.",
         "storm_ahead": "A thunderstorm is forecast in the next day and a half.",
         "tonight_short": "At your usual evening use, the battery is expected to run out about {hours} hours from now, before sunrise.",
-        "tomorrow_low_solar": "Tomorrow looks dull: about {pv} kWh of solar expected, against a typical {typical} kWh.",
-        "tomorrow_high_solar": "Tomorrow looks bright: about {pv} kWh of solar expected, against a typical {typical} kWh.",
+        "tomorrow_low_solar": "Tomorrow looks duller than usual: about {pv} kWh of solar expected, against a typical {typical} kWh.",
+        "tomorrow_high_solar": "Tomorrow looks sunnier than usual: about {pv} kWh of solar expected, against a typical {typical} kWh.",
         "fleet_storm": "Thunderstorms are forecast at {count} sites: {sites}.",
         "fleet_storm_one": "A thunderstorm is forecast at {sites}.",
         "fleet_silent": "{count} sites have stopped reporting: {sites}.",
@@ -89,8 +89,8 @@ OBS = {
         "self_sufficient": "{pct}% de la carga lo cubrieron la energía solar y la batería.",
         "storm_ahead": "Se pronostica una tormenta eléctrica en el próximo día y medio.",
         "tonight_short": "Con tu consumo habitual de la noche, se espera que la batería se agote en unas {hours} horas, antes del amanecer.",
-        "tomorrow_low_solar": "Mañana se ve opaco: se esperan unos {pv} kWh de solar, frente a unos {typical} kWh típicos.",
-        "tomorrow_high_solar": "Mañana se ve despejado: se esperan unos {pv} kWh de solar, frente a unos {typical} kWh típicos.",
+        "tomorrow_low_solar": "Mañana se ve más opaco de lo normal: se esperan unos {pv} kWh de solar, frente a unos {typical} kWh típicos.",
+        "tomorrow_high_solar": "Mañana se ve con más sol de lo normal: se esperan unos {pv} kWh de solar, frente a unos {typical} kWh típicos.",
         "fleet_storm": "Se pronostican tormentas eléctricas en {count} sitios: {sites}.",
         "fleet_storm_one": "Se pronostica una tormenta eléctrica en {sites}.",
         "fleet_silent": "{count} sitios dejaron de reportar: {sites}.",
@@ -106,7 +106,7 @@ SUGGEST = {
         "offline_days": "Check the site's internet connection and power, or contact your installer.",
         "storm_ahead": "Keeping the battery topped up before a storm gives you more backup time.",
         "tonight_short": "Keeping heavy loads off tonight will help the battery last until sunrise.",
-        "tomorrow_low_solar": "On a dull day, go easy on heavy loads, especially tonight.",
+        "tomorrow_low_solar": "With less sun than usual, go easy on heavy loads, especially tonight.",
         "tomorrow_high_solar": "Tomorrow is a good day to run heavy loads around midday.",
         "solar_below": "If this keeps up, check the panels for dirt or shade.",
         "import_high": "Running heavy loads around midday uses more of your own solar.",
@@ -122,7 +122,7 @@ SUGGEST = {
         "offline_days": "Revisa la conexión a internet y la energía del sitio, o contacta a tu instalador.",
         "storm_ahead": "Mantener la batería cargada antes de una tormenta te da más tiempo de respaldo.",
         "tonight_short": "Evitar las cargas pesadas esta noche ayudará a que la batería dure hasta el amanecer.",
-        "tomorrow_low_solar": "En un día opaco, modera las cargas pesadas, sobre todo esta noche.",
+        "tomorrow_low_solar": "Con menos sol de lo normal, modera las cargas pesadas, sobre todo esta noche.",
         "tomorrow_high_solar": "Mañana es un buen día para usar las cargas pesadas alrededor del mediodía.",
         "solar_below": "Si esto continúa, revisa si los paneles tienen suciedad o sombra.",
         "import_high": "Usar las cargas pesadas alrededor del mediodía aprovecha más tu propia energía solar.",
@@ -267,6 +267,7 @@ def _system_prompt(lang: str, scope: str) -> str:
     return (
         f"You write the short daily summary on a monitoring dashboard. The reader is {audience}. Write in {language}.\n"
         "Use ONLY the FACTS. Never state a number that is not in the FACTS, and do not add, subtract or estimate any figure. "
+        "Every point must come from an OBSERVATION or a figure in the facts; never add filler or reassurance of your own (for example 'no waste', 'all good', 'everything is fine'). "
         "Do not use technical field names. Grid export is a good outcome, not waste. If the system is offline, say that first. "
         "The headline summarises the day (what was produced and used); put actions in the suggestion, not the headline. "
         "Do not call anything normal, good, poor or unusual unless an OBSERVATION in the facts says so, and do not state a time of day "

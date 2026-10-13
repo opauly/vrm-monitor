@@ -430,7 +430,7 @@ export type ForecastOut =
       storm_ahead: boolean;
       calibration: { source: 'history' | 'size' | null; days: number; typical_pv_kwh: number | null };
       backup: { until_sunrise: string; reaches_sunrise: boolean; empty_at: string | null; hours: number | null; soc_at_sunrise_pct: number | null } | null;
-      tomorrow_battery: { full_by: string | null; peak_pct: number | null; soc_at_sunset_pct: number | null } | null;
+      tomorrow_battery: { full_by: string | null; peak_pct: number | null; soc_at_sunset_pct: number | null; show_peak: boolean } | null;
       advice: { code: 'storm' | 'backup_short' | 'low_solar_tomorrow' | 'high_solar_tomorrow' | 'battery_wont_fill'; params: Record<string, number> }[];
     };
 

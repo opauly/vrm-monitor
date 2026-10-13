@@ -91,7 +91,7 @@ def usual_load_profile(site: dict) -> list[float] | None:
 
 def _history(site_id: str, now_utc: datetime) -> list[dict]:
     since = (now_utc - timedelta(days=HISTORY_DAYS)).date().isoformat()
-    rows = (_t("energy_daily").select("id, date, pv_kwh, complete_day").eq("site_id", site_id).gte("date", since).execute().data or [])
+    rows = (_t("energy_daily").select("id, date, pv_kwh, battery_reached_float, complete_day").eq("site_id", site_id).gte("date", since).execute().data or [])
     by_date: dict[str, dict] = {}
     for row in rows:
         if row.get("complete_day") is False:

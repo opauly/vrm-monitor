@@ -175,6 +175,14 @@ def simulate(*, start: datetime, end: datetime, energy_kwh: float, capacity_kwh:
     return {"energy_kwh": energy, "empty_at": empty_at, "full_at": full_at, "peak_kwh": peak}
 
 
+def usually_fills(history: list[dict], *, today: str) -> bool:
+    """Has this site's battery regularly reached a full charge lately? (>= half of the
+    last 14 recorded days, with at least 5 of them recorded.)"""
+    flags = [r.get("battery_reached_float") for r in sorted(history, key=lambda r: str(r.get("date")))
+             if str(r.get("date")) < today and r.get("battery_reached_float") is not None][-14:]
+    return len(flags) >= 5 and sum(1 for f in flags if f) / len(flags) >= 0.5
+
+
 # ── the forecast ─────────────────────────────────────────────────────────────
 
 def build_forecast(*, weather: dict, now: datetime, pv_history: list[dict], load_profile_w: list[float] | None,
@@ -231,6 +239,10 @@ def build_forecast(*, weather: dict, now: datetime, pv_history: list[dict], load
                     "full_by": day_sim["full_at"].isoformat(timespec="minutes") if day_sim["full_at"] else None,
                     "peak_pct": _r(day_sim["peak_kwh"] / capacity * 100, 0),
                     "soc_at_sunset_pct": _r(day_sim["energy_kwh"] / capacity * 100, 0),
+                    # "May only reach X%" assumes no grid help, so it only means something for a
+                    # home with no grid, or one whose battery normally does fill. On a grid-tied site
+                    # that never fills (its usual load outweighs its solar) it would be a false alarm.
+                    "show_peak": system_type == "off_grid" or usually_fills(pv_history, today=today),
                 }
 
     result["advice"] = advice(result, typical=typical)
@@ -253,6 +265,6 @@ def advice(result: dict, *, typical: float | None) -> list[dict]:
     # Only a DULL day is news: a site whose usual load outweighs its solar never fills
     # the battery on any day, and saying so every morning would just be noise.
     tb = result.get("tomorrow_battery")
-    if tb and tb["peak_pct"] < 95 and solar and (solar.get("vs_typical_pct") or 0) <= -20:
+    if tb and tb.get("show_peak") and tb["peak_pct"] < 95 and solar and (solar.get("vs_typical_pct") or 0) <= -20:
         out.append({"code": "battery_wont_fill", "params": {"peak_pct": tb["peak_pct"]}})
     return out

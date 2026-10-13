@@ -81,7 +81,7 @@ export function ForecastPanel({ lang, endpoint }: { lang: Lang; endpoint: string
               )}
             </div>
           )}
-          {battery && (
+          {battery && (battery.full_by || battery.show_peak) && (
             <div className={styles.line}>
               {battery.full_by ? fill(t(lang, 'forecast_full_by'), { time: hhmm(battery.full_by) }) : fill(t(lang, 'forecast_peak'), { pct: battery.peak_pct })}
             </div>

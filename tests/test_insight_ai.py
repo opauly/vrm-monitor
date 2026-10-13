@@ -124,7 +124,7 @@ def test_forecast_findings_have_text_and_a_suggestion_in_both_languages():
     en = AI.render_template(f, "en", "site")
     assert en["points"][:3] == ["A thunderstorm is forecast in the next day and a half.",
                                 "At your usual evening use, the battery is expected to run out about 5.3 hours from now, before sunrise.",
-                                "Tomorrow looks dull: about 8 kWh of solar expected, against a typical 20 kWh."]
+                                "Tomorrow looks duller than usual: about 8 kWh of solar expected, against a typical 20 kWh."]
     assert en["suggestion"] == "Keeping the battery topped up before a storm gives you more backup time."
     es = AI.render_template(f, "es", "site")
     assert es["points"][0].startswith("Se pronostica una tormenta") and "8 kWh" in es["points"][2] and es["suggestion"]

@@ -28,16 +28,16 @@ def weather(peaks: dict[str, float] | None = None, default_peak=900.0, storm_on=
     return {"hourly": rows, "daily": daily}
 
 
-def history(w, k=4.0, upto="2026-10-07"):
-    """Daily PV the site 'made' = k x that day's sunlight."""
+def history(w, k=4.0, upto="2026-10-07", fills=True):
+    """Daily PV the site 'made' = k x that day's sunlight; `fills` = the battery reached a full charge that day."""
     dw = F.daily_weather(w)
-    return [{"date": d, "pv_kwh": round(k * v["ghi_kwh_m2"], 2)} for d, v in sorted(dw.items()) if d <= upto and v["ghi_kwh_m2"]]
+    return [{"date": d, "pv_kwh": round(k * v["ghi_kwh_m2"], 2), "battery_reached_float": fills} for d, v in sorted(dw.items()) if d <= upto and v["ghi_kwh_m2"]]
 
 
-def run(w=None, soc=80.0, battery=10.0, load=500.0, **kw):
+def run(w=None, soc=80.0, battery=10.0, load=500.0, fills=True, system_type="hybrid", **kw):
     w = w or weather()
-    return F.build_forecast(weather=w, now=NOW, pv_history=history(w), load_profile_w=[load] * 24, soc_pct=soc, battery_kwh=battery,
-                            pv_kwp=5.0, system_type="hybrid", **kw)
+    return F.build_forecast(weather=w, now=NOW, pv_history=history(w, fills=fills), load_profile_w=[load] * 24, soc_pct=soc, battery_kwh=battery,
+                            pv_kwp=5.0, system_type=system_type, **kw)
 
 
 # ── weather by day ───────────────────────────────────────────────────────────
@@ -162,3 +162,16 @@ def test_the_battery_never_charges_above_full():
     sim = F.simulate(start=datetime(2026, 10, 9, 6), end=datetime(2026, 10, 9, 17), energy_kwh=9.5, capacity_kwh=10.0, k=4.0,
                      ghi={f"2026-10-09T{h:02d}": bell(h, 900) for h in range(24)}, load_w=[100.0] * 24)
     assert sim["energy_kwh"] == 10.0 and sim["full_at"] is not None
+
+
+def test_a_grid_tied_battery_that_never_fills_is_not_told_it_may_only_reach_a_low_level():
+    heavy = run(weather(peaks={"2026-10-09": 250}), load=400.0, fills=False)       # dull tomorrow, but this battery never fills anyway
+    assert heavy["tomorrow_battery"]["peak_pct"] < 95 and heavy["tomorrow_battery"]["show_peak"] is False
+    assert not any(a["code"] == "battery_wont_fill" for a in heavy["advice"])
+
+
+def test_a_battery_that_normally_fills_or_has_no_grid_does_get_the_warning():
+    dull = weather(peaks={"2026-10-09": 250})
+    assert run(dull, load=400.0, fills=True)["tomorrow_battery"]["show_peak"] is True
+    assert run(dull, load=400.0, fills=False, system_type="off_grid")["tomorrow_battery"]["show_peak"] is True
+    assert any(a["code"] == "battery_wont_fill" for a in run(dull, load=400.0, fills=False, system_type="off_grid")["advice"])
