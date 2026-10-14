@@ -101,9 +101,11 @@
   min-height: 140px;
 }
 .updating {
-  position: absolute;
-  top: 4px;
-  right: 4px;
+  /* In the flow above the chart, never over it: on a phone the message wraps
+     to several lines and an overlay hides the curves it is talking about. */
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 8px auto;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--mute);
@@ -111,7 +113,6 @@
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 3px 10px;
-  z-index: 1;
 }
 .chartWrap svg {
   width: 100%;

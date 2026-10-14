@@ -1,9 +1,10 @@
 // Energy flow diagram — Solar/Grid/Home/Battery nodes with animated dashed
 // connectors, shared by the fleet-wide rollup (aggregate values) and the
 // per-site drill-down (one site's values). Pure presentational: every
-// number is a prop, no data fetching, no client state — the CSS animation
-// (dashed lines "flowing") is plain `@keyframes`, so this stays a Server
-// Component like the rest of `/admin/fleet`.
+// number is a prop, no data fetching — the CSS animation (dashed lines
+// "flowing") is plain `@keyframes`, so this stays a Server Component like the
+// rest of `/admin/fleet`. Only the connectors (FlowLines.tsx) are a Client
+// Component, because they are drawn in px against the frame's measured width.
 //
 // The connectors follow the data: each one flows in the direction its
 // reading says (grid import vs export, battery charging vs discharging),
@@ -11,6 +12,7 @@
 // fleet's 10 kW and a single site's 300 W must both look alive), and goes
 // still and dim when idle, instead of always animating the same way.
 import { t, type Lang, type StringKey } from '@/lib/i18n/strings';
+import { FlowLines, type FlowLineSpec } from './FlowLines';
 import styles from './flow-diagram.module.css';
 
 function formatW(w: number | null): string {
@@ -54,25 +56,18 @@ export type GrossFlows = {
   batteryDischargeSites: number;
 };
 
-type Line = { idle: boolean; reverse: boolean; style: React.CSSProperties };
-
 // `forwardSign` is the sign of the reading for which the path's own drawn
-// direction (its `d` start -> end) is the real flow direction.
-function lineFor(w: number | null, forwardSign: 1 | -1): Line {
-  if (w === null || Math.abs(w) < DEADBAND_W) return { idle: true, reverse: false, style: {} };
+// direction (its start -> end) is the real flow direction.
+function lineFor(w: number | null, forwardSign: 1 | -1): FlowLineSpec {
+  if (w === null || Math.abs(w) < DEADBAND_W) return { idle: true, reverse: false };
   const magnitude = Math.min(Math.max((Math.log10(Math.abs(w)) - 2) / 2, 0), 1);
   return {
     idle: false,
     reverse: w * forwardSign < 0,
-    style: {
-      ['--dur' as string]: `${(2.2 - 1.5 * magnitude).toFixed(2)}s`,
-      ['--w' as string]: (2 + 1.5 * magnitude).toFixed(2),
-    },
+    dur: `${(2.2 - 1.5 * magnitude).toFixed(2)}s`,
+    w: (2 + 1.5 * magnitude).toFixed(2),
   };
 }
-
-const lineClass = (line: Line, still = false) =>
-  `${styles.path} ${line.idle ? styles.idle : ''} ${line.reverse ? styles.reverse : ''} ${still ? styles.still : ''}`;
 
 // Where a segment's percentage sits on the home ring, as degrees clockwise
 // from 12 o'clock. Two arcs of the ring are off-limits: the top (solar and
@@ -90,6 +85,8 @@ function nudgeLabelAngle(deg: number): number {
 const MIX_LABEL_MIN_SHARE = 0.04;
 const MIX_LABEL_MIN_GAP_DEG = 24;
 
+// Same threshold as the "low battery" attention row and reserve bar (FleetLiveSection).
+const LOW_SOC_PCT = 20;
 const SOC_RING_CIRCUMFERENCE = 2 * Math.PI * 31;
 const MIX_RING_RADIUS = 40;
 const MIX_RING_CIRCUMFERENCE = 2 * Math.PI * MIX_RING_RADIUS;
@@ -164,10 +161,6 @@ export function FlowDiagram({
   const batteryCharging = batteryW !== null && batteryW >= 0;
   const batteryAmt = batteryW === null ? '—' : `${batteryCharging ? '+' : ''}${formatW(batteryW)}`;
 
-  // Where solar/grid connectors meet the home ring. Animated dashes can run on
-  // under the ring edge; an arrowhead can't, so fleet mode stops just above it.
-  const homeEndY = gross ? 106 : 120;
-
   const solarLine = lineFor(solarW, 1);
   // Grid path is drawn grid -> home (import), battery path battery -> home
   // (discharge, which is the NEGATIVE sign convention VRM uses for `bp`).
@@ -232,48 +225,30 @@ export function FlowDiagram({
   const soc = socPct === null ? null : Math.min(Math.max(socPct, 0), 100);
 
   const diagram = (
-    <div className={styles.flow}>
-      <svg className={styles.lines} viewBox="0 0 400 420" preserveAspectRatio="none" aria-hidden="true">
-        {gross && (
-          <defs>
-            {(['solar', 'battery', 'grid'] as const).map((name) => (
-              <marker key={name} id={`flow-arrow-${name}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
-                <path d="M 1 1 L 9 5 L 1 9 Z" className={styles[`arrow_${name}`]} />
-              </marker>
-            ))}
-          </defs>
-        )}
-        <path
-          className={`${lineClass(solarLine, Boolean(gross))} ${styles.solarHome}`}
-          style={solarLine.style}
-          d={`M 75 40 Q 180 55 195 ${homeEndY}`}
-          markerEnd={gross && !solarLine.idle ? 'url(#flow-arrow-solar)' : undefined}
-        />
-        {/* Ends at 248, not the home node's exact text-bottom (110 + 82 ring +
-           name + amt = 236) — that left zero clearance, so the dashed line's
-           own start dot sat right on top of the amount text. */}
-        <path
-          className={`${lineClass(batteryLine, Boolean(gross))} ${styles.batteryHome}`}
-          style={batteryLine.style}
-          d="M 200 276 Q 200 262 200 248"
-          // Drawn battery -> home: discharging points at home (end), charging at the battery (start).
-          markerEnd={gross && gross.batteryDischargeW > DEADBAND_W ? 'url(#flow-arrow-battery)' : undefined}
-          markerStart={gross && gross.batteryChargeW > DEADBAND_W ? 'url(#flow-arrow-battery)' : undefined}
-        />
-        {hasGridMeter && (
-          <path
-            className={`${lineClass(gridLine, Boolean(gross))} ${styles.gridHome}`}
-            style={gridLine.style}
-            d={`M 325 40 Q 220 55 205 ${homeEndY}`}
-            // Drawn grid -> home: importing points at home (end). The export direction
-            // (the START of this path, under the grid ring) is drawn as a CSS arrow on
-            // the ring itself — see `exportArrow` — because the ring is pinned to the
-            // frame's edge while this SVG scales, so their positions only line up at
-            // wide widths.
-            markerEnd={gross && gross.gridImportW > DEADBAND_W ? 'url(#flow-arrow-grid)' : undefined}
-          />
-        )}
-      </svg>
+    <div className={`${styles.flow} ${gross ? styles.flowGross : ''}`}>
+      <FlowLines
+        still={Boolean(gross)}
+        // Solar is drawn solar -> home. Battery is drawn battery -> home, so
+        // discharging points at home (end) and charging at the battery (start).
+        // Grid is drawn grid -> home: importing points at home (end), exporting
+        // at the grid ring (start). Arrowheads only in the fleet roll-up, where
+        // the lines are still and an arrow is the only sign of direction.
+        solar={{ ...solarLine, arrowEnd: Boolean(gross) && !solarLine.idle }}
+        battery={{
+          ...batteryLine,
+          arrowEnd: Boolean(gross) && gross!.batteryDischargeW > DEADBAND_W,
+          arrowStart: Boolean(gross) && gross!.batteryChargeW > DEADBAND_W,
+        }}
+        grid={
+          hasGridMeter
+            ? {
+                ...gridLine,
+                arrowEnd: Boolean(gross) && gross!.gridImportW > DEADBAND_W,
+                arrowStart: Boolean(gross) && gross!.gridExportW > DEADBAND_W,
+              }
+            : null
+        }
+      />
 
       <div className={`${styles.node} ${styles.solar}`}>
         <div className={styles.ring}>
@@ -287,7 +262,7 @@ export function FlowDiagram({
         {solarNote && <div className={styles.footnote}>{solarNote}</div>}
       </div>
 
-      <div className={`${styles.node} ${styles.grid} ${gross && gross.gridExportW > DEADBAND_W ? styles.exportArrow : ''}`}>
+      <div className={`${styles.node} ${styles.grid}`}>
         <div className={styles.ring}>
           <svg className={styles.icon} viewBox="0 0 24 24" fill="none" stroke="var(--victron-glow)" strokeWidth={1.8}>
             <path d="M6 21V10l6-6 6 6v11M9 21v-6h6v6" />
@@ -387,7 +362,7 @@ export function FlowDiagram({
                 cy="32"
                 r="31"
                 fill="none"
-                stroke={soc < 25 ? 'var(--signal)' : 'var(--good)'}
+                stroke={soc < LOW_SOC_PCT ? 'var(--low)' : 'var(--good)'}
                 strokeWidth={3}
                 strokeLinecap="round"
                 strokeDasharray={`${(soc / 100) * SOC_RING_CIRCUMFERENCE} ${SOC_RING_CIRCUMFERENCE}`}

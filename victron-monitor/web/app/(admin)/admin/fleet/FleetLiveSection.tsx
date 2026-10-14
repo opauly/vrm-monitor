@@ -201,7 +201,7 @@ export function FleetLiveSection({
                 <div className={styles.bar} role="img" aria-label={`${Math.round(reservePct)}%`}>
                   <div
                     className={styles.barFill}
-                    style={{ width: `${Math.min(reservePct, 100)}%`, background: reservePct < LOW_SOC_PCT ? 'var(--signal)' : 'var(--good)' }}
+                    style={{ width: `${Math.min(reservePct, 100)}%`, background: reservePct < LOW_SOC_PCT ? 'var(--low)' : 'var(--good)' }}
                   />
                 </div>
                 <div className={styles.note}>

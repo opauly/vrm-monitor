@@ -401,3 +401,77 @@
     margin-top: 5px;
   }
 }
+
+/* The site list on a phone: the shared Table turns each row into a card with a
+   label column on the left, which leaves the left third empty when the values
+   are short and makes a long fleet very tall. Here the card is a two-column grid:
+   name and live reading take the full width, the short figures (alarms, critical,
+   yield, type) sit label-beside-value, and the link moves up beside the name.
+   Selectors repeat `table tbody tr` to outrank Table.module.css's phone rules. */
+@media (max-width: 720px) {
+  .sitesTable table tbody tr {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+    gap: 6px 14px;
+    padding: 10px 12px;
+  }
+  .sitesTable table tbody tr td {
+    padding: 0;
+  }
+  .sitesTable table tbody tr td::before {
+    position: static;
+    display: block;
+    width: auto;
+    margin-bottom: 2px;
+    font-size: 10px;
+  }
+  .sitesTable table tbody tr td[data-label='']::before {
+    display: none;
+  }
+  .sitesTable table tbody tr td:nth-child(1),
+  .sitesTable table tbody tr td:nth-child(6) {
+    grid-column: 1 / -1;
+  }
+  .sitesTable table tbody tr td:nth-child(1) {
+    padding: 0 96px 2px 0;
+  }
+  .sitesTable table tbody tr td:nth-child(9) {
+    position: absolute;
+    top: 11px;
+    right: 12px;
+  }
+  .sitesTable table tbody tr td:nth-child(4),
+  .sitesTable table tbody tr td:nth-child(5),
+  .sitesTable table tbody tr td:nth-child(7),
+  .sitesTable table tbody tr td:nth-child(8) {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .sitesTable table tbody tr td:nth-child(4)::before,
+  .sitesTable table tbody tr td:nth-child(5)::before,
+  .sitesTable table tbody tr td:nth-child(7)::before,
+  .sitesTable table tbody tr td:nth-child(8)::before {
+    margin-bottom: 0;
+  }
+  /* The narrow first column fits the type ("hybrid"); the yield needs the wide one. */
+  .sitesTable table tbody tr td:nth-child(7) {
+    order: 1;
+  }
+  /* The score's date and the report time are the least useful lines of the card;
+     the live reading below carries its own "as of". */
+  .sitesTable table tbody tr td:nth-child(2) .sub,
+  .sitesTable table tbody tr td:nth-child(3) .sub {
+    display: none;
+  }
+  .sitesTable .healthBadge {
+    font-size: 11px;
+    padding: 2px 5px;
+  }
+  .sitesTable .scorePair {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+}

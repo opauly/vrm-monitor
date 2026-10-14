@@ -67,10 +67,22 @@
 }
 
 .kpis {
+  /* Six tiles: 2 x 3 on a phone, 3 x 2 on a tablet, one row on a wide screen —
+     never a lone tile in the last row. */
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 22px;
+}
+@media (min-width: 640px) {
+  .kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1040px) {
+  .kpis {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
 }
 .kpi {
   background: var(--panel);

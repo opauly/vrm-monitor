@@ -156,7 +156,7 @@ export function FleetSitesTable({ sites, lang }: { sites: FleetOverviewRow[]; la
       {filteredSites.length === 0 ? (
         <p className={styles.empty}>{t(lang, 'admin_search_no_results')}</p>
       ) : (
-        <Table>
+        <Table className={styles.sitesTable}>
           <thead>
             <tr>
               <th>{t(lang, 'admin_sites_col_site')}</th>

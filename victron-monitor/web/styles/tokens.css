@@ -25,6 +25,8 @@
   --paper-dim: #afc7d4; /* secondary text */
   --mute: #6f93a6; /* tertiary text, captions */
   --good: #3fbf8f; /* status green, semantic only */
+  --low: #e5645a; /* status red — a battery below the low-charge threshold. Not amber:
+    that is the solar colour, and a nearly empty battery must not look like solar. */
 
   /* ---- §1.8 accessibility option: an AA-safe button fill ----
      The primary .btn is white 13px uppercase text on --victron — below
@@ -51,6 +53,7 @@
   --victron-rgb: 7, 137, 212;
   --victron-glow-rgb: 79, 200, 236;
   --good-rgb: 63, 191, 143;
+  --low-rgb: 229, 100, 90;
 
   /* ---- radii, collected from the same literal values scattered through
      the template (nothing here is a new value) ---- */

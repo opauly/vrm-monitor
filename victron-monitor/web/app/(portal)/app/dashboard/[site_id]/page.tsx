@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireCustomer } from '@/lib/server/auth';
 import { getCustomer, getDashboardAccess, getCustomerFleetSiteDetail, type SiteAnomalyRow } from '@/lib/server/db';
+import { batteryRuntime, formatHours } from '@/lib/batteryRuntime';
 import { formatDateTimeInZone } from '@/lib/dates';
 import { t } from '@/lib/i18n/strings';
 import { Panel, Button } from '@/components/ui';
@@ -142,6 +143,8 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
   const site = await getCustomerFleetSiteDetail(session.customerId, site_id);
   if (!site) notFound();
 
+  const runtime = batteryRuntime(site.live_soc_pct, site.battery_usable_kwh, site.live_battery_power_w);
+
   return (
     <div>
       <div className={styles.crumb}>
@@ -230,6 +233,22 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
             State of charge
           </div>
           <div className={styles.kpiValue}>{site.live_soc_pct === null ? '—' : `${site.live_soc_pct}%`}</div>
+        </div>
+        <div className={styles.kpi}>
+          <div className={styles.kpiLabel}>
+            <span className={styles.swatch} style={{ background: 'var(--good)' }} />
+            {t(lang, 'admin_fleetsite_kpi_runtime')}
+          </div>
+          <div className={styles.kpiValue}>{runtime.kind === 'left' || runtime.kind === 'to_full' ? formatHours(runtime.hours) : '—'}</div>
+          <div className={styles.kpiDelta}>
+            {runtime.kind === 'left'
+              ? t(lang, 'admin_fleetsite_runtime_left')
+              : runtime.kind === 'to_full'
+                ? t(lang, 'admin_fleetsite_runtime_to_full')
+                : runtime.kind === 'idle'
+                  ? t(lang, 'admin_fleetsite_runtime_idle')
+                  : t(lang, 'admin_fleetsite_runtime_unknown')}
+          </div>
         </div>
       </div>
 
