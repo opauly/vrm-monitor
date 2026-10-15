@@ -411,7 +411,6 @@ export type SiteDevice = {
     n?: number;
     of?: number;
     last_kwh?: number | null;
-    last_day_offset?: number;
     modules_online?: number;
     modules_offline?: number;
     units?: number;

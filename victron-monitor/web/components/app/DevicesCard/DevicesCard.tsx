@@ -13,7 +13,7 @@ function nowText(lang: Lang, device: SiteDevice): string {
   const m = device.metrics;
   if (device.kind === 'charger') {
     if (m.last_kwh === null || m.last_kwh === undefined) return t(lang, 'devices_now_charger_none');
-    return fill(t(lang, m.last_day_offset === 0 ? 'devices_now_charger_today' : 'devices_now_charger_yesterday'), { kwh: m.last_kwh < 1 ? m.last_kwh.toFixed(2) : m.last_kwh.toFixed(1) });
+    return fill(t(lang, 'devices_now_charger_last'), { kwh: m.last_kwh < 1 ? m.last_kwh.toFixed(2) : m.last_kwh.toFixed(1) });
   }
   if (device.kind === 'battery') {
     const online = m.modules_online ?? 0;

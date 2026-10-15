@@ -46,33 +46,6 @@ def test_a_healthy_site_has_every_device_ok():
     assert rows["inverter:274"]["metrics"]["units"] == 2     # slot numbers skip 2 on a four-unit stack; the count is what matters
 
 
-def test_a_charger_that_made_nothing_while_its_sibling_produced_is_bad_straight_away():
-    rows = run(charger(0, today=1.04, yesterday=3.94) + charger(288, today=0.0, yesterday=0.01, peak=2, model="a058"), local=datetime(2026, 10, 14, 10, 0))
-    assert rows["charger:288"]["status"] == "bad" and rows["charger:288"]["note"]["code"] == "no_output"
-    assert rows["charger:0"]["status"] == "ok"
-
-
-def test_when_every_charger_is_low_it_is_the_weather_not_a_fault():
-    history = {"daily": {f"2026-10-{d:02d}": 10.0 for d in range(5, 12)}}
-    existing = [{"device_key": f"charger:{i}", "state": history} for i in (0, 1)]
-    rows = run(charger(0, today=2.0, yesterday=2.0) + charger(1, today=2.0, yesterday=2.0), existing)
-    assert rows["charger:0"]["status"] == "ok" and rows["charger:1"]["status"] == "ok"
-
-
-def test_a_charger_far_below_its_own_normal_while_the_other_is_normal_is_warn_then_bad():
-    history = {"daily": {f"2026-10-{d:02d}": 10.0 for d in range(5, 12)}}
-    existing = [{"device_key": "charger:0", "state": dict(history)}, {"device_key": "charger:1", "state": dict(history)}]
-    first = run(charger(0, today=10.0, yesterday=10.0) + charger(1, today=1.5, yesterday=10.0), existing)
-    assert first["charger:1"]["status"] == "warn" and first["charger:1"]["note"]["code"] == "low_output"
-    # the same day seen again by the next sweep is still day one
-    again = run(charger(0, today=10.0, yesterday=10.0) + charger(1, today=1.5, yesterday=10.0), list(first.values()), now=NOW + timedelta(minutes=15))
-    assert again["charger:1"]["status"] == "warn"
-    # the next evening it is still low: bad
-    next_day = run(charger(0, today=10.0, yesterday=10.0) + charger(1, today=1.2, yesterday=1.5), list(again.values()),
-                   local=datetime(2026, 10, 15, 21, 0), now=NOW + timedelta(days=1))
-    assert next_day["charger:1"]["status"] == "bad"
-
-
 def test_a_charger_error_is_bad_and_a_single_charger_site_still_gets_the_fault_check():
     rows = run(charger(0, today=3.0, yesterday=3.0, error=2))
     assert rows["charger:0"]["status"] == "bad" and rows["charger:0"]["note"]["code"] == "charger_error"
@@ -111,15 +84,6 @@ def test_a_device_gone_from_the_list_is_bad_only_after_two_sweeps():
     assert one["battery:512"]["status"] == "ok" and one["battery:512"]["missing_sweeps"] == 1
     two = run(charger(0, today=3.0, yesterday=3.0), list(one.values()))
     assert two["battery:512"]["status"] == "bad" and two["battery:512"]["note"]["code"] == "missing"
-
-
-def test_yield_history_is_seeded_from_yesterday_and_kept_from_the_evening_total():
-    morning = run(charger(0, today=0.2, yesterday=3.9), local=datetime(2026, 10, 14, 9, 0))
-    assert morning["charger:0"]["state"]["daily"] == {"2026-10-13": 3.9}           # "today" is not a total yet
-    evening = run(charger(0, today=4.1, yesterday=3.9), list(morning.values()))
-    assert evening["charger:0"]["state"]["daily"]["2026-10-14"] == 4.1
-    later = run(charger(0, today=4.0, yesterday=3.9), list(evening.values()))
-    assert later["charger:0"]["state"]["daily"]["2026-10-14"] == 4.1               # the highest value of the evening wins
 
 
 def test_bad_sweeps_are_counted_per_local_day_for_the_health_score():
@@ -185,3 +149,72 @@ def test_a_reserve_held_by_something_vrm_cannot_see_silences_the_reserve_warning
     ref = max(datetime.fromtimestamp(r["timestamp"], tz=timezone.utc) for r in records)
     rows = {r["device_key"]: r for r in dev.evaluate(parsed, [], now=NOW, local=LOCAL, reference=ref, site_type="hybrid", reserve_set_by_hand=True)}
     assert rows["inverter:274"]["status"] == "ok"
+
+
+# ── charger yield history (a charger closes its day at dusk, not at midnight) ─────────────────────
+DAY14 = datetime(2026, 10, 14, 15, 0)        # local, afternoon of the 14th
+NIGHT14 = datetime(2026, 10, 14, 22, 0)      # local, after the chargers shut down
+DAY15 = datetime(2026, 10, 15, 15, 0)
+
+
+def sweep(records, existing, local):
+    parsed = dev.parse(records)
+    ref = max(datetime.fromtimestamp(r["timestamp"], tz=timezone.utc) for r in records)
+    return {r["device_key"]: r for r in dev.evaluate(parsed, list(existing.values()), now=NOW, local=local, reference=ref)}
+
+
+def a_day(rows, local_day, local_night, totals, *, peaks=None):
+    """One production day for chargers 0..n-1: a daytime sweep with 'today' climbing, then a night sweep after the
+    chargers closed the day (today back to 0, yesterday = the day's total)."""
+    day_records, night_records = [], []
+    for i, total in enumerate(totals):
+        day_records += charger(i, today=total, yesterday=0.0)
+        night_records += charger(i, today=0.0, yesterday=total)
+    rows = sweep(day_records, rows, local_day)
+    return sweep(night_records, rows, local_night)
+
+
+def test_a_days_total_is_filed_when_today_falls_back_under_the_day_it_was_climbing():
+    rows = a_day({}, DAY14, NIGHT14, [3.9, 4.1])
+    assert rows["charger:0"]["state"]["daily"] == {"2026-10-14": 3.9} and rows["charger:1"]["state"]["daily"] == {"2026-10-14": 4.1}
+    assert rows["charger:0"]["metrics"]["last_kwh"] == 3.9          # the table shows what the charger calls "yesterday"
+
+
+def test_history_written_by_the_old_midnight_rule_is_discarded():
+    old = {"charger:0": {"device_key": "charger:0", "state": {"daily": {"2026-10-13": 1.04, "2026-10-14": 0.0}}}}
+    rows = sweep(charger(0, today=2.0, yesterday=1.04), old, DAY15)
+    assert rows["charger:0"]["state"]["daily"] == {} and rows["charger:0"]["state"]["daily_v"] == 2
+
+
+def test_a_charger_that_closed_no_day_while_its_sibling_produced_is_bad_straight_away():
+    rows = {}
+    rows = sweep(charger(0, today=3.9, yesterday=0.0) + charger(1, today=0.0, yesterday=0.01, peak=2, model="a058"), rows, DAY14)
+    rows = sweep(charger(0, today=0.0, yesterday=3.9) + charger(1, today=0.0, yesterday=0.01, peak=2, model="a058"), rows, NIGHT14)
+    assert rows["charger:1"]["status"] == "bad" and rows["charger:1"]["note"]["code"] == "no_output"
+    assert rows["charger:0"]["status"] == "ok"
+
+
+def test_a_sibling_that_has_not_filed_its_day_yet_is_not_blamed():
+    rows = sweep(charger(0, today=3.9, yesterday=0.0) + charger(1, today=4.1, yesterday=0.0), {}, DAY14)
+    rows = sweep(charger(0, today=0.0, yesterday=3.9) + charger(1, today=4.1, yesterday=0.0), rows, NIGHT14)     # 1 has not rolled yet
+    assert rows["charger:1"]["status"] == "ok" and rows["charger:0"]["status"] == "ok"
+
+
+def test_when_every_charger_is_low_it_is_the_weather_not_a_fault():
+    rows = {}
+    for d in range(5, 12):
+        rows = a_day(rows, datetime(2026, 10, d, 15), datetime(2026, 10, d, 22), [10.0, 10.0])
+    rows = a_day(rows, DAY14, NIGHT14, [2.0, 2.0])
+    assert rows["charger:0"]["status"] == "ok" and rows["charger:1"]["status"] == "ok"
+
+
+def test_a_charger_far_below_its_own_normal_while_the_other_is_normal_is_warn_then_bad():
+    rows = {}
+    for d in range(5, 12):
+        rows = a_day(rows, datetime(2026, 10, d, 15), datetime(2026, 10, d, 22), [10.0, 10.0])
+    rows = a_day(rows, DAY14, NIGHT14, [10.0, 1.5])
+    assert rows["charger:1"]["status"] == "warn" and rows["charger:1"]["note"]["code"] == "low_output"
+    again = sweep(charger(0, today=0.0, yesterday=10.0) + charger(1, today=0.0, yesterday=1.5), rows, datetime(2026, 10, 14, 23, 0))
+    assert again["charger:1"]["status"] == "warn"                    # the same day seen again is still day one
+    rows = a_day(again, DAY15, datetime(2026, 10, 15, 22), [10.0, 1.2])
+    assert rows["charger:1"]["status"] == "bad"

@@ -28,9 +28,9 @@ Chargers on a weather day: when EVERY charger at a site is low it is cloud, not 
 fault — only a charger that falls behind its siblings is flagged. A single-charger
 site gets the fault checks only (whole-site underperformance is the anomaly job's).
 
-Yield history: a charger reports "yield today", and the day only rolls over when it
-wakes up, so the daily figure is the highest "today" value seen after 18:00 local
-(by then the day's sun is over). "Yield yesterday" seeds an empty history.
+Yield history: a charger moves a finished day into "yield yesterday" when it shuts down at dusk
+(not at midnight), so a day's total is filed when "yield today" falls back, under the last day it
+was still climbing. A charger that never closes a day its siblings did counts as 0 for it.
 """
 from __future__ import annotations
 
@@ -43,7 +43,6 @@ RANK = {OK: 0, WARN: 1, BAD: 2}
 
 STALE_AFTER = timedelta(minutes=45)
 MISSING_SWEEPS = 2
-FINAL_HOUR = 18            # local hour from which "yield today" counts as the day's total
 HISTORY_DAYS = 21
 BAD_SWEEPS_KEPT_DAYS = 45
 MIN_HISTORY_DAYS = 5       # own days needed before a charger is judged against itself
@@ -200,27 +199,61 @@ def _iso_date(d: date) -> str:
     return d.isoformat()
 
 
-def _record_yield_history(device: dict, state: dict, *, today: date, local_hour: int) -> dict[str, float]:
-    daily = {k: v for k, v in (state.get("daily") or {}).items()}
+HISTORY_VERSION = 2
+
+
+def _record_yield_history(device: dict, state: dict, *, today: date) -> tuple[dict[str, float], dict | None]:
+    """The charger's daily totals, keyed by the day they were made, and the day in progress.
+
+    A Victron charger does NOT roll over at midnight: when it shuts down at dusk it moves the finished
+    day into "yield yesterday" and starts "yield today" from zero. So the total of a day is only known
+    once "today" drops back — at that moment "yesterday" holds it, and the day it belongs to is the
+    last day "today" was still climbing (`run`). History written before this (version 1) assumed a
+    midnight rollover and filed totals under the wrong days; it is discarded."""
+    current = state.get("daily_v") == HISTORY_VERSION
+    daily = dict(state.get("daily") or {}) if current else {}
+    run = state.get("run") if current else None
     m = device["metrics"]
-    seed = m.get("yield_yesterday_kwh")
-    yesterday = _iso_date(today - timedelta(days=1))
-    if seed is not None and yesterday not in daily and not daily:
-        daily[yesterday] = seed        # an empty history starts from the charger's own "yesterday"
-    if local_hour >= FINAL_HOUR and m.get("yield_today_kwh") is not None:
-        key = _iso_date(today)
-        daily[key] = max(daily.get(key, 0.0), m["yield_today_kwh"])
+    yt, yy = m.get("yield_today_kwh"), m.get("yield_yesterday_kwh")
+    if yt is not None:
+        if run and yt < run["max"] - 0.05:                 # "today" fell back: the finished day moved to "yesterday"
+            if yy is not None:
+                daily[run["date"]] = yy
+            run = None
+        if run is None:
+            # A charger that has produced nothing yet has not been "climbing" today.
+            run = {"date": _iso_date(today) if yt > 0 else _iso_date(today - timedelta(days=1)), "max": yt}
+        elif yt > run["max"]:
+            run = {"date": _iso_date(today), "max": yt}    # the day it belongs to = the latest day it was still climbing
     cutoff = _iso_date(today - timedelta(days=HISTORY_DAYS))
-    return {k: v for k, v in daily.items() if k >= cutoff}
+    return {k: v for k, v in daily.items() if k >= cutoff}, run
 
 
-def _judge_chargers(devices: list[dict], states: dict[str, dict], *, today: date, local_hour: int) -> dict[str, tuple[str, dict | None, str | None]]:
-    """charger key -> (status, note, evaluated date). Only chargers that can be compared with a sibling."""
+def _judge_chargers(devices: list[dict], states: dict[str, dict]) -> dict[str, tuple[str, dict | None, str | None]]:
+    """charger key -> (status, note, the day judged). Only chargers that have a sibling to be compared with."""
     chargers = [d for d in devices if d["kind"] == "charger" and d.get("reporting", True)]
     if len(chargers) < 2:
         return {}
-    day = _iso_date(today if local_hour >= FINAL_HOUR else today - timedelta(days=1))
-    values = {d["key"]: (states[d["key"]].get("daily") or {}).get(day) for d in chargers}
+    # The newest day that at least half of the chargers have closed out.
+    need = (len(chargers) + 1) // 2
+    counts: dict[str, int] = {}
+    for d in chargers:
+        for k in (states[d["key"]].get("daily") or {}):
+            counts[k] = counts.get(k, 0) + 1
+    closed = sorted((k for k, n in counts.items() if n >= need), reverse=True)
+    if not closed:
+        return {}
+    day = closed[0]
+    values: dict[str, float | None] = {}
+    for d in chargers:
+        st = states[d["key"]]
+        got = (st.get("daily") or {}).get(day)
+        if got is None:
+            # Not closed out. Still climbing on that day -> its total just has not been filed yet (unknown);
+            # otherwise it did nothing that day.
+            pending = (st.get("run") or {}).get("date", "") >= day
+            got = None if pending else 0.0
+        values[d["key"]] = got
     out: dict[str, tuple[str, dict | None, str | None]] = {}
     ratios: dict[str, float] = {}
     for d in chargers:
@@ -232,8 +265,7 @@ def _judge_chargers(devices: list[dict], states: dict[str, dict], *, today: date
         if value is None:
             continue
         others = [values[o["key"]] for o in chargers if o["key"] != key and values[o["key"]] is not None]
-        peak = d["metrics"].get("peak_yesterday_w")
-        if value < NO_OUTPUT_KWH and others and median(others) >= SIBLING_MIN_KWH and (peak is None or peak < NO_OUTPUT_PEAK_W or day == _iso_date(today)):
+        if value < NO_OUTPUT_KWH and others and median(others) >= SIBLING_MIN_KWH:
             out[key] = (BAD, {"code": "no_output", "params": {"kwh": round(value, 2), "others_kwh": round(median(others), 1)}}, day)
             continue
         other_ratios = [r for k, r in ratios.items() if k != key]
@@ -253,20 +285,21 @@ def evaluate(parsed: list[dict], existing: list[dict], *, now: datetime, local: 
     skipped when `reserve_set_by_hand` (the site says its reserve is held by something VRM cannot
     see, e.g. a Virtual Switch assistant)."""
     prior = {row["device_key"]: row for row in existing}
-    today, hour = local.date(), local.hour
+    today = local.date()
     states: dict[str, dict] = {}
     for d in parsed:
         old = dict((prior.get(d["key"]) or {}).get("state") or {})
         d["reporting"] = d["seen"] is None or reference is None or reference - d["seen"] <= STALE_AFTER
         if d["kind"] == "charger":
-            old["daily"] = _record_yield_history(d, old, today=today, local_hour=hour)
+            old["daily"], old["run"] = _record_yield_history(d, old, today=today)
+            old["daily_v"] = HISTORY_VERSION
         elif d["kind"] == "battery":
             old["max_modules"] = max(int(old.get("max_modules") or 0), d["metrics"]["modules_online"] + d["metrics"]["modules_offline"])
         elif d["kind"] == "inverter":
             old["max_units"] = max(int(old.get("max_units") or 0), d["metrics"]["units"])
         states[d["key"]] = old
 
-    yield_verdict = _judge_chargers(parsed, states, today=today, local_hour=hour)
+    yield_verdict = _judge_chargers(parsed, states)
 
     rows: list[dict] = []
     stamp = now.isoformat()
@@ -311,9 +344,8 @@ def evaluate(parsed: list[dict], existing: list[dict], *, now: datetime, local: 
             elif verdict == WARN:
                 raise_to(BAD if streak >= 2 else WARN, vnote["code"], **vnote["params"])
         _count_bad_sweep(state, status, today)
-        if d["kind"] == "charger":      # the last full day's yield, what the table shows
-            offset = 0 if hour >= FINAL_HOUR else 1
-            m = {**m, "last_kwh": state["daily"].get(_iso_date(today - timedelta(days=offset))), "last_day_offset": offset}
+        if d["kind"] == "charger":      # the last full production day — what the charger itself calls "yesterday"
+            m = {**m, "last_kwh": m.get("yield_yesterday_kwh")}
         prior_row = prior.get(d["key"]) or {}
         rows.append({
             "device_key": key, "kind": d["kind"], "label": d["label"], "status": status, "note": note,
