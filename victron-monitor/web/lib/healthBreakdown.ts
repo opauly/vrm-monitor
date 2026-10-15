@@ -90,3 +90,38 @@ export function aggregateScores(days: { date: string; score: number; items: Heal
   const score = Math.round(usable.reduce((sum, d) => sum + d.score, 0) / usable.length);
   return { score, days: usable.length, items };
 }
+
+// ── Equipment faults, live ───────────────────────────────────────────────
+
+/** Points the daily score loses for `bad` devices — the same rule as vrm.compute_daily_health
+ * (victron-monitor/sql/vrm_health_devices.sql): 15 for the first, 10 for each more, capped at 35. */
+export function equipmentPoints(bad: number): number {
+  return bad <= 0 ? 0 : Math.min(35, 15 + 10 * (bad - 1));
+}
+
+function bandName(score: number): string {
+  return score >= 90 ? 'Excellent' : score >= 80 ? 'Good' : score >= 70 ? 'Watch' : 'Attention';
+}
+
+export type ScoreView = { score: number | null; status: string | null; notes: string | null; items: HealthBreakdownItem[] | null };
+
+/**
+ * The latest scored day's System score, with its equipment line swapped for how the equipment is
+ * RIGHT NOW. The stored score was fixed when that day was scored, so a fault that has since been
+ * fixed would keep costing points on the card until the next day was scored (and a fault that
+ * started after it would not show at all). Only this "latest" view is adjusted; the 7- and 30-day
+ * averages stay what each day was actually scored.
+ */
+export function withLiveEquipment(view: ScoreView, badNow: number): ScoreView {
+  if (view.score === null) return view;
+  const stored = -(view.items?.find((i) => i.code === 'device_fault')?.points ?? 0);
+  const live = equipmentPoints(badNow);
+  if (stored === live) return view;
+  const score = Math.max(0, Math.min(100, view.score + stored - live));
+  const items = view.items
+    ? [...view.items.filter((i) => i.code !== 'device_fault'), ...(live > 0 ? [{ code: 'device_fault', points: -live, value: badNow }] : [])]
+    : null;
+  const kept = (view.notes ?? '').split(';').map((n) => n.trim()).filter((n) => n && n !== 'Normal operation' && !/equipment fault/.test(n));
+  if (live > 0) kept.push(`${badNow} equipment fault(s)`);
+  return { score, status: bandName(score), notes: kept.length > 0 ? kept.join('; ') : 'Normal operation', items };
+}

@@ -311,7 +311,7 @@ def test_push_only_sends_a_notification_and_no_email(env, pushes):
     out = run_push()
     assert not sent and out["pushed"] == 1 and out["sent"] == 0 and row["notified_at"]
     p = pushes["payloads"][0]
-    assert p["title"] == "Low battery at El Encino" and p["url"] == "/app/dashboard/s1" and p["tag"] == f"alert-{row['id']}"
+    assert p["title"] == "Low battery" and p["body"].startswith("El Encino — ") and p["url"] == "/app/dashboard/s1" and p["tag"] == f"alert-{row['id']}"
     assert p["severity"] == "warning" and pushes["urgency"] == ["normal"]
 
 
@@ -355,7 +355,7 @@ def test_a_back_to_normal_push_replaces_the_alarm_via_the_same_tag(env, pushes):
     device(store)
     row = alert(store, status="resolved", notified_at=ago(hours=1), resolved_at=ago(minutes=5))
     run_push()
-    assert pushes["payloads"][0]["tag"] == f"alert-{row['id']}" and pushes["payloads"][0]["title"] == "Battery recovered at El Encino"
+    assert pushes["payloads"][0]["tag"] == f"alert-{row['id']}" and pushes["payloads"][0]["title"] == "Battery recovered" and pushes["payloads"][0]["body"] == "El Encino"
 
 
 def test_push_preference_off_mutes_push_but_not_email(env, pushes):
@@ -522,3 +522,14 @@ def test_a_device_fault_reads_as_plain_sentences_in_the_email():
                          ("es", "Cargador solar 2 produjo casi nada (0.01 kWh) mientras los demás produjeron 3.9 kWh.")):
         card = ad.describe(alert, resolved=False, site_name="Rancho", tz_name=None, strings=email_i18n.get(lang), site_url="https://x")
         assert card["body"] == expect, card
+
+
+def test_a_long_site_name_never_decides_what_the_push_title_says():
+    from victron import email_i18n
+    alert = {"kind": "device_fault", "severity": "warning", "customer_id": "c1", "site_id": "s1", "id": 9, "detail": {
+        "count": 1, "devices": [{"kind": "battery", "code": "modules_offline", "params": {"online": 3, "total": 4}}]}}
+    card = ad.describe(alert, resolved=False, site_name="Vista Atenas LP M2 (Studios)", tz_name=None, strings=email_i18n.get("en"), site_url="https://x")
+    payload = ad._push_payload(alert, card)
+    assert payload["title"] == "Equipment problem" and payload["body"].startswith("Vista Atenas LP M2 (Studios) — Battery")
+    resolved = ad._push_payload(alert, ad.describe(alert, resolved=True, site_name="Vista Atenas LP M2 (Studios)", tz_name=None, strings=email_i18n.get("es"), site_url="https://x"))
+    assert resolved["title"] == "Problema de equipo resuelto" and resolved["body"] == "Vista Atenas LP M2 (Studios)"

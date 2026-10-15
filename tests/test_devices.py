@@ -137,3 +137,12 @@ def test_a_missing_device_keeps_counting_while_it_is_gone():
     two = run(charger(0, today=3.0, yesterday=3.0), list(one.values()))
     three = run(charger(0, today=3.0, yesterday=3.0), list(two.values()))
     assert three["battery:512"]["state"]["bad_sweeps"] == {"2026-10-14": 2}
+
+
+def test_the_ess_minimum_soc_is_read_from_the_system_records_and_the_active_limit_wins():
+    base = inverter()
+    floor = [rec("System", 0, "H4ms", 40.0)]
+    assert run(base + floor)["inverter:274"]["metrics"]["ess_min_soc_pct"] == 40.0
+    with_active = floor + [rec("System", 0, "ssl", 65)]
+    assert run(base + with_active)["inverter:274"]["metrics"]["ess_min_soc_pct"] == 65
+    assert run(base)["inverter:274"]["metrics"]["ess_min_soc_pct"] is None

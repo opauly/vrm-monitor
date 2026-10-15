@@ -89,6 +89,15 @@ def _ts(rec: dict, codes: tuple[str, ...]) -> datetime | None:
     return datetime.fromtimestamp(max(stamps), tz=timezone.utc) if stamps else None
 
 
+def ess_floor(records: list[dict]) -> float | None:
+    """The state of charge the grid-connected system will not discharge below (while the grid is
+    up) — what the installer set as ESS "Minimum SOC (unless grid fails)". When Battery Life is
+    managing the limit, the *active* limit is the real floor (it can sit above the setting)."""
+    by_code = {r.get("code"): _num(r.get("rawValue")) for r in records if r.get("code") in ("ssl", "H4ms")}
+    value = by_code.get("ssl") if by_code.get("ssl") is not None else by_code.get("H4ms")
+    return value if value is not None and 0 <= value <= 100 else None
+
+
 def parse(diagnostics) -> list[dict]:
     """One dict per device: `key`, `kind`, `label`, `metrics`, `seen` (when it last reported)
     and `faults` — the hard problems readable from a single reading, as `(code, params)`."""
@@ -135,7 +144,7 @@ def parse(diagnostics) -> list[dict]:
             devices.append({
                 "key": key, "kind": kind, "instance": instance, "label": "Multi / Quattro", "faults": faults,
                 "seen": _ts(rec, ("S", "ERR")), "warning_units": warning_units,
-                "metrics": {"units": len(serial_slots), "state": _text(rec, "S")},
+                "metrics": {"units": len(serial_slots), "state": _text(rec, "S"), "ess_min_soc_pct": ess_floor(records)},
             })
     totals: dict[str, int] = {}
     for d in devices:

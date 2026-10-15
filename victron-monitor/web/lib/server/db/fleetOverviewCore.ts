@@ -1,4 +1,4 @@
-import { aggregateScores, parseBreakdown, type HealthBreakdownItem, type PeriodScore } from '@/lib/healthBreakdown';
+import { aggregateScores, parseBreakdown, withLiveEquipment, type HealthBreakdownItem, type PeriodScore } from '@/lib/healthBreakdown';
 import 'server-only';
 
 // ══════════════════════════════════════════════════════════════════════
@@ -539,7 +539,7 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
       .in('site_id', siteIds).is('cleared_at', null).order('detected_at', { ascending: false }),
     // Equipment that is not OK, from vrm.site_devices (sql/vrm_site_devices.sql). Optional: until
     // that SQL has run the query errors, which here simply means "nothing to report".
-    admin.schema('vrm').from('site_devices').select('site_id, status').in('site_id', siteIds).neq('status', 'ok'),
+    admin.schema('vrm').from('site_devices').select('site_id, status').in('site_id', siteIds),
   ]);
   if (customersError) throw customersError;
   if (healthError) throw healthError;
@@ -549,10 +549,13 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
 
   const customerNameById = new Map((customers ?? []).map((c) => [c.id as string, c.name as string]));
   const snapshotBySite = new Map((snapshots ?? []).map((s) => [s.site_id as string, s]));
-  const devicesBySite = new Map<string, { bad: number; warn: number }>();
-  for (const row of (deviceRows ?? []) as { site_id: string; status: 'warn' | 'bad' }[]) {
-    const entry = devicesBySite.get(row.site_id) ?? { bad: 0, warn: 0 };
-    entry[row.status] += 1;
+  // Per site: how many devices are bad / warn right now, and whether any are tracked at all
+  // (a site with none — or before the SQL has run — keeps its stored score untouched).
+  const devicesBySite = new Map<string, { bad: number; warn: number; tracked: number }>();
+  for (const row of (deviceRows ?? []) as { site_id: string; status: 'ok' | 'warn' | 'bad' }[]) {
+    const entry = devicesBySite.get(row.site_id) ?? { bad: 0, warn: 0, tracked: 0 };
+    entry.tracked += 1;
+    if (row.status !== 'ok') entry[row.status] += 1;
     devicesBySite.set(row.site_id, entry);
   }
   const anomaliesBySite = new Map<string, SiteAnomalyRow[]>();
@@ -712,6 +715,11 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
     const snapshot = snapshotBySite.get(s.site_id);
     const energy = latestEnergyBySite.get(s.site_id);
     const indicators = _dailyIndicators(energy, s.pv_kwp);
+    // The latest scored day's System score, with its equipment line as the equipment is right now
+    // (see withLiveEquipment). Sites with no tracked devices keep the stored score as it is.
+    const deviceState = devicesBySite.get(s.site_id);
+    const storedSystem = { score: latestHealth?.system_score ?? null, status: latestHealth?.system_status ?? null, notes: latestHealth?.system_notes ?? null, items: latestHealth?.system_breakdown ?? null };
+    const latestSystem = deviceState && deviceState.tracked > 0 ? withLiveEquipment(storedSystem, deviceState.bad) : storedSystem;
     return {
       site_id: s.site_id,
       display_name: s.display_name,
@@ -724,18 +732,18 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
       vrm_last_synced_at: s.vrm_last_synced_at,
       connection_status: _connectionStatus(snapshot?.captured_at ?? null, now),
       health_date: latestHealth?.date ?? null,
-      system_score: latestHealth?.system_score ?? null,
-      system_status: latestHealth?.system_status ?? null,
-      system_notes: latestHealth?.system_notes ?? null,
+      system_score: latestSystem.score,
+      system_status: latestSystem.status,
+      system_notes: latestSystem.notes,
       grid_score: latestHealth?.grid_score ?? null,
       grid_status: latestHealth?.grid_status ?? null,
       grid_notes: latestHealth?.grid_notes ?? null,
-      system_breakdown: latestHealth?.system_breakdown ?? null,
+      system_breakdown: latestSystem.items,
       grid_breakdown: latestHealth?.grid_breakdown ?? null,
       active_alarms: _activeCountFromRaw(snapshot?.raw, 'alarms'),
       active_critical_alerts: _activeCountFromRaw(snapshot?.raw, 'critical_alerts'),
       active_anomalies: anomaliesBySite.get(s.site_id) ?? [],
-      devices_attention: devicesBySite.get(s.site_id) ?? { bad: 0, warn: 0 },
+      devices_attention: { bad: devicesBySite.get(s.site_id)?.bad ?? 0, warn: devicesBySite.get(s.site_id)?.warn ?? 0 },
       live_captured_at: snapshot?.captured_at ?? null,
       live_pv_power_w: snapshot?.pv_power_w ?? null,
       live_load_power_w: snapshot?.load_power_w ?? null,

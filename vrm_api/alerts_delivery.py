@@ -144,7 +144,8 @@ def describe(alert: dict, *, resolved: bool, site_name: str, tz_name: str | None
 
     if resolved:
         return {"title": _fill(t[f"alert_{kind}_resolved"], site=site_name), "body": "", "severity": "ok",
-                "severity_label": "", "url": url, "path": link_target, "button_label": button}
+                "severity_label": "", "url": url, "path": link_target, "button_label": button, "site": site_name,
+                "push_title": t.get(f"alert_{kind}_push_resolved") or _fill(t[f"alert_{kind}_resolved"], site=site_name)}
 
     severity = alert.get("severity") or rules.WARNING
     title_key, body_key = f"alert_{kind}_title", f"alert_{kind}_body"
@@ -165,9 +166,11 @@ def describe(alert: dict, *, resolved: bool, site_name: str, tz_name: str | None
     elif kind == rules.DEVICE_FAULT:
         values["devices"] = devices.describe_devices(t, detail)
 
+    push_key = "alert_low_battery_critical_push" if (kind == rules.LOW_BATTERY and severity == rules.CRITICAL) else f"alert_{kind}_push"
     return {"title": _fill(t[title_key], **values), "body": _fill(t[body_key], **values), "severity": severity,
             "severity_label": t["alert_severity_critical" if severity == rules.CRITICAL else "alert_severity_warning"],
-            "url": url, "path": link_target, "button_label": button}
+            "url": url, "path": link_target, "button_label": button, "site": site_name,
+            "push_title": t.get(push_key) or _fill(t[title_key], **values)}
 
 
 def _stamp(table, ids: list, **columns) -> list:
@@ -176,6 +179,15 @@ def _stamp(table, ids: list, **columns) -> list:
     for column in columns:
         query = query.is_(column, "null")
     return query.execute().data or []
+
+
+def _push_payload(alert: dict, card: dict) -> dict:
+    """One native notification. A phone cuts the title to a single line, so the title is the short
+    kind of alert and the site name leads the body — "Equipment problem resolved at Vista Atenas LP M2
+    (Studios)" used to arrive as "Equipment problem resolved at…" with no way to see which site."""
+    site, body = card.get("site") or "", card.get("body") or ""
+    return {"title": card.get("push_title") or card["title"], "body": f"{site} — {body}" if site and body else (site or body),
+            "url": card["path"], "tag": f"alert-{alert['id']}", "severity": card["severity"]}
 
 
 def _push_payloads(items: list[tuple[dict, dict]], strings: dict, *, admin: bool = False) -> list[dict]:
@@ -187,10 +199,9 @@ def _push_payloads(items: list[tuple[dict, dict]], strings: dict, *, admin: bool
     if len(items) > alerts_push.MAX_INDIVIDUAL_PUSHES:
         worst = rules.CRITICAL if any(c["severity"] == "critical" for _, c in items) else rules.WARNING
         return [{"title": _fill(strings["alert_multi_subject"], n=len(items)),
-                 "body": " · ".join(c["title"] for _, c in items[:3]),
+                 "body": " · ".join(f"{c.get('push_title') or c['title']}: {c.get('site') or ''}".rstrip(": ") for _, c in items[:3]),
                  "url": "/admin/fleet/alerts" if admin else "/app/alerts", "tag": "alerts-summary", "severity": worst}]
-    return [{"title": c["title"], "body": c["body"] or "", "url": c["path"], "tag": f"alert-{a['id']}", "severity": c["severity"]}
-            for a, c in items]
+    return [_push_payload(a, c) for a, c in items]
 
 
 def deliver_pending(*, now: datetime | None = None, mode: str | None = None, push: bool | None = None,

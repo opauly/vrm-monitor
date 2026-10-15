@@ -170,7 +170,8 @@ def test_a_normal_forecast_adds_nothing():
 
 
 def test_forecast_findings_are_reported_with_their_numbers():
-    f = build(forecast={**AHEAD, "storm": True, "backup_reaches_sunrise": False, "backup_hours": 5.3, "tomorrow_pv_kwh": 8.0, "tomorrow_vs_typical_pct": -60})
+    off_grid = {**SITE, "system_type": "off_grid"}      # only an off-grid battery runs the night alone
+    f = build(site=off_grid, forecast={**AHEAD, "storm": True, "backup_reaches_sunrise": False, "backup_hours": 5.3, "tomorrow_pv_kwh": 8.0, "tomorrow_vs_typical_pct": -60})
     assert codes(f) == ["storm_ahead", "tonight_short", "tomorrow_low_solar"]
     assert f["observations"][1]["params"] == {"hours": 5.3} and f["observations"][2]["params"] == {"pv": 8.0, "typical": 20.0, "change_pct": -60}
     assert f["forecast"]["storm"] is True
@@ -196,3 +197,26 @@ def test_an_open_equipment_alert_names_the_device_in_the_summary():
     assert en["points"] == ["Solar charger 2 made almost nothing (0.01 kWh) while the others made 3.9 kWh."]
     assert insight_ai.render_template(facts, "es", "site")["points"][0].startswith("Cargador solar 2 produjo casi nada")
     assert insight_ai.numbers_ok(en["points"], {"observations": facts["observations"]})
+
+
+def _day_facts(system_type, floor, min_soc, forecast=None):
+    rows = history(min_soc=min_soc)
+    return F.build_site_facts(site={**SITE, "system_type": system_type}, energy_rows=rows, health_row=None, forecast=forecast, anomalies=[],
+                              alerts_open=[], snapshot=None, now=NOW, soc_floor_pct=floor)
+
+
+def test_resting_at_the_configured_floor_is_not_a_low_battery():
+    codes = lambda f: [o["code"] for o in f["observations"]]
+    at_floor = _day_facts("hybrid", 25, 25.0)
+    assert "battery_low" not in codes(at_floor) and "at_reserve" in codes(at_floor)
+    assert "battery_low" in codes(_day_facts("hybrid", None, 25.0))          # unknown floor: judged as before
+    assert "battery_low" in codes(_day_facts("hybrid", 10, 25.0))             # well above the floor but under 30: as before
+    assert "at_reserve" not in codes(_day_facts("hybrid", 10, 80.0))
+
+
+def test_a_grid_connected_site_gets_no_will_it_last_the_night_warning_but_an_off_grid_one_does():
+    forecast = {"storm": False, "backup_hours": 4.4, "backup_reaches_sunrise": False, "soc_at_sunrise_pct": 3, "tomorrow_pv_kwh": None}
+    grid = _day_facts("hybrid", 40, 80.0, forecast)
+    assert "tonight_short" not in [o["code"] for o in grid["observations"]] and "soc_at_sunrise_pct" not in grid["forecast"]
+    off = _day_facts("off_grid", None, 80.0, forecast)
+    assert "tonight_short" in [o["code"] for o in off["observations"]] and off["forecast"]["soc_at_sunrise_pct"] == 3

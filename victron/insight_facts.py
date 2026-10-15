@@ -27,7 +27,7 @@ OFFLINE_AFTER = timedelta(minutes=45)  # same freshness the dashboard and alerts
 ATTENTION, GOOD, INFO = "attention", "good", "info"
 
 _ORDER = [
-    "offline", "offline_days", "alert_", "storm_ahead", "outage_deep", "tonight_short", "anomaly_", "battery_low", "solar_below",
+    "offline", "offline_days", "alert_", "storm_ahead", "outage_deep", "tonight_short", "anomaly_", "battery_low", "at_reserve", "solar_below",
     "tomorrow_low_solar", "import_high", "outage_held", "load_above", "no_float", "export", "solar_above", "tomorrow_high_solar",
     "load_below", "self_sufficient",
 ]
@@ -91,14 +91,19 @@ def _pct_change(now_value: float | None, baseline: float | None) -> float | None
 
 
 def build_site_facts(*, site: dict, energy_rows: list[dict], health_row: dict | None, anomalies: list[dict],
-                     alerts_open: list[dict], snapshot: dict | None, now: datetime, forecast: dict | None = None) -> dict:
+                     alerts_open: list[dict], snapshot: dict | None, now: datetime, forecast: dict | None = None,
+                     soc_floor_pct: float | None = None) -> dict:
     """One site's facts. `energy_rows` = recent `energy_daily` rows (any order),
     `health_row` = that latest day's `daily_health` row, `anomalies`/`alerts_open`
-    = this site's open `site_anomalies` / `alerts` rows, `snapshot` = its live row."""
+    = this site's open `site_anomalies` / `alerts` rows, `snapshot` = its live row.
+    `soc_floor_pct` = the state of charge a grid-connected system is configured not to discharge
+    below while the grid is up (ESS "Minimum SOC"), when known: a day that rested at that level is
+    the system doing its job, not a low battery."""
     facts: dict = {
         "site": {"id": site["site_id"], "name": site.get("display_name") or site["site_id"],
                  "system_type": site.get("system_type"), "pv_kwp": _r(_num(site.get("pv_kwp"))),
-                 "battery_kwh": _r(_num(site.get("battery_usable_kwh")))},
+                 "battery_kwh": _r(_num(site.get("battery_usable_kwh"))),
+                 "soc_floor_pct": _r(soc_floor_pct) if soc_floor_pct is not None and site.get("system_type") != "off_grid" else None},
     }
 
     # ── the latest complete day, and the days before it ──────────────────
@@ -139,6 +144,11 @@ def build_site_facts(*, site: dict, energy_rows: list[dict], health_row: dict | 
         "pv_w": _r(_num((snapshot or {}).get("pv_power_w")), 0) if online else None,
         "load_w": _r(_num((snapshot or {}).get("load_power_w")), 0) if online else None,
     }
+    if forecast and site.get("system_type") != "off_grid":
+        # With a grid behind it the battery does not run the night alone: the "will it last until
+        # sunrise" figures describe an outage that has not happened, and read as a warning (or get
+        # paraphrased as expected behaviour — "will drop to 3%"). Only off-grid sites keep them.
+        forecast = {k: v for k, v in forecast.items() if k not in ("backup_hours", "backup_reaches_sunrise", "soc_at_sunrise_pct")}
     facts["forecast"] = forecast
     facts["open_alerts"] = [{"kind": a["kind"], "severity": a.get("severity"), "since": a.get("opened_at"),
                              **({"equipment": a.get("detail")} if a["kind"] == "device_fault" and a.get("detail") else {})}
@@ -189,11 +199,15 @@ def observations(facts: dict, *, system_type: str | None) -> list[dict]:
     vs = facts.get("vs_previous_pct") or {}
     prev = facts.get("previous_days") or {}
     grid_system = system_type != "off_grid"
+    floor = facts["site"].get("soc_floor_pct")
 
     if day["outage_minutes"]:
         low = day["min_soc_pct"] is not None and day["min_soc_pct"] < 20
         add("outage_deep" if low else "outage_held", ATTENTION if low else GOOD,
             minutes=day["outage_minutes"], count=day["outage_count"], min_soc=day["min_soc_pct"])
+    elif day["min_soc_pct"] is not None and floor is not None and floor - 3 <= day["min_soc_pct"] <= floor + 5:
+        # Sat at the configured reserve: the grid covered everything below it.
+        add("at_reserve", INFO, min_soc=day["min_soc_pct"], floor=floor)
     elif day["min_soc_pct"] is not None and day["min_soc_pct"] < 30 and (facts["site"].get("battery_kwh") or system_type in ("off_grid", "hybrid")):
         add("battery_low", ATTENTION, min_soc=day["min_soc_pct"])
 

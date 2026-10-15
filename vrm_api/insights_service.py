@@ -108,6 +108,14 @@ def site_facts_for(sites: list[dict], now: datetime) -> dict[str, dict]:
             alerts.setdefault(row["site_id"], []).append(row)
     except Exception:  # noqa: BLE001 — alerts table may not exist yet
         logger.info("insights: could not read vrm.alerts")
+    floors: dict[str, float] = {}
+    try:    # the configured minimum state of charge, read by the sweep (vrm.site_devices)
+        for row in _t("site_devices").select("site_id, metrics").in_("site_id", ids).eq("kind", "inverter").execute().data or []:
+            value = (row.get("metrics") or {}).get("ess_min_soc_pct")
+            if isinstance(value, (int, float)):
+                floors[row["site_id"]] = float(value)
+    except Exception:  # noqa: BLE001 — table not created yet
+        logger.info("insights: could not read vrm.site_devices")
     snapshots = {r["site_id"]: r for r in (_t("site_snapshots").select("site_id, captured_at, soc_pct, pv_power_w, load_power_w")
                                            .in_("site_id", ids).execute().data or [])}
 
@@ -119,7 +127,7 @@ def site_facts_for(sites: list[dict], now: datetime) -> dict[str, dict]:
         out[sid] = insight_facts.build_site_facts(
             site=site, energy_rows=rows, health_row=health.get((sid, str(latest["date"]))) if latest else None,
             anomalies=anomalies.get(sid, []), alerts_open=alerts.get(sid, []), snapshot=snapshots.get(sid), now=now,
-            forecast=forecasts.get(sid))
+            forecast=forecasts.get(sid), soc_floor_pct=floors.get(sid))
     return out
 
 

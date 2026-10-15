@@ -1,0 +1,444 @@
+-- ============================================================
+-- VRM Monitor — the SOC checks respect the configured minimum SOC (ESS floor)
+-- ============================================================
+-- Run once in the Supabase SQL editor, AFTER vrm_health_devices.sql, and after the
+-- API has been redeployed and a sweep has run (so vrm.site_devices holds each site's
+-- floor in the inverter row's metrics.ess_min_soc_pct). Safe to run twice.
+--
+-- Problem: a grid-connected system set to keep, say, 25% (ESS "Minimum SOC (unless
+-- grid fails)") rests at exactly 25% by design — and was charged "Low SOC -15" every
+-- day, because the scoring only knew fixed thresholds (30 / 40 / 20).
+--
+-- Change: when the site has a grid and a known floor, a day whose lowest SOC stayed at
+-- or above (floor - 3) is not penalised for low SOC at all; it is listed as a zero-point
+-- line "soc_at_reserve" (only when the level is below the watch threshold, so the score
+-- card explains why a low number cost nothing). A day that fell further below the floor
+-- is judged exactly as before, and a grid outage still waives the penalty as before.
+-- Nothing else in the scoring changes. This replaces vrm.compute_daily_health_core(),
+-- the function vrm_health_devices.sql put behind the public compute_daily_health().
+--
+-- The last statement re-scores the last 30 days so the cards stop showing the old penalty.
+
+CREATE OR REPLACE FUNCTION vrm.compute_daily_health_core(p_site_id text, p_date date, p_dump_type text DEFAULT 'csv_upload'::text)
+ RETURNS vrm.daily_health
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  ed vrm.energy_daily%ROWTYPE;
+  v_alarms_count integer;
+  v_battery_capacity numeric;
+  v_battery_cycles numeric;
+  v_est_cycles numeric;
+  v_grid_dependency_pct numeric;
+  v_min_soc numeric;
+  v_outage_count integer;
+  v_outage_minutes numeric;
+  v_outage_penalty integer;
+  v_max_temperature numeric;
+  v_min_voltage numeric;
+  v_mppt_reached_float boolean;
+  v_grid_data_available boolean;
+  v_system_type text;
+  v_has_battery boolean;
+  v_has_grid boolean;
+  v_ess_floor numeric;
+  v_at_reserve boolean := false;
+  v_soc_outage_explained boolean;
+  v_score integer := 100;
+  v_notes text[] := '{}';
+  v_status text;
+  -- System score (equipment health: alarms, SOC, cycling, temperature,
+  -- voltage, float charge) and Grid score (grid reliability: outages,
+  -- dependency) — computed in parallel with the legacy blended v_score
+  -- above, at the exact same point each deduction already fires, rather
+  -- than restructuring that already-verified logic. Grid score is NULL
+  -- for a site with no grid connection at all (system_type='off_grid')
+  -- — there's no grid to score, not a perfect one.
+  v_system_score integer := 100;
+  v_system_notes text[] := '{}';
+  v_system_status text;
+  v_grid_score integer := 100;
+  v_grid_notes text[] := '{}';
+  v_grid_status text;
+  -- The points behind each score, reason by reason, in the order applied:
+  -- [{"code": "...", "points": -5, "value": 1, "limit": 25}, ...]. 100 plus
+  -- every `points` is exactly the stored score (grid_items NULL when the
+  -- site has no grid), so the UI can show the arithmetic as it happened,
+  -- with the thresholds this site was actually judged against.
+  v_system_items jsonb := '[]'::jsonb;
+  v_grid_items jsonb := '[]'::jsonb;
+  v_result vrm.daily_health;
+
+  v_defaults constant jsonb := '{
+      "socLowAlarm": 20, "socLowWarning": 30, "socLowWatch": 40,
+      "outageMinLong": 120, "outageMinMid": 30, "outageCountHigh": 5,
+      "gridDepHigh": 50, "gridDepMid": 20,
+      "batteryCyclesHigh": 10.0, "batteryCyclesMid": 7.0,
+      "estCyclesHigh": 0.85, "estCyclesMid": 0.65
+  }'::jsonb;
+  v_thr jsonb;
+
+  t_soc_low_alarm       numeric;
+  t_soc_low_warning     numeric;
+  t_soc_low_watch       numeric;
+  t_outage_min_long     numeric;
+  t_outage_min_mid      numeric;
+  t_outage_count_high   integer;
+  t_grid_dep_high       numeric;
+  t_grid_dep_mid        numeric;
+  t_battery_cycles_high numeric;
+  t_battery_cycles_mid  numeric;
+  t_est_cycles_high     numeric;
+  t_est_cycles_mid      numeric;
+BEGIN
+  SELECT * INTO ed
+  FROM vrm.energy_daily
+  WHERE site_id = p_site_id AND date = p_date AND dump_type = p_dump_type
+  ORDER BY id DESC
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT health_thresholds, system_type INTO v_thr, v_system_type
+  FROM vrm.sites WHERE site_id = p_site_id;
+  v_thr := v_defaults || COALESCE(v_thr, '{}'::jsonb);
+  v_system_type := COALESCE(v_system_type, 'hybrid');
+
+  v_has_battery := v_system_type IN ('off_grid', 'hybrid');
+  v_has_grid    := v_system_type IN ('grid_zero', 'hybrid');
+
+  -- The state of charge a grid-connected system is CONFIGURED not to discharge below while the
+  -- grid is up (ESS "Minimum SOC (unless grid fails)", or Battery Life's active limit), read by the
+  -- sweep into vrm.site_devices (victron/devices.py). NULL = not known: nothing below changes.
+  IF v_has_grid AND to_regclass('vrm.site_devices') IS NOT NULL THEN
+    SELECT NULLIF(d.metrics ->> 'ess_min_soc_pct', '')::numeric INTO v_ess_floor
+    FROM vrm.site_devices d
+    WHERE d.site_id = p_site_id AND d.kind = 'inverter' AND NULLIF(d.metrics ->> 'ess_min_soc_pct', '') IS NOT NULL
+    LIMIT 1;
+  END IF;
+
+  t_soc_low_alarm       := (v_thr->>'socLowAlarm')::numeric;
+  t_soc_low_warning     := (v_thr->>'socLowWarning')::numeric;
+  t_soc_low_watch       := (v_thr->>'socLowWatch')::numeric;
+  t_outage_min_long     := (v_thr->>'outageMinLong')::numeric;
+  t_outage_min_mid      := (v_thr->>'outageMinMid')::numeric;
+  t_outage_count_high   := (v_thr->>'outageCountHigh')::integer;
+  t_grid_dep_high       := (v_thr->>'gridDepHigh')::numeric;
+  t_grid_dep_mid        := (v_thr->>'gridDepMid')::numeric;
+  t_battery_cycles_high := (v_thr->>'batteryCyclesHigh')::numeric;
+  t_battery_cycles_mid  := (v_thr->>'batteryCyclesMid')::numeric;
+  t_est_cycles_high     := (v_thr->>'estCyclesHigh')::numeric;
+  t_est_cycles_mid      := (v_thr->>'estCyclesMid')::numeric;
+
+  v_alarms_count       := vrm.count_alarm_episodes(p_site_id, p_date);
+  v_min_soc            := COALESCE(ed.min_soc, 0);
+  v_outage_count       := COALESCE(ed.outage_count, 0);
+  v_outage_minutes     := COALESCE(ed.outage_minutes, 0);
+  v_battery_capacity   := COALESCE(NULLIF(ed.battery_kwh_snapshot, 0), 1);
+  v_battery_cycles     := CASE WHEN ed.battery_discharge_kwh IS NULL THEN NULL
+                               ELSE ed.battery_discharge_kwh / v_battery_capacity END;
+  -- SOC-swing estimate, only meaningful when both ends of the swing
+  -- were actually recorded that day.
+  v_est_cycles         := CASE WHEN ed.min_soc IS NOT NULL AND ed.max_soc IS NOT NULL
+                               THEN (ed.max_soc - ed.min_soc) / 100.0 ELSE NULL END;
+  v_grid_dependency_pct := CASE WHEN COALESCE(ed.load_kwh, 0) > 0
+                             THEN (COALESCE(ed.grid_kwh, 0) / ed.load_kwh) * 100
+                             ELSE 0 END;
+  v_max_temperature    := NULLIF(COALESCE(ed.max_temperature, 0), 0);
+  v_min_voltage        := NULLIF(COALESCE(ed.min_voltage, 0), 0);
+  v_mppt_reached_float := COALESCE(ed.battery_reached_float, false);
+  -- Resting at (or within 3 points of) the configured floor is the system doing its job, not a
+  -- low battery: the grid covered everything below it.
+  v_at_reserve := v_ess_floor IS NOT NULL AND v_min_soc > 0 AND v_min_soc >= v_ess_floor - 3;
+  v_grid_data_available := COALESCE(ed.grid_data_available, true);
+
+  IF v_alarms_count > 0 THEN
+    v_score := v_score - LEAST(25, v_alarms_count * 5);
+    v_notes := array_append(v_notes, v_alarms_count || ' alarm event(s)');
+    -- System side: the alarm categories counted here (Low battery,
+    -- Overload, High temperature, ...) are equipment-triggered, not
+    -- grid-quality signals — a real grid loss is scored on the Grid
+    -- side below via outage minutes/count instead.
+    v_system_score := v_system_score - LEAST(25, v_alarms_count * 5);
+    v_system_notes := array_append(v_system_notes, v_alarms_count || ' alarm event(s)');
+    v_system_items := v_system_items || jsonb_build_object('code', 'alarm_events', 'points', -LEAST(25, v_alarms_count * 5), 'value', v_alarms_count);
+  END IF;
+
+  IF v_has_battery THEN
+    -- A battery discharging to cover a real grid outage — holding the
+    -- load with no interruption the customer ever noticed — is the
+    -- system succeeding, not a fault, no matter how low SOC got that
+    -- day (Oscar's own framing, 2026-09-17: "a low score for me would
+    -- be that the system is behaving bad... if there is an outage and
+    -- my battery is capable of holding the loads... that is a very
+    -- healthy system"). So this is a full waiver, not a softened
+    -- penalty — informational note only, zero score impact. This does
+    -- NOT create a blind spot for genuine battery-damage risk: a truly
+    -- dangerous deep discharge is still caught independently below by
+    -- the low-voltage check and by the Cerbo's own alarm events
+    -- (already scored above, e.g. a real "Low battery" alarm). Only a
+    -- low SOC with NO outage that day — the grid was available the
+    -- whole time and it still drained — is the genuinely odd case,
+    -- and keeps its full original penalty.
+    v_soc_outage_explained := v_has_grid AND v_outage_minutes > 0;
+
+    -- SOC is always a System-side concern (it's the battery, not the
+    -- grid) — the outage-waiver logic above already keeps this fair
+    -- when a real outage explains it, on both the blended and System
+    -- scores identically.
+    IF v_soc_outage_explained THEN
+      IF v_min_soc > 0 AND v_min_soc < t_soc_low_watch THEN
+        v_notes := array_append(v_notes, 'SOC reached ' || v_min_soc || '% covering a grid outage — battery held the load');
+        v_system_notes := array_append(v_system_notes, 'SOC reached ' || v_min_soc || '% covering a grid outage — battery held the load');
+        v_system_items := v_system_items || jsonb_build_object('code', 'soc_outage_waived', 'points', 0, 'value', v_min_soc, 'limit', t_soc_low_watch);
+      END IF;
+    ELSIF v_at_reserve THEN
+      IF v_min_soc < t_soc_low_watch THEN
+        v_system_items := v_system_items || jsonb_build_object('code', 'soc_at_reserve', 'points', 0, 'value', v_min_soc, 'limit', v_ess_floor);
+      END IF;
+    ELSIF v_min_soc > 0 AND v_min_soc < t_soc_low_alarm THEN
+      v_score := v_score - 25;
+      v_notes := array_append(v_notes, 'Very low SOC');
+      v_system_score := v_system_score - 25;
+      v_system_notes := array_append(v_system_notes, 'Very low SOC');
+      v_system_items := v_system_items || jsonb_build_object('code', 'soc_very_low', 'points', -25, 'value', v_min_soc, 'limit', t_soc_low_alarm);
+    ELSIF v_min_soc < t_soc_low_warning THEN
+      v_score := v_score - 15;
+      v_notes := array_append(v_notes, 'Low SOC');
+      v_system_score := v_system_score - 15;
+      v_system_notes := array_append(v_system_notes, 'Low SOC');
+      v_system_items := v_system_items || jsonb_build_object('code', 'soc_low', 'points', -15, 'value', v_min_soc, 'limit', t_soc_low_warning);
+    ELSIF v_min_soc < t_soc_low_watch AND v_has_grid THEN
+      v_score := v_score - 8;
+      v_notes := array_append(v_notes, 'SOC below ' || t_soc_low_watch || '%');
+      v_system_score := v_system_score - 8;
+      v_system_notes := array_append(v_system_notes, 'SOC below ' || t_soc_low_watch || '%');
+      v_system_items := v_system_items || jsonb_build_object('code', 'soc_watch', 'points', -8, 'value', v_min_soc, 'limit', t_soc_low_watch);
+    END IF;
+  END IF;
+
+  IF v_has_grid THEN
+    v_outage_penalty := 0;
+    IF v_outage_minutes > t_outage_min_long THEN
+      v_outage_penalty := v_outage_penalty + 20;
+      v_notes := array_append(v_notes, 'Long outage time');
+      v_grid_notes := array_append(v_grid_notes, 'Long outage time');
+      v_grid_items := v_grid_items || jsonb_build_object('code', 'outage_long', 'points', -20, 'value', v_outage_minutes, 'limit', t_outage_min_long);
+    ELSIF v_outage_minutes > t_outage_min_mid THEN
+      v_outage_penalty := v_outage_penalty + 10;
+      v_notes := array_append(v_notes, 'Moderate outage time');
+      v_grid_notes := array_append(v_grid_notes, 'Moderate outage time');
+      v_grid_items := v_grid_items || jsonb_build_object('code', 'outage_mid', 'points', -10, 'value', v_outage_minutes, 'limit', t_outage_min_mid);
+    ELSIF v_outage_minutes > 0 THEN
+      v_outage_penalty := v_outage_penalty + 5;
+      v_notes := array_append(v_notes, 'Grid outage detected');
+      v_grid_notes := array_append(v_grid_notes, 'Grid outage detected');
+      v_grid_items := v_grid_items || jsonb_build_object('code', 'outage_any', 'points', -5, 'value', v_outage_minutes);
+    END IF;
+
+    IF v_outage_count > t_outage_count_high THEN
+      v_outage_penalty := v_outage_penalty + 10;
+      v_notes := array_append(v_notes, 'Frequent outages');
+      v_grid_notes := array_append(v_grid_notes, 'Frequent outages');
+      v_grid_items := v_grid_items || jsonb_build_object('code', 'outage_frequent', 'points', -10, 'value', v_outage_count, 'limit', t_outage_count_high);
+    END IF;
+
+    v_score := v_score - LEAST(v_outage_penalty, 20);
+    v_grid_score := v_grid_score - LEAST(v_outage_penalty, 20);
+    -- Outage deductions are capped at 20 in total: hand back the excess so
+    -- the listed points still sum to the score.
+    IF v_outage_penalty > 20 THEN
+      v_grid_items := v_grid_items || jsonb_build_object('code', 'outage_cap', 'points', v_outage_penalty - 20);
+    END IF;
+
+    IF v_grid_dependency_pct > t_grid_dep_high THEN
+      v_score := v_score - 10;
+      v_notes := array_append(v_notes, 'High grid dependency');
+      v_grid_score := v_grid_score - 10;
+      v_grid_notes := array_append(v_grid_notes, 'High grid dependency');
+      v_grid_items := v_grid_items || jsonb_build_object('code', 'grid_dependency_high', 'points', -10, 'value', ROUND(v_grid_dependency_pct, 1), 'limit', t_grid_dep_high);
+    ELSIF v_grid_dependency_pct > t_grid_dep_mid THEN
+      v_score := v_score - 5;
+      v_notes := array_append(v_notes, 'Moderate grid dependency');
+      v_grid_score := v_grid_score - 5;
+      v_grid_notes := array_append(v_grid_notes, 'Moderate grid dependency');
+      v_grid_items := v_grid_items || jsonb_build_object('code', 'grid_dependency_mid', 'points', -5, 'value', ROUND(v_grid_dependency_pct, 1), 'limit', t_grid_dep_mid);
+    END IF;
+  END IF;
+
+  IF v_has_battery THEN
+    IF v_battery_cycles IS NOT NULL THEN
+      IF v_battery_cycles > t_battery_cycles_high THEN
+        v_score := v_score - 10;
+        v_notes := array_append(v_notes, 'High battery cycling');
+        v_system_score := v_system_score - 10;
+        v_system_notes := array_append(v_system_notes, 'High battery cycling');
+        v_system_items := v_system_items || jsonb_build_object('code', 'cycling_high', 'points', -10, 'value', ROUND(v_battery_cycles, 2), 'limit', t_battery_cycles_high);
+      ELSIF v_battery_cycles > t_battery_cycles_mid THEN
+        v_score := v_score - 5;
+        v_notes := array_append(v_notes, 'Moderate battery cycling');
+        v_system_score := v_system_score - 5;
+        v_system_notes := array_append(v_system_notes, 'Moderate battery cycling');
+        v_system_items := v_system_items || jsonb_build_object('code', 'cycling_mid', 'points', -5, 'value', ROUND(v_battery_cycles, 2), 'limit', t_battery_cycles_mid);
+      END IF;
+    ELSIF v_est_cycles IS NOT NULL THEN
+      IF v_est_cycles > t_est_cycles_high THEN
+        v_score := v_score - 10;
+        v_notes := array_append(v_notes, 'High battery cycling (estimated from SOC swing)');
+        v_system_score := v_system_score - 10;
+        v_system_notes := array_append(v_system_notes, 'High battery cycling (estimated from SOC swing)');
+        v_system_items := v_system_items || jsonb_build_object('code', 'cycling_high', 'points', -10, 'value', ROUND(v_est_cycles * 100), 'limit', ROUND(t_est_cycles_high * 100), 'estimated', true);
+      ELSIF v_est_cycles > t_est_cycles_mid THEN
+        v_score := v_score - 5;
+        v_notes := array_append(v_notes, 'Moderate battery cycling (estimated from SOC swing)');
+        v_system_score := v_system_score - 5;
+        v_system_notes := array_append(v_system_notes, 'Moderate battery cycling (estimated from SOC swing)');
+        v_system_items := v_system_items || jsonb_build_object('code', 'cycling_mid', 'points', -5, 'value', ROUND(v_est_cycles * 100), 'limit', ROUND(t_est_cycles_mid * 100), 'estimated', true);
+      END IF;
+    END IF;
+
+    IF v_max_temperature IS NOT NULL AND v_max_temperature > 45 THEN
+      v_score := v_score - 15;
+      v_notes := array_append(v_notes, 'High battery temperature (' || v_max_temperature || '°C)');
+      v_system_score := v_system_score - 15;
+      v_system_notes := array_append(v_system_notes, 'High battery temperature (' || v_max_temperature || '°C)');
+      v_system_items := v_system_items || jsonb_build_object('code', 'temp_high', 'points', -15, 'value', v_max_temperature, 'limit', 45);
+    ELSIF v_max_temperature IS NOT NULL AND v_max_temperature > 40 THEN
+      v_score := v_score - 5;
+      v_notes := array_append(v_notes, 'Elevated battery temperature (' || v_max_temperature || '°C)');
+      v_system_score := v_system_score - 5;
+      v_system_notes := array_append(v_system_notes, 'Elevated battery temperature (' || v_max_temperature || '°C)');
+      v_system_items := v_system_items || jsonb_build_object('code', 'temp_elevated', 'points', -5, 'value', v_max_temperature, 'limit', 40);
+    END IF;
+
+    IF v_min_voltage IS NOT NULL AND v_min_voltage < 46.0 THEN
+      v_score := v_score - 10;
+      v_notes := array_append(v_notes, 'Low battery voltage (' || v_min_voltage || 'V)');
+      v_system_score := v_system_score - 10;
+      v_system_notes := array_append(v_system_notes, 'Low battery voltage (' || v_min_voltage || 'V)');
+      v_system_items := v_system_items || jsonb_build_object('code', 'voltage_low', 'points', -10, 'value', v_min_voltage, 'limit', 46);
+    END IF;
+
+    IF v_mppt_reached_float = false THEN
+      v_score := v_score - 5;
+      v_notes := array_append(v_notes, 'Battery did not fully charge today');
+      v_system_score := v_system_score - 5;
+      v_system_notes := array_append(v_system_notes, 'Battery did not fully charge today');
+      v_system_items := v_system_items || jsonb_build_object('code', 'no_float', 'points', -5);
+    END IF;
+  END IF;
+
+  IF v_has_grid AND v_grid_data_available = false THEN
+    v_notes := array_append(v_notes, 'No grid measurements recorded — verify AC input connections');
+    v_grid_notes := array_append(v_grid_notes, 'No grid measurements recorded — verify AC input connections');
+    v_grid_items := v_grid_items || jsonb_build_object('code', 'no_grid_data', 'points', 0);
+  END IF;
+
+  IF ed.complete_day = false THEN
+    v_notes := array_append(v_notes,
+      'Partial day (' || COALESCE(ROUND(ed.hours_covered, 1)::text, '?') || 'h of data)');
+    -- Data-quality caveat, not specific to either side — applies to
+    -- both, so both readings carry the same "take this with a grain of
+    -- salt today" caveat.
+    v_system_notes := array_append(v_system_notes,
+      'Partial day (' || COALESCE(ROUND(ed.hours_covered, 1)::text, '?') || 'h of data)');
+    v_system_items := v_system_items || jsonb_strip_nulls(jsonb_build_object('code', 'partial_day', 'points', 0, 'value', ROUND(ed.hours_covered, 1)));
+    IF v_has_grid THEN
+      v_grid_notes := array_append(v_grid_notes,
+        'Partial day (' || COALESCE(ROUND(ed.hours_covered, 1)::text, '?') || 'h of data)');
+      v_grid_items := v_grid_items || jsonb_strip_nulls(jsonb_build_object('code', 'partial_day', 'points', 0, 'value', ROUND(ed.hours_covered, 1)));
+    END IF;
+  END IF;
+
+  v_score := GREATEST(0, LEAST(100, v_score));
+
+  v_status := 'Excellent';
+  IF v_score < 70 THEN v_status := 'Attention';
+  ELSIF v_score < 80 THEN v_status := 'Watch';
+  ELSIF v_score < 90 THEN v_status := 'Good';
+  END IF;
+
+  IF array_length(v_notes, 1) IS NULL THEN
+    v_notes := array_append(v_notes, 'Normal operation');
+  END IF;
+
+  -- System score always applies (every site has equipment to score,
+  -- even a grid_zero one with no battery — alarms alone still count).
+  v_system_score := GREATEST(0, LEAST(100, v_system_score));
+  v_system_status := 'Excellent';
+  IF v_system_score < 70 THEN v_system_status := 'Attention';
+  ELSIF v_system_score < 80 THEN v_system_status := 'Watch';
+  ELSIF v_system_score < 90 THEN v_system_status := 'Good';
+  END IF;
+  IF array_length(v_system_notes, 1) IS NULL THEN
+    v_system_notes := array_append(v_system_notes, 'Normal operation');
+  END IF;
+
+  -- Grid score is NULL for an off_grid site — there's no grid
+  -- connection to score at all, which is a different statement than
+  -- "the grid is perfect."
+  IF v_has_grid THEN
+    v_grid_score := GREATEST(0, LEAST(100, v_grid_score));
+    v_grid_status := 'Excellent';
+    IF v_grid_score < 70 THEN v_grid_status := 'Attention';
+    ELSIF v_grid_score < 80 THEN v_grid_status := 'Watch';
+    ELSIF v_grid_score < 90 THEN v_grid_status := 'Good';
+    END IF;
+    IF array_length(v_grid_notes, 1) IS NULL THEN
+      v_grid_notes := array_append(v_grid_notes, 'Normal operation');
+    END IF;
+  ELSE
+    v_grid_score := NULL;
+    v_grid_status := NULL;
+    v_grid_notes := NULL;
+    v_grid_items := NULL;
+  END IF;
+
+  INSERT INTO vrm.daily_health
+    (site_id, date, dump_type, health_score, health_status, alarms_count,
+     min_soc, outage_count, outage_minutes, grid_dependency_pct, battery_cycles, notes,
+     system_score, system_status, system_notes, grid_score, grid_status, grid_notes,
+     system_breakdown, grid_breakdown)
+  VALUES
+    (p_site_id, p_date, p_dump_type, v_score, v_status, v_alarms_count,
+     ed.min_soc, v_outage_count, v_outage_minutes,
+     ROUND(v_grid_dependency_pct, 1), ROUND(v_battery_cycles, 2), array_to_string(v_notes, '; '),
+     v_system_score, v_system_status, array_to_string(v_system_notes, '; '),
+     v_grid_score, v_grid_status, array_to_string(v_grid_notes, '; '),
+     v_system_items, v_grid_items)
+  ON CONFLICT (site_id, date, dump_type) DO UPDATE SET
+    health_score        = EXCLUDED.health_score,
+    health_status       = EXCLUDED.health_status,
+    alarms_count        = EXCLUDED.alarms_count,
+    min_soc             = EXCLUDED.min_soc,
+    outage_count        = EXCLUDED.outage_count,
+    outage_minutes      = EXCLUDED.outage_minutes,
+    grid_dependency_pct = EXCLUDED.grid_dependency_pct,
+    battery_cycles      = EXCLUDED.battery_cycles,
+    notes               = EXCLUDED.notes,
+    system_score        = EXCLUDED.system_score,
+    system_status       = EXCLUDED.system_status,
+    system_notes        = EXCLUDED.system_notes,
+    grid_score          = EXCLUDED.grid_score,
+    grid_status         = EXCLUDED.grid_status,
+    grid_notes          = EXCLUDED.grid_notes,
+    system_breakdown    = EXCLUDED.system_breakdown,
+    grid_breakdown      = EXCLUDED.grid_breakdown
+  RETURNING * INTO v_result;
+
+  RETURN v_result;
+END;
+$function$;
+
+-- Re-score the last 30 days with the floor in force (through the public function, so the
+-- equipment deduction is applied on top).
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN SELECT DISTINCT site_id, date, dump_type FROM vrm.daily_health WHERE date >= current_date - 30
+  LOOP
+    PERFORM vrm.compute_daily_health(r.site_id, r.date, r.dump_type);
+  END LOOP;
+END $$;
