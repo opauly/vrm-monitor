@@ -17,7 +17,9 @@ What is checked (note codes in brackets):
   battery   modules offline, or fewer than ever seen           [modules_offline] bad
             internal failure alarm                             [battery_failure] bad
             modules blocking charge/discharge, battery not full [blocking]      warn
-  inverter  a VE.Bus error                                     [inverter_error]  bad
+  inverter  a grid-connected battery site with no outage reserve: the
+            system is not an ESS one, or its minimum SOC is under 30%  [reserve_not_enforced / reserve_low]  warn
+            a VE.Bus error                                     [inverter_error]  bad
             fewer units than ever seen                         [units_missing]   bad
             a unit's warning flags set                         [inverter_warning] warn
   any       gone from the diagnostics for 2 sweeps             [missing]        bad
@@ -51,6 +53,7 @@ SIBLING_MIN_KWH = 1.0      # the others must have really produced for "no output
 LOW_RATIO = 0.3
 NORMAL_RATIO = 0.7
 SOC_FULL_PCT = 90          # a BMS blocks charge near full on purpose
+MIN_RESERVE_PCT = 30       # a grid-connected battery should hold back at least this much for an outage
 
 _BATTERY_MAKERS = {"PYLON": "Pylontech"}
 
@@ -89,13 +92,32 @@ def _ts(rec: dict, codes: tuple[str, ...]) -> datetime | None:
     return datetime.fromtimestamp(max(stamps), tz=timezone.utc) if stamps else None
 
 
+def _system_type(records: list[dict]) -> str | None:
+    for r in records:
+        if r.get("code") == "st":
+            return str(r.get("formattedValue") or r.get("rawValue") or "") or None
+    return None
+
+
 def ess_floor(records: list[dict]) -> float | None:
     """The state of charge the grid-connected system will not discharge below (while the grid is
     up) — what the installer set as ESS "Minimum SOC (unless grid fails)". When Battery Life is
-    managing the limit, the *active* limit is the real floor (it can sit above the setting)."""
+    managing the limit, the *active* limit is the real floor (it can sit above the setting).
+
+    Only an ESS system enforces it. A "Hub-1" system still carries a stored value (a default of 10%),
+    but nothing holds the battery back, so there is no floor to take into account."""
+    if (_system_type(records) or "").upper() not in ("ESS", "HUB-4"):
+        return None
     by_code = {r.get("code"): _num(r.get("rawValue")) for r in records if r.get("code") in ("ssl", "H4ms")}
     value = by_code.get("ssl") if by_code.get("ssl") is not None else by_code.get("H4ms")
     return value if value is not None and 0 <= value <= 100 else None
+
+
+def _ess_setting(records: list[dict]) -> float | None:
+    for r in records:
+        if r.get("code") == "H4ms":
+            return _num(r.get("rawValue"))
+    return None
 
 
 def parse(diagnostics) -> list[dict]:
@@ -144,7 +166,8 @@ def parse(diagnostics) -> list[dict]:
             devices.append({
                 "key": key, "kind": kind, "instance": instance, "label": "Multi / Quattro", "faults": faults,
                 "seen": _ts(rec, ("S", "ERR")), "warning_units": warning_units,
-                "metrics": {"units": len(serial_slots), "state": _text(rec, "S"), "ess_min_soc_pct": ess_floor(records)},
+                "metrics": {"units": len(serial_slots), "state": _text(rec, "S"), "ess_min_soc_pct": ess_floor(records),
+                            "vrm_system_type": _system_type(records), "ess_setting_pct": _ess_setting(records)},
             })
     totals: dict[str, int] = {}
     for d in devices:
@@ -221,10 +244,14 @@ def _judge_chargers(devices: list[dict], states: dict[str, dict], *, today: date
     return out
 
 
-def evaluate(parsed: list[dict], existing: list[dict], *, now: datetime, local: datetime, reference: datetime | None) -> list[dict]:
+def evaluate(parsed: list[dict], existing: list[dict], *, now: datetime, local: datetime, reference: datetime | None,
+             site_type: str | None = None, reserve_set_by_hand: bool = False) -> list[dict]:
     """The rows to store for one site. `existing` are the stored rows (any order); `now` is UTC,
     `local` the same instant in the site's time zone, `reference` the newest record time in the
-    diagnostics (what "this device stopped reporting" is measured against)."""
+    diagnostics (what "this device stopped reporting" is measured against). `site_type` is the
+    site's system type (hybrid / off_grid / ...): the outage-reserve check is for hybrid sites, and is
+    skipped when `reserve_set_by_hand` (the site says its reserve is held by something VRM cannot
+    see, e.g. a Virtual Switch assistant)."""
     prior = {row["device_key"]: row for row in existing}
     today, hour = local.date(), local.hour
     states: dict[str, dict] = {}
@@ -268,6 +295,11 @@ def evaluate(parsed: list[dict], existing: list[dict], *, now: datetime, local: 
                 raise_to(BAD, "units_missing", units=m["units"], expected=state.get("max_units"))
             if d.get("warning_units"):
                 raise_to(WARN, "inverter_warning", unit=d["warning_units"][0])
+            if site_type == "hybrid" and not reserve_set_by_hand and any(x["kind"] == "battery" for x in parsed):
+                if str(m.get("vrm_system_type") or "").upper() not in ("ESS", "HUB-4"):
+                    raise_to(WARN, "reserve_not_enforced", system=m.get("vrm_system_type") or "?")
+                elif m.get("ess_min_soc_pct") is not None and m["ess_min_soc_pct"] < MIN_RESERVE_PCT:
+                    raise_to(WARN, "reserve_low", floor=m["ess_min_soc_pct"], recommended=MIN_RESERVE_PCT)
         elif d["kind"] == "charger" and key in yield_verdict:
             verdict, vnote, day = yield_verdict[key]
             streak = int(state.get("low_streak") or 0)

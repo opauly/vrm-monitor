@@ -46,7 +46,7 @@ def _parse(value) -> datetime | None:
 # ── loading ──────────────────────────────────────────────────────────────────
 
 def _active_sites(*, site_id: str | None = None, customer_id: str | None = None) -> list[dict]:
-    query = (_t("sites").select("site_id, display_name, system_type, pv_kwp, battery_usable_kwh, customer_id, timezone")
+    query = (_t("sites").select("site_id, display_name, system_type, pv_kwp, battery_usable_kwh, customer_id, timezone, health_thresholds")
              .eq("source", "vrm_api").eq("active", True))
     if site_id:
         query = query.eq("site_id", site_id)
@@ -70,6 +70,16 @@ def _forecasts_for(sites: list[dict], now: datetime) -> dict[str, dict]:
         if compact:
             out[site["site_id"]] = compact
     return out
+
+
+def configured_floor(site: dict, from_system: float | None) -> float | None:
+    """The minimum state of charge this site is set to keep while the grid is up. A value set by hand
+    on the site (`health_thresholds.socFloorPct`) wins: it is for systems where something other than
+    ESS holds the battery back (e.g. a VE.Bus Virtual Switch assistant), which VRM cannot see."""
+    manual = (site.get("health_thresholds") or {}).get("socFloorPct")
+    if isinstance(manual, (int, float)) and 0 <= manual <= 100:
+        return float(manual)
+    return from_system
 
 
 def site_facts_for(sites: list[dict], now: datetime) -> dict[str, dict]:
@@ -127,7 +137,7 @@ def site_facts_for(sites: list[dict], now: datetime) -> dict[str, dict]:
         out[sid] = insight_facts.build_site_facts(
             site=site, energy_rows=rows, health_row=health.get((sid, str(latest["date"]))) if latest else None,
             anomalies=anomalies.get(sid, []), alerts_open=alerts.get(sid, []), snapshot=snapshots.get(sid), now=now,
-            forecast=forecasts.get(sid), soc_floor_pct=floors.get(sid))
+            forecast=forecasts.get(sid), soc_floor_pct=configured_floor(site, floors.get(sid)))
     return out
 
 

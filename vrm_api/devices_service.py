@@ -64,7 +64,8 @@ def run_pass(sites: list[dict], diagnostics_by_site: dict[str, dict], *, now: da
             if not parsed and not stored.get(site_id):
                 continue    # nothing recognisable here, nothing remembered: leave the site alone
             rows = devices.evaluate(parsed, stored.get(site_id, []), now=now, local=_local(now, site.get("timezone")),
-                                    reference=_newest_record(diagnostics))
+                                    reference=_newest_record(diagnostics), site_type=site.get("system_type"),
+                                    reserve_set_by_hand=isinstance((site.get("health_thresholds") or {}).get("socFloorPct"), (int, float)))
         except Exception:  # noqa: BLE001 — one odd site must not cost the others
             logger.exception("devices: could not evaluate site %s", site_id)
             continue

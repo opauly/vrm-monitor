@@ -139,10 +139,49 @@ def test_a_missing_device_keeps_counting_while_it_is_gone():
     assert three["battery:512"]["state"]["bad_sweeps"] == {"2026-10-14": 2}
 
 
-def test_the_ess_minimum_soc_is_read_from_the_system_records_and_the_active_limit_wins():
-    base = inverter()
+def ess(system="ESS"):
+    return [rec("System", 0, "st", system)]
+
+
+def test_the_ess_minimum_soc_is_read_for_an_ess_system_and_the_active_limit_wins():
+    base = inverter() + ess()
     floor = [rec("System", 0, "H4ms", 40.0)]
     assert run(base + floor)["inverter:274"]["metrics"]["ess_min_soc_pct"] == 40.0
     with_active = floor + [rec("System", 0, "ssl", 65)]
     assert run(base + with_active)["inverter:274"]["metrics"]["ess_min_soc_pct"] == 65
     assert run(base)["inverter:274"]["metrics"]["ess_min_soc_pct"] is None
+
+
+def test_a_hub1_system_has_a_stored_minimum_but_no_floor_to_respect():
+    m = run(inverter() + ess("Hub-1") + [rec("System", 0, "H4ms", 40.0)])["inverter:274"]["metrics"]
+    assert m["ess_min_soc_pct"] is None and m["ess_setting_pct"] == 40.0 and m["vrm_system_type"] == "Hub-1"
+
+
+def run_site(records, site_type="hybrid"):
+    parsed = dev.parse(records)
+    ref = max(datetime.fromtimestamp(r["timestamp"], tz=timezone.utc) for r in records)
+    return {r["device_key"]: r for r in dev.evaluate(parsed, [], now=NOW, local=LOCAL, reference=ref, site_type=site_type)}
+
+
+def test_a_hybrid_site_without_an_outage_reserve_is_flagged_but_only_as_a_warning():
+    hub1 = run_site(inverter() + ess("Hub-1") + battery())["inverter:274"]
+    assert hub1["status"] == "warn" and hub1["note"]["code"] == "reserve_not_enforced"
+    low = run_site(inverter() + ess() + [rec("System", 0, "H4ms", 10.0)] + battery())["inverter:274"]
+    assert low["status"] == "warn" and low["note"] == {"code": "reserve_low", "params": {"floor": 10.0, "recommended": 30}}
+    ok = run_site(inverter() + ess() + [rec("System", 0, "H4ms", 40.0)] + battery())["inverter:274"]
+    assert ok["status"] == "ok"
+
+
+def test_the_reserve_check_is_only_for_hybrid_sites_with_a_battery():
+    assert run_site(inverter() + ess("Hub-1") + battery(), site_type="off_grid")["inverter:274"]["status"] == "ok"
+    assert run_site(inverter() + ess("Hub-1"), site_type="hybrid")["inverter:274"]["status"] == "ok"      # no battery device
+    bad = run_site(inverter(error=4) + ess("Hub-1") + battery())["inverter:274"]
+    assert bad["status"] == "bad" and bad["note"]["code"] == "inverter_error"                              # a real fault outranks it
+
+
+def test_a_reserve_held_by_something_vrm_cannot_see_silences_the_reserve_warning():
+    records = inverter() + ess("Hub-1") + battery()
+    parsed = dev.parse(records)
+    ref = max(datetime.fromtimestamp(r["timestamp"], tz=timezone.utc) for r in records)
+    rows = {r["device_key"]: r for r in dev.evaluate(parsed, [], now=NOW, local=LOCAL, reference=ref, site_type="hybrid", reserve_set_by_hand=True)}
+    assert rows["inverter:274"]["status"] == "ok"

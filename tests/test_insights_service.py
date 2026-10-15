@@ -173,3 +173,9 @@ def test_daily_endpoint_does_nothing_when_off(db, key):
 def test_router_says_disabled_when_off(db, key):
     assert client.get("/v1/insights/site?site_id=s1", headers=key).json() == {
         "enabled": False, "headline": None, "points": [], "suggestion": None, "source": None, "date": None, "generated_at": None}
+
+
+def test_a_floor_set_by_hand_on_the_site_wins_over_what_the_system_reports():
+    assert svc.configured_floor({"health_thresholds": {"socFloorPct": 40}}, 10.0) == 40.0
+    assert svc.configured_floor({"health_thresholds": {"socFloorPct": "x"}}, 25.0) == 25.0
+    assert svc.configured_floor({"health_thresholds": None}, None) is None

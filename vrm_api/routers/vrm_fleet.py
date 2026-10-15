@@ -493,7 +493,7 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
     not per-site, same "one query for the whole page, not N+1" discipline
     `_monitoring_suggestions_by_installation()` already uses above.
     """
-    sites = (_t("sites").select("site_id, customer_id, vrm_installation_id, timezone, system_type")
+    sites = (_t("sites").select("site_id, customer_id, vrm_installation_id, timezone, system_type, health_thresholds")
             .eq("source", "vrm_api").eq("active", True).execute().data or [])
     admin_token = os.environ.get("VRM_ADMIN_TOKEN")
     site_ids = [s["site_id"] for s in sites]
