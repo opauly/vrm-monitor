@@ -9,16 +9,18 @@ def dev(key, kind, status, n=1, of=1, bad=None):
     return {"device_key": key, "kind": kind, "status": status, "metrics": {"n": n, "of": of}, "state": {"bad_sweeps": bad or {}}}
 
 
-def test_equipment_rows_put_problems_first_and_count_the_flagged_days_in_the_period():
+def test_equipment_block_is_a_summary_plus_a_row_for_each_device_that_is_not_fine():
     rows = wr._equipment_rows(d([
         dev("battery:512", "battery", "ok"),
         dev("charger:0", "charger", "ok", n=1, of=2),
         dev("charger:288", "charger", "bad", n=2, of=2, bad={"2026-10-09": 30, "2026-10-10": 12, "2026-10-11": 3, "2026-09-30": 50}),
+        dev("inverter:274", "inverter", "ok", bad={"2026-10-12": 9}),       # recovered, but was flagged inside the period
     ]))
     assert [(r["label"], r["value"]) for r in rows] == [
-        ("Solar charger 2", "Needs attention · 2 day(s)"), ("Solar charger 1", "Working"), ("Battery", "Working")]
+        ("Devices working", "3 / 4"), ("Solar charger 2", "Needs attention · 2 day(s)"), ("Inverter", "Working · 1 day(s)")]
 
 
-def test_a_site_with_no_checked_devices_has_no_equipment_block():
+def test_a_healthy_site_costs_one_row_and_one_without_devices_none():
+    rows = wr._equipment_rows(d([dev("charger:0", "charger", "ok"), dev("battery:512", "battery", "ok")], "es"))
+    assert [(r["label"], r["value"]) for r in rows] == [("Equipos funcionando", "2 / 2")]
     assert wr._equipment_rows(d([])) == []
-    assert wr._equipment_rows(d([dev("charger:0", "charger", "ok")], "es"))[0]["label"] == "Cargador solar"

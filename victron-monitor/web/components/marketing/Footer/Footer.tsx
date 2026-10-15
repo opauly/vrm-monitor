@@ -33,6 +33,7 @@ export function Footer({ lang }: { lang: Lang }) {
           <Link href={`${base}/terms`}>{t(lang, 'marketing_footer_terms')}</Link>
           <Link href={`${base}/privacy`}>{t(lang, 'marketing_footer_privacy')}</Link>
         </div>
+        <p className={styles.legal}>{t(lang, 'victron_attribution')}</p>
       </div>
     </footer>
   );

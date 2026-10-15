@@ -162,6 +162,7 @@ EN = {
                   "instead of buying from the grid.",
     "comingSoonValue": "— soon",
     "poweredBy": "Monitoring powered by Pauly & Co.",
+    "victronAttribution": "Data from Victron Energy’s VRM Portal. Victron Energy and VRM are trademarks of Victron Energy B.V. This service is independent and is not affiliated with or endorsed by Victron Energy.",
     "pageOf": "Page",
     "narrativeLang": "Respond in English, in a professional but approachable tone.",
     "narrativeUnavailable": "Narrative unavailable this week.",
@@ -172,9 +173,9 @@ EN = {
     # `subGrid`/`subEventsOffGrid`/`subSolarPerf` already follow — none of
     # these four need a `_PERIOD_OVERRIDES` entry below.
     "sectionEquipment": "Equipment",
-    "subEquipment": "Each battery, inverter and solar charger as last checked. \"Days\" are the days of "
-                    "this period on which a fault was flagged for an hour or more; it also lowers the "
-                    "System health score.",
+    "subEquipment": "Batteries, inverters and solar chargers as last checked. A fault flagged for an hour "
+                    "or more on a day also lowers the System health score.",
+    "equipmentSummary": "Devices working",
     "equipmentOk": "Working",
     "equipmentWarn": "Check",
     "equipmentBad": "Needs attention",
@@ -329,15 +330,16 @@ ES = dict(EN, **{
                   "energía solar en vez de comprarla a la red.",
     "comingSoonValue": "— pronto",
     "poweredBy": "Monitoreo por Pauly & Co.",
+    "victronAttribution": "Datos del Portal VRM de Victron Energy. Victron Energy y VRM son marcas de Victron Energy B.V. Este servicio es independiente y no está afiliado ni respaldado por Victron Energy.",
     "pageOf": "Página",
     "narrativeLang": "Responde en español, en un tono profesional pero cercano.",
     "narrativeUnavailable": "Resumen no disponible esta semana.",
     "narrativeNoKey": "Resumen no disponible (clave API no configurada).",
 
     "sectionEquipment": "Equipos",
-    "subEquipment": "Cada batería, inversor y cargador solar según la última revisión. \"Días\" son los días "
-                    "de este periodo en que se marcó una falla durante una hora o más; también baja el "
-                    "puntaje de salud del Sistema.",
+    "subEquipment": "Baterías, inversores y cargadores solares según la última revisión. Una falla marcada "
+                    "durante una hora o más en un día también baja el puntaje de salud del Sistema.",
+    "equipmentSummary": "Equipos funcionando",
     "equipmentOk": "Funciona",
     "equipmentWarn": "Revisar",
     "equipmentBad": "Requiere atención",

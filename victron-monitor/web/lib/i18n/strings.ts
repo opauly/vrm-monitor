@@ -1961,6 +1961,7 @@ export const STRINGS = {
     marketing_nav_close_menu: 'Close menu',
     marketing_lang_toggle_label: 'Site language',
     marketing_footer_tagline: 'VRM Monitor by Pauly & Co. — Atenas, Costa Rica',
+    victron_attribution: "Data from Victron Energy’s VRM Portal. Victron Energy and VRM are trademarks of Victron Energy B.V. This service is independent and is not affiliated with or endorsed by Victron Energy.",
     marketing_footer_terms: 'Terms',
     marketing_footer_privacy: 'Privacy',
 
@@ -4248,6 +4249,7 @@ export const STRINGS = {
     marketing_nav_close_menu: 'Cerrar menú',
     marketing_lang_toggle_label: 'Idioma del sitio',
     marketing_footer_tagline: 'VRM Monitor por Pauly & Co. — Atenas, Costa Rica',
+    victron_attribution: "Datos del Portal VRM de Victron Energy. Victron Energy y VRM son marcas de Victron Energy B.V. Este servicio es independiente y no está afiliado ni respaldado por Victron Energy.",
     marketing_footer_terms: 'Términos',
     marketing_footer_privacy: 'Privacidad',
 

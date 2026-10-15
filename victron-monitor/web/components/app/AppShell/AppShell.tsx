@@ -114,6 +114,7 @@ export function AppShell({ role, email, navItems, lang, badge, feedbackSites, ch
         </MobileMenu>
       </header>
       <main className={styles.main}>{children}</main>
+      <footer className={styles.footer}>{t(lang, 'victron_attribution')}</footer>
     </div>
   );
 }

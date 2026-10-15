@@ -968,28 +968,36 @@ _CRITICAL_CATEGORY_LABEL_KEYS = {
 
 
 def _equipment_rows(d: dict) -> list[dict]:
-    """One row per device: its name and how it stands, with the number of days in this report's
-    period it was flagged (bad in 4+ sweeps — the same rule the health score uses)."""
+    """The Equipment block: a one-line summary ("4 / 4 working") plus a row for every device that
+    is not fine — flagged now, or flagged on any day of this period (bad in 4+ sweeps, the same
+    rule the health score uses). A healthy site therefore costs one row on the page, not one per
+    device: page 2 is already full."""
     t = d["t"]
+    devices = d.get("devices") or []
+    if not devices:
+        return []
     start, end = d.get("periodStartIso"), d.get("periodEndIso")
     order = {"bad": 0, "warn": 1, "ok": 2}
     kinds = {"charger": 0, "battery": 1, "inverter": 2}
-    devices = sorted(d.get("devices") or [], key=lambda x: (order.get(x.get("status"), 2), kinds.get(x.get("kind"), 3),
-                                                              (x.get("metrics") or {}).get("n") or 0))
-    rows = []
-    for dev in devices:
+    ranked = sorted(devices, key=lambda x: (order.get(x.get("status"), 2), kinds.get(x.get("kind"), 3), (x.get("metrics") or {}).get("n") or 0))
+    working = sum(1 for dev in devices if (dev.get("status") or "ok") == "ok")
+    worst = "ok" if working == len(devices) else ("bad" if any(dev.get("status") == "bad" for dev in devices) else "warn")
+    colour = {"ok": S.GREEN, "warn": S.AMBER, "bad": S.RED}
+    rows = [{"label": t["equipmentSummary"], "value": f"{working} / {len(devices)}", "valueColor": colour[worst]}]
+    for dev in ranked:
         m = dev.get("metrics") or {}
+        status = dev.get("status") or "ok"
+        days = sum(1 for day, n in ((dev.get("state") or {}).get("bad_sweeps") or {}).items()
+                   if start and end and start <= day <= end and int(n) >= 4)
+        if status == "ok" and not days:
+            continue
         if dev.get("kind") == "charger":
             name = t["deviceCharger"].format(n=m.get("n")) if (m.get("of") or 1) > 1 else t["deviceChargerSingle"]
         else:
             name = t["deviceBattery"] if dev.get("kind") == "battery" else t["deviceInverter"]
-        status = dev.get("status") or "ok"
         label = {"ok": t["equipmentOk"], "warn": t["equipmentWarn"], "bad": t["equipmentBad"]}[status]
-        days = sum(1 for day, n in ((dev.get("state") or {}).get("bad_sweeps") or {}).items()
-                   if start and end and start <= day <= end and int(n) >= 4)
-        value = f"{label} · {t['equipmentDays'].format(n=days)}" if days else label
-        rows.append({"label": name, "value": value,
-                     "valueColor": {"ok": S.GREEN, "warn": S.AMBER, "bad": S.RED}[status]})
+        rows.append({"label": name, "value": f"{label} · {t['equipmentDays'].format(n=days)}" if days else label,
+                     "valueColor": colour[status]})
     return rows
 
 
