@@ -9,8 +9,8 @@
 -- grid fails)") rests at exactly 25% by design — and was charged "Low SOC -15" every
 -- day, because the scoring only knew fixed thresholds (30 / 40 / 20).
 --
--- Change: when the site has a grid and a known floor, a day whose lowest SOC stayed at
--- or above (floor - 3) is not penalised for low SOC at all; it is listed as a zero-point
+-- Change: when the site has a grid and a known floor, a day whose lowest SOC stayed within
+-- 3 under to 5 over the floor (it rested there) is not penalised for low SOC at all; it is listed as a zero-point
 -- line "soc_at_reserve" (only when the level is below the watch threshold, so the score
 -- card explains why a low number cost nothing). A day that fell further below the floor
 -- is judged exactly as before, and a grid outage still waives the penalty as before.
@@ -149,9 +149,10 @@ BEGIN
   v_max_temperature    := NULLIF(COALESCE(ed.max_temperature, 0), 0);
   v_min_voltage        := NULLIF(COALESCE(ed.min_voltage, 0), 0);
   v_mppt_reached_float := COALESCE(ed.battery_reached_float, false);
-  -- Resting at (or within 3 points of) the configured floor is the system doing its job, not a
-  -- low battery: the grid covered everything below it.
-  v_at_reserve := v_ess_floor IS NOT NULL AND v_min_soc > 0 AND v_min_soc >= v_ess_floor - 3;
+  -- Resting AT the configured floor (3 points under to 5 over) is the system doing its job, not a
+  -- low battery: the grid covered everything below it. A day whose lowest charge stayed well above
+  -- the floor never rested there, and is judged by the usual thresholds.
+  v_at_reserve := v_ess_floor IS NOT NULL AND v_min_soc > 0 AND v_min_soc BETWEEN v_ess_floor - 3 AND v_ess_floor + 5;
   v_grid_data_available := COALESCE(ed.grid_data_available, true);
 
   IF v_alarms_count > 0 THEN
