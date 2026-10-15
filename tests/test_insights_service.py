@@ -85,8 +85,14 @@ def test_template_mode_writes_the_plain_summary_and_stores_it_with_its_facts(db)
     assert row["scope"] == "site" and row["site_id"] == "s1" and row["facts"]["day"]["pv_kwh"] == 8.0
 
 
+def keep_online(db, at):
+    for snap in db["site_snapshots"]:
+        snap["captured_at"] = (at - timedelta(minutes=3)).isoformat()
+
+
 def test_a_fresh_cached_summary_is_served_without_recomputing(db, monkeypatch):
     svc.site_summary("s1", "en", now=NOW, mode="template")
+    keep_online(db, NOW + timedelta(hours=2))
     monkeypatch.setattr(svc, "site_facts_for", lambda *a, **k: pytest.fail("should have served the cache"))
     assert svc.site_summary("s1", "en", now=NOW + timedelta(hours=2), mode="template")["enabled"]
     assert len(db["ai_summaries"]) == 1
@@ -179,3 +185,36 @@ def test_a_floor_set_by_hand_on_the_site_wins_over_what_the_system_reports():
     assert svc.configured_floor({"reserve_soc_pct": 40}, 10.0) == 40.0
     assert svc.configured_floor({"reserve_soc_pct": None}, 25.0) == 25.0
     assert svc.configured_floor({}, None) is None
+
+
+def test_a_summary_is_rewritten_when_the_site_goes_offline_or_comes_back(db):
+    first = svc.site_summary("s1", "en", now=NOW, mode="template")
+    assert "offline" not in " ".join(first["points"]).lower() and db["ai_summaries"][0]["facts"]["live_signature"] == []
+    later = NOW + timedelta(hours=1)
+    db["site_snapshots"][0]["captured_at"] = (NOW - timedelta(minutes=3)).isoformat()            # silent for ~1 h
+    out = svc.site_summary("s1", "en", now=later, mode="template")
+    assert db["ai_summaries"][0]["facts"]["live_signature"] == ["offline"] and out["generated_at"] == later.isoformat()
+    back = later + timedelta(minutes=20)
+    db["site_snapshots"][0]["captured_at"] = (back - timedelta(minutes=2)).isoformat()
+    again = svc.site_summary("s1", "en", now=back, mode="template")
+    assert db["ai_summaries"][0]["facts"]["live_signature"] == [] and again["generated_at"] == back.isoformat()
+
+
+def test_a_flapping_site_cannot_cause_a_rewrite_more_than_every_five_minutes(db):
+    svc.site_summary("s1", "en", now=NOW, mode="template")
+    db["alerts"].append({"id": 1, "site_id": "s1", "kind": "low_battery", "status": "open", "severity": "warning", "customer_id": "c1", "opened_at": NOW.isoformat()})
+    soon = NOW + timedelta(minutes=3)
+    assert svc.site_summary("s1", "en", now=soon, mode="template")["generated_at"] == NOW.isoformat()      # too soon
+    later = NOW + timedelta(minutes=6)
+    keep_online(db, later)
+    assert svc.site_summary("s1", "en", now=later, mode="template")["generated_at"] == later.isoformat()
+    assert db["ai_summaries"][0]["facts"]["live_signature"] == ["alert_low_battery"]
+
+
+def test_the_fleet_summary_follows_the_same_rule(db):
+    svc.fleet_summary(None, "en", now=NOW, mode="template")
+    later = NOW + timedelta(minutes=30)
+    keep_online(db, later)
+    assert svc.fleet_summary(None, "en", now=later, mode="template")["generated_at"] == NOW.isoformat()    # nothing changed
+    db["site_snapshots"][1]["captured_at"] = (later - timedelta(minutes=50)).isoformat()                      # s2 went quiet
+    assert svc.fleet_summary(None, "en", now=later, mode="template")["generated_at"] == later.isoformat()

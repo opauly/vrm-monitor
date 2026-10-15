@@ -277,6 +277,7 @@ def _system_prompt(lang: str, scope: str) -> str:
         f"You write the short daily summary on a monitoring dashboard. The reader is {audience}. Write in {language}.\n"
         "Use ONLY the FACTS. Never state a number that is not in the FACTS, and do not add, subtract or estimate any figure. "
         "Every point must come from an OBSERVATION or a figure in the facts; never add filler or reassurance of your own (for example 'no waste', 'all good', 'everything is fine'). "
+        "A count is the \"count\" field of its OBSERVATION; a list beside it names places, and \"Name (3)\" means 3 sites there — never use the length of a list as a count. "
         "Do not use technical field names. Grid export is a good outcome, not waste. If the system is offline, say that first. "
         "The headline summarises the day (what was produced and used); put actions in the suggestion, not the headline. "
         "Do not call anything normal, good, poor or unusual unless an OBSERVATION in the facts says so, and do not state a time of day "

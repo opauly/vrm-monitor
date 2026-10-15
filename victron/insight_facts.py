@@ -101,7 +101,7 @@ def build_site_facts(*, site: dict, energy_rows: list[dict], health_row: dict | 
     the system doing its job, not a low battery."""
     facts: dict = {
         "site": {"id": site["site_id"], "name": site.get("display_name") or site["site_id"],
-                 "system_type": site.get("system_type"), "pv_kwp": _r(_num(site.get("pv_kwp"))),
+                 "place": _place(site), "system_type": site.get("system_type"), "pv_kwp": _r(_num(site.get("pv_kwp"))),
                  "battery_kwh": _r(_num(site.get("battery_usable_kwh"))),
                  "soc_floor_pct": _r(soc_floor_pct) if soc_floor_pct is not None and site.get("system_type") != "off_grid" else None},
     }
@@ -251,6 +251,36 @@ def _ordered(items: list[dict]) -> list[dict]:
 
 # ── fleet ────────────────────────────────────────────────────────────────
 
+def _place(site: dict) -> str | None:
+    lat, lon = _num(site.get("latitude")), _num(site.get("longitude"))
+    return None if lat is None or lon is None else f"{lat:.2f},{lon:.2f}"
+
+
+def _common_label(names: list[str]) -> str:
+    """"Vista Atenas LP" for "Vista Atenas LP M1 (Houses)" / "... M2 (Studios)": the words all the names share."""
+    split = [n.split() for n in names]
+    shared: list[str] = []
+    for words in zip(*split):
+        if all(w == words[0] for w in words):
+            shared.append(words[0])
+        else:
+            break
+    return " ".join(shared) if shared and (len(shared) >= 2 or len(names) == 1) else ""
+
+
+def group_by_place(site_facts: list[dict]) -> list[str]:
+    """Sites that share a location read as one project — "Vista Atenas LP (3), El Encino (4), Emtec CR" —
+    instead of a list cut off after four names (which both hid sites and invited a miscount)."""
+    groups: dict[str, list[str]] = {}
+    for f in site_facts:
+        groups.setdefault(f["site"].get("place") or f["site"]["id"], []).append(f["site"]["name"])
+    out = []
+    for names in groups.values():
+        label = _common_label(names) or ", ".join(names[:2]) + ("…" if len(names) > 2 else "")
+        out.append(f"{label} ({len(names)})" if len(names) > 1 else names[0])
+    return out
+
+
 def build_fleet_facts(*, site_facts: list[dict], name: str, now: datetime) -> dict:
     """A fleet's facts from its sites' facts (same latest day per site; sites whose
     newest day is older than the fleet's newest are counted but not summed, so
@@ -298,11 +328,11 @@ def build_fleet_facts(*, site_facts: list[dict], name: str, now: datetime) -> di
         "average_system_score": _r(sum(scores) / len(scores), 0) if scores else None,
     }
     obs: list[dict] = []
-    storm_sites = [f["site"]["name"] for f in site_facts if (f.get("forecast") or {}).get("storm")]
+    storm_sites = [f for f in site_facts if (f.get("forecast") or {}).get("storm")]
     if storm_sites:
-        obs.append({"code": "fleet_storm", "severity": ATTENTION, "params": {"count": len(storm_sites), "sites": storm_sites[:4]}})
+        obs.append({"code": "fleet_storm", "severity": ATTENTION, "params": {"count": len(storm_sites), "sites": group_by_place(storm_sites)}})
     if silent:
-        obs.append({"code": "fleet_silent", "severity": ATTENTION, "params": {"count": len(silent), "sites": [f["site"]["name"] for f in silent][:4]}})
+        obs.append({"code": "fleet_silent", "severity": ATTENTION, "params": {"count": len(silent), "sites": group_by_place(silent)}})
     if needs_attention:
         obs.append({"code": "fleet_attention", "severity": ATTENTION, "params": {"count": len(needs_attention)}})
     if not obs and online:

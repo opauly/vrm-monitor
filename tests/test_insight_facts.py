@@ -220,3 +220,15 @@ def test_a_grid_connected_site_gets_no_will_it_last_the_night_warning_but_an_off
     assert "tonight_short" not in [o["code"] for o in grid["observations"]] and "soc_at_sunrise_pct" not in grid["forecast"]
     off = _day_facts("off_grid", None, 80.0, forecast)
     assert "tonight_short" in [o["code"] for o in off["observations"]] and off["forecast"]["soc_at_sunrise_pct"] == 3
+
+
+def test_a_fleet_storm_lists_projects_not_the_first_four_sites():
+    def stormy(sid, name, lat, lon, storm=True):
+        site = {"site_id": sid, "display_name": name, "system_type": "hybrid", "pv_kwp": 5.0, "battery_usable_kwh": 10.0, "latitude": lat, "longitude": lon}
+        return F.build_site_facts(site=site, energy_rows=history(), health_row=None, anomalies=[], alerts_open=[], snapshot=None, now=NOW,
+                                  forecast={"storm": storm, "tomorrow_pv_kwh": None})
+    facts = [stormy("a", "Vista Atenas LP M1 (Houses)", 9.969576, -84.405197), stormy("b", "Vista Atenas LP M2 (Studios)", 9.969576, -84.405197),
+             stormy("c", "El Encino (Casita)", 10.715797, -85.501358), stormy("d", "El Encino (Casona)", 10.715797, -85.501358),
+             stormy("e", "Emtec CR", 9.92203, -84.1396), stormy("f", "Proyecto KM Ukiyo", 9.885509, -84.19457, storm=False)]
+    storm = next(o for o in F.build_fleet_facts(site_facts=facts, name="x", now=NOW)["observations"] if o["code"] == "fleet_storm")
+    assert storm["params"] == {"count": 5, "sites": ["Vista Atenas LP (2)", "El Encino (2)", "Emtec CR"]}

@@ -27,6 +27,10 @@ logger = logging.getLogger("vrm_api.insights")
 _MODES = ("off", "template", "on")
 LANGS = ("en", "es")
 TTL = timedelta(hours=6)
+# A summary is also rewritten as soon as what is true RIGHT NOW changes (a site went offline or came back,
+# an alert opened or closed, a storm appeared), but never more often than this — a site flapping online/offline
+# must not turn into a model call every few minutes.
+MIN_REFRESH = timedelta(minutes=5)
 ENERGY_LOOKBACK_DAYS = 21
 
 
@@ -46,7 +50,7 @@ def _parse(value) -> datetime | None:
 # ── loading ──────────────────────────────────────────────────────────────────
 
 def _active_sites(*, site_id: str | None = None, customer_id: str | None = None) -> list[dict]:
-    query = (_t("sites").select("site_id, display_name, system_type, pv_kwp, battery_usable_kwh, customer_id, timezone, reserve_soc_pct")
+    query = (_t("sites").select("site_id, display_name, system_type, pv_kwp, battery_usable_kwh, customer_id, timezone, latitude, longitude, reserve_soc_pct")
              .eq("source", "vrm_api").eq("active", True))
     if site_id:
         query = query.eq("site_id", site_id)
@@ -141,6 +145,68 @@ def site_facts_for(sites: list[dict], now: datetime) -> dict[str, dict]:
     return out
 
 
+# ── what is true right now ───────────────────────────────────────────────────
+
+def signature_from_facts(facts: dict) -> list[str]:
+    """The live-dependent findings a summary was written from: offline, open alerts and anomalies, a storm.
+    The day's own figures are fixed once the day is over, so only these can make a cached text wrong."""
+    out: set[str] = set()
+    for o in facts.get("observations") or []:
+        code = o["code"]
+        if code in ("offline", "offline_days"):
+            out.add("offline")
+        elif code.startswith(("alert_", "anomaly_")):
+            out.add(code)
+        elif code == "storm_ahead":
+            out.add("storm")
+    return sorted(out)
+
+
+def live_signatures(sites: list[dict], now: datetime) -> dict[str, list[str]]:
+    """The same signature, read straight from the database as it is now — four small batched queries,
+    no model and no forecast built."""
+    ids = [s["site_id"] for s in sites]
+    sig: dict[str, set[str]] = {i: set() for i in ids}
+    if not ids:
+        return {}
+    for row in _t("site_snapshots").select("site_id, captured_at").in_("site_id", ids).execute().data or []:
+        seen = _parse(row.get("captured_at"))
+        if seen is not None and now - seen > insight_facts.OFFLINE_AFTER and row["site_id"] in sig:
+            sig[row["site_id"]].add("offline")
+    try:
+        for row in _t("alerts").select("site_id, kind").in_("site_id", ids).eq("status", "open").execute().data or []:
+            if row["kind"] != "site_offline" and row["site_id"] in sig:
+                sig[row["site_id"]].add(f"alert_{row['kind']}")
+    except Exception:  # noqa: BLE001 — alerts table may not exist yet
+        pass
+    for row in _t("site_anomalies").select("site_id, anomaly_type").in_("site_id", ids).is_("cleared_at", "null").execute().data or []:
+        if row.get("anomaly_type") and row["site_id"] in sig:
+            sig[row["site_id"]].add(f"anomaly_{row['anomaly_type']}")
+    if forecast_service.forecast_mode() == "on":
+        try:
+            for row in _t("site_forecasts").select("site_id, result").in_("site_id", ids).execute().data or []:
+                advice = {a.get("code") for a in (row.get("result") or {}).get("advice") or []}
+                if "storm" in advice and row["site_id"] in sig:
+                    sig[row["site_id"]].add("storm")
+        except Exception:  # noqa: BLE001
+            pass
+    return {k: sorted(v) for k, v in sig.items()}
+
+
+def _is_current(row: dict | None, sites: list[dict], now: datetime, *, fleet: bool) -> bool:
+    """Is this cached summary still fresh AND still true of what is happening now?"""
+    created = _parse(row.get("created_at")) if row else None
+    if not row or not created or now - created >= TTL:
+        return False
+    if now - created < MIN_REFRESH:
+        return True
+    stored = (row.get("facts") or {}).get("live_signature")
+    if stored is None:
+        return False                      # written before signatures existed: rewrite it once
+    current = live_signatures(sites, now)
+    return stored == (current if fleet else current.get(sites[0]["site_id"], [])) if sites else True
+
+
 # ── cache ────────────────────────────────────────────────────────────────────
 
 def _key(scope: str, site_id: str | None, customer_id: str | None, lang: str) -> dict:
@@ -190,15 +256,13 @@ def site_summary(site_id: str, lang: str, *, now: datetime | None = None, force:
         return {"enabled": False}
     lang = lang if lang in LANGS else "en"
     now = now or datetime.now(timezone.utc)
-    if not force:
-        row = _cached("site", site_id, None, lang)
-        created = _parse(row.get("created_at")) if row else None
-        if row and created and now - created < TTL:
-            return _present(row)
     sites = _active_sites(site_id=site_id)
     if not sites:
         return None
+    if not force and _is_current(_cached("site", site_id, None, lang), sites, now, fleet=False):
+        return _present(_cached("site", site_id, None, lang))
     facts = (prefetched or site_facts_for(sites, now))[site_id]
+    facts["live_signature"] = signature_from_facts(facts)
     return _present(_store("site", site_id, None, lang, facts, _write(facts, lang, "site", now, mode), now))
 
 
@@ -210,16 +274,14 @@ def fleet_summary(customer_id: str | None, lang: str, *, now: datetime | None = 
         return {"enabled": False}
     lang = lang if lang in LANGS else "en"
     now = now or datetime.now(timezone.utc)
-    if not force:
-        row = _cached("fleet", None, customer_id, lang)
-        created = _parse(row.get("created_at")) if row else None
-        if row and created and now - created < TTL:
-            return _present(row)
     sites = _active_sites(customer_id=customer_id)
+    if not force and _is_current(_cached("fleet", None, customer_id, lang), sites, now, fleet=True):
+        return _present(_cached("fleet", None, customer_id, lang))
     by_site = prefetched if prefetched is not None else site_facts_for(sites, now)
     members = [by_site[s["site_id"]] for s in sites if s["site_id"] in by_site]
     name = "All sites" if customer_id is None else "Your sites"
     facts = insight_facts.build_fleet_facts(site_facts=members, name=name, now=now)
+    facts["live_signature"] = {m["site"]["id"]: signature_from_facts(m) for m in members}
     return _present(_store("fleet", None, customer_id, lang, facts, _write(facts, lang, "fleet", now, mode), now))
 
 
