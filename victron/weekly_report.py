@@ -219,7 +219,9 @@ def generate_narrative(stats: dict, lang: str) -> str:
         return t["narrativeNoKey"]
 
     is_overview = bool(stats.get("isOverview"))
-    period_label = ("week" if stats["totalDays"] <= 8
+    is_daily = stats["totalDays"] == 1 and not is_overview
+    period_label = ("day" if is_daily
+                    else "week" if stats["totalDays"] <= 8
                     else f"{stats['totalDays']}-day period")
 
     is_off_grid = stats.get("systemType") == "off_grid"
@@ -264,6 +266,9 @@ def generate_narrative(stats: dict, lang: str) -> str:
             "plausible. If a season is given, do not guess when it changes."
             f"\n\nThis {period_label}'s data:"
         )
+        if is_daily:
+            framing += (" This report covers ONE single day: refer to it as that day (by its date, or \"the day\"), "
+                        "never as a week, and do not compare it with other days of a week or talk about averages across days.")
 
     # Off-grid sites have no utility grid concept at all — not a grid
     # connection that happens to read zero. Omitting the grid *numbers* below
@@ -296,8 +301,11 @@ def generate_narrative(stats: dict, lang: str) -> str:
         f"\n- Health score: {stats['healthScore']}/100 ({stats['healthStatus']})"
         f"\n- Lowest battery SOC: {stats['minSoc']}%"
         f"\n- Battery cycles this {period_label}: {stats['batteryCycles']}"
-        f"\n- Days battery reached full charge: {stats['daysFullCharge']} of {stats['totalDays']}"
     )
+    if is_daily:
+        prompt += f"\n- Battery reached full charge that day: {'yes' if stats['daysFullCharge'] else 'no'}"
+    else:
+        prompt += f"\n- Days battery reached full charge: {stats['daysFullCharge']} of {stats['totalDays']}"
     if not is_off_grid:
         prompt += (
             f"\n- Grid outages: {stats['outageCount']} ({stats['outageMinutes']} minutes total)"
@@ -305,11 +313,12 @@ def generate_narrative(stats: dict, lang: str) -> str:
             f"\n- Battery covered loads during outages: "
             f"{'yes' if stats['batteryProtectedDuringOutage'] else 'no — see outage detail'}"
         )
-    prompt += (
-        f"\n- Alarm episodes: {stats['alarmEpisodes']}"
-        f"\n- Best production day: {stats['bestDay']} kWh"
-        f"\n- Worst production day: {stats['worstDay']} kWh"
-    )
+    prompt += f"\n- Alarm episodes: {stats['alarmEpisodes']}"
+    if not is_daily:       # best / worst of one day is just the day
+        prompt += (
+            f"\n- Best production day: {stats['bestDay']} kWh"
+            f"\n- Worst production day: {stats['worstDay']} kWh"
+        )
     if stats.get("seasonContext"):
         prompt += f"\n- Season: {stats['seasonContext']}"
     # Only for sites that feed back. Without this the narrative can describe a
@@ -816,6 +825,7 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
         "criticalAlertsTotal": critical_total,
         # Equipment block: vrm.site_devices rows (vrm schema only) and the window they are read against.
         "devices": window.get("devices") or [],
+        "isDaily": len(days) == 1 and not window["is_overview"],
         "periodStartIso": str(window["period_start"]),
         "periodEndIso": str(window["period_end"]),
         # PLAN_PHASE17.md §4 — see this function's own docstring. `None`
@@ -839,14 +849,28 @@ _ALARM_CATEGORY_LABEL_KEYS = {
 # ══════════════════════════════════════════════════════════════════
 # Render
 # ══════════════════════════════════════════════════════════════════
+def _full_charge_row(d: dict) -> dict:
+    """A week counts days that reached a full charge; a single day just says whether it did."""
+    t, n, full = d["t"], len(d["dailyGrouped"]), d["totals"]["daysFullCharge"]
+    if d.get("isDaily"):
+        return {"label": t["fullChargeToday"], "value": t["yes"] if full else t["no"], "valueColor": S.GREEN if full else S.AMBER}
+    return {"label": t["daysFullCharge"], "value": f"{full} / {n} {t['days']}", "valueColor": S.GREEN}
+
+
+def _grid_data_rows(d: dict) -> list[dict]:
+    """"Days with grid data 1 / 1" says nothing for a single day, so it is left out there."""
+    if d.get("isDaily"):
+        return []
+    n = len(d["dailyGrouped"])
+    return [{"label": d["t"]["gridDataDays"], "value": f"{n - d['totals']['daysNoGridData']} / {n}"}]
+
+
 def _rows(d: dict) -> tuple[list, list, list, list, list]:
     t, n = d["t"], len(d["dailyGrouped"])
     fmt = lambda v, nd=1, suf="": f"{v:.{nd}f}{suf}" if v is not None else "—"
 
     batt = [
-        {"label": t["daysFullCharge"],
-         "value": f"{d['totals']['daysFullCharge']} / {n} {t['days']}",
-         "valueColor": S.GREEN},
+        _full_charge_row(d),
         {"label": t["lowestSoc"],
          "value": f"{d['minSoc']:.0f}%" if d["minSoc"] is not None else "—"},
         {"label": t["avgTemp"], "value": fmt(d["avgTemp"], 1, " °C")},
@@ -870,8 +894,7 @@ def _rows(d: dict) -> tuple[list, list, list, list, list]:
         {"label": t["voltageRangeL2"],
          "value": (f"{d['minVL2']:.1f} – {d['maxVL2']:.1f} V"
                    if d["minVL2"] is not None else "—")},
-        {"label": t["gridDataDays"],
-         "value": f"{n - d['totals']['daysNoGridData']} / {n}"},
+        *_grid_data_rows(d),
         {"label": t["gridQualityScore"],
          "value": f"{d['gridQualityScore']}/100 — {d['gridQualityStatus']}",
          "valueColor": d["gridQualityColor"]},
@@ -1302,7 +1325,8 @@ def render_html(d: dict, selected: set[str] | None = None) -> str:
         row1_svg=_safe(row1_svg) if row1_svg else "",
         row2_svg=_safe(row2) if row2 else "",
         outage_table_svg=_safe(outage_table) if outage_table else "",
-        soc_svg=(_safe(S.soc_chart_svg(d, t)) if (has_batt and "soc_chart" in selected) else ""),
+        # One day is one point: no band, no line. The Battery block already states the lowest charge.
+        soc_svg=(_safe(S.soc_chart_svg(d, t)) if (has_batt and "soc_chart" in selected and not d.get("isDaily")) else ""),
         trend_svg=(_safe(S.four_week_trend_svg(d["trend"], t)) if "trend" in selected else ""),
         savings_svg=_safe(savings_svg) if savings_svg else "",
         # PLAN_PHASE18.md §7, 2026-08-29 live-test feedback — replaces the

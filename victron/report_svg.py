@@ -313,6 +313,8 @@ def kpi_svg(d: dict, t: dict) -> str:
     best_sub = (f"{t['bestDayLabel']}: {_f(best['pv'])} {t['kwh']}"
                if best else f"{t['bestDayLabel']}: —")
     gi_sub = f"{tot['daysSelfSufficient']}/{len(d['dailyGrouped'])} {t['days']}"
+    if d.get("isDaily"):       # "best day" and "0/1 days" of a single day just repeat the figure above them
+        best_sub = gi_sub = ""
     outage_sub = (f"{tot['outageMinutes']} {t['minutes']}" if tot["outageCount"] > 0
                   else t["outagesGridQualityNote"] if flag_grid_quality
                   else t["noOutagesShort"])
