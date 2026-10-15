@@ -8,7 +8,7 @@
 // button optimizes for) — kept intentionally simpler rather than
 // duplicating that client-side geocoding flow for a rarely-used surface.
 import { useActionState, useEffect, useState } from 'react';
-import { Button, Field, Input, Select, Textarea } from '@/components/ui';
+import { Button, Field, InfoTooltip, Input, Select, Textarea } from '@/components/ui';
 import { listTimezones } from '@/lib/timezones';
 import { COUNTRIES } from '@/lib/countries';
 import { SUPPORTED_FLAT_CURRENCIES } from '@/lib/currencies';
@@ -170,6 +170,9 @@ export function AdminSiteEditForm({ site, lang, onDone }: { site: SiteRecord; la
       <div className={styles.fieldRow}>
         <Field label={t(lang, 'sites_field_pv_kwp')} htmlFor={`as-kwp-${site.site_id}`}>
           <Input id={`as-kwp-${site.site_id}`} name="pv_kwp" type="number" step="0.1" min="0" defaultValue={site.pv_kwp ?? ''} disabled={pending} />
+        </Field>
+        <Field label={<>{t(lang, 'sites_field_reserve_soc')} <InfoTooltip label={t(lang, 'sites_field_reserve_soc')}>{t(lang, 'sites_field_reserve_soc_hint')}</InfoTooltip></>} htmlFor={`as-reserve-${site.site_id}`}>
+          <Input id={`as-reserve-${site.site_id}`} name="reserve_soc_pct" type="number" step="1" min="0" max="100" defaultValue={site.reserve_soc_pct ?? ''} disabled={pending} />
         </Field>
         <Field label={t(lang, 'sites_field_report_language')} htmlFor={`as-lang-${site.site_id}`}>
           <Select id={`as-lang-${site.site_id}`} name="report_language" defaultValue={site.report_language} disabled={pending}>

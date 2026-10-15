@@ -3,8 +3,8 @@
 -- ============================================================
 -- Run in the Supabase SQL editor, AFTER vrm_health_devices.sql, and after the API has been
 -- redeployed and a sweep has run (so vrm.site_devices holds each ESS site's floor in the
--- inverter row's metrics.ess_min_soc_pct). Safe to run again — also after setting a site's
--- socFloorPct by hand (see below), so its days are re-scored.
+-- inverter row's metrics.ess_min_soc_pct) and after vrm_site_reserve_soc.sql. Safe to run again —
+-- also after stating a site's minimum charge, so its days are re-scored.
 --
 -- Problem: a grid-connected system set to keep, say, 25% (ESS "Minimum SOC (unless
 -- grid fails)") rests at exactly 25% by design — and was charged "Low SOC -15" every
@@ -112,13 +112,14 @@ BEGIN
 
   -- The state of charge a grid-connected system is CONFIGURED not to discharge below while the
   -- grid is up. Two sources, in this order:
-  --   1. vrm.sites.health_thresholds ->> 'socFloorPct' — set by hand where something other than ESS
-  --      holds the battery back (a VE.Bus Virtual Switch assistant, say), which VRM cannot see;
+  --   1. vrm.sites.reserve_soc_pct — stated by hand where something other than ESS holds the
+  --      battery back (a VE.Bus Virtual Switch assistant, say), which VRM cannot see
+  --      (sql/vrm_site_reserve_soc.sql must have been run);
   --   2. the ESS "Minimum SOC (unless grid fails)" / Battery Life limit the sweep read into
   --      vrm.site_devices (victron/devices.py), for real ESS systems.
   -- NULL = not known: nothing below changes.
   IF v_has_grid THEN
-    v_ess_floor := NULLIF(v_thr ->> 'socFloorPct', '')::numeric;
+    SELECT reserve_soc_pct INTO v_ess_floor FROM vrm.sites WHERE site_id = p_site_id;
     IF v_ess_floor IS NULL AND to_regclass('vrm.site_devices') IS NOT NULL THEN
       SELECT NULLIF(d.metrics ->> 'ess_min_soc_pct', '')::numeric INTO v_ess_floor
       FROM vrm.site_devices d

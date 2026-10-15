@@ -46,7 +46,7 @@ def _parse(value) -> datetime | None:
 # ── loading ──────────────────────────────────────────────────────────────────
 
 def _active_sites(*, site_id: str | None = None, customer_id: str | None = None) -> list[dict]:
-    query = (_t("sites").select("site_id, display_name, system_type, pv_kwp, battery_usable_kwh, customer_id, timezone, health_thresholds")
+    query = (_t("sites").select("site_id, display_name, system_type, pv_kwp, battery_usable_kwh, customer_id, timezone, reserve_soc_pct")
              .eq("source", "vrm_api").eq("active", True))
     if site_id:
         query = query.eq("site_id", site_id)
@@ -73,10 +73,10 @@ def _forecasts_for(sites: list[dict], now: datetime) -> dict[str, dict]:
 
 
 def configured_floor(site: dict, from_system: float | None) -> float | None:
-    """The minimum state of charge this site is set to keep while the grid is up. A value set by hand
-    on the site (`health_thresholds.socFloorPct`) wins: it is for systems where something other than
-    ESS holds the battery back (e.g. a VE.Bus Virtual Switch assistant), which VRM cannot see."""
-    manual = (site.get("health_thresholds") or {}).get("socFloorPct")
+    """The minimum state of charge this site is set to keep while the grid is up. A value stated on the
+    site (`reserve_soc_pct`) wins: it is for systems where something other than ESS holds the battery
+    back (e.g. a VE.Bus Virtual Switch assistant), which VRM cannot see."""
+    manual = site.get("reserve_soc_pct")
     if isinstance(manual, (int, float)) and 0 <= manual <= 100:
         return float(manual)
     return from_system

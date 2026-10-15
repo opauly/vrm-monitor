@@ -83,6 +83,7 @@ export async function getSite(customerId: string, siteId: string): Promise<SiteR
 const SITE_WHITELIST = [
   'display_name',
   'pv_kwp',
+  'reserve_soc_pct',
   'battery_nominal_kwh',
   'battery_dod_pct',
   'system_type',

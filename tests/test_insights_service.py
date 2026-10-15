@@ -176,6 +176,6 @@ def test_router_says_disabled_when_off(db, key):
 
 
 def test_a_floor_set_by_hand_on_the_site_wins_over_what_the_system_reports():
-    assert svc.configured_floor({"health_thresholds": {"socFloorPct": 40}}, 10.0) == 40.0
-    assert svc.configured_floor({"health_thresholds": {"socFloorPct": "x"}}, 25.0) == 25.0
-    assert svc.configured_floor({"health_thresholds": None}, None) is None
+    assert svc.configured_floor({"reserve_soc_pct": 40}, 10.0) == 40.0
+    assert svc.configured_floor({"reserve_soc_pct": None}, 25.0) == 25.0
+    assert svc.configured_floor({}, None) is None

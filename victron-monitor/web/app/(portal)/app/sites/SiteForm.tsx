@@ -11,7 +11,7 @@
 // through the Server Actions in `./actions.ts`, never a client-side
 // Supabase call (there is no Supabase import anywhere in this file).
 import { startTransition, useActionState, useEffect, useState } from 'react';
-import { Button, Field, Input, Select, Textarea } from '@/components/ui';
+import { Button, Field, InfoTooltip, Input, Select, Textarea } from '@/components/ui';
 import { t, type Lang, type StringKey } from '@/lib/i18n/strings';
 import { listTimezones } from '@/lib/timezones';
 import { COUNTRIES, DEFAULT_COUNTRY } from '@/lib/countries';
@@ -292,6 +292,18 @@ export function SiteForm({ mode, lang, action, initial, moduleSelectionAllowed =
             step="0.1"
             min="0"
             defaultValue={initial?.pv_kwp ?? ''}
+            disabled={pending}
+          />
+        </Field>
+        <Field label={<>{t(lang, 'sites_field_reserve_soc')} <InfoTooltip label={t(lang, 'sites_field_reserve_soc')}>{t(lang, 'sites_field_reserve_soc_hint')}</InfoTooltip></>} htmlFor="site-reserve-soc">
+          <Input
+            id="site-reserve-soc"
+            name="reserve_soc_pct"
+            type="number"
+            step="1"
+            min="0"
+            max="100"
+            defaultValue={initial?.reserve_soc_pct ?? ''}
             disabled={pending}
           />
         </Field>

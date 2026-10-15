@@ -185,6 +185,8 @@ export type SiteRecord = {
   longitude: number | null;
   timezone: string;
   pv_kwp: number | null;
+  /** Minimum charge (%) a grid-connected system is set to keep when ESS doesn't hold it (e.g. a Virtual Switch); null = ESS reports it. */
+  reserve_soc_pct: number | null;
   battery_nominal_kwh: number | null;
   battery_dod_pct: number | null;
   /** GENERATED ALWAYS AS (nominal * dod / 100) STORED (migration 019) —

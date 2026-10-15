@@ -53,6 +53,7 @@ const reportModulesField = z.array(z.string()).optional();
 const siteFormSchema = z.object({
   display_name: z.string().trim().min(1),
   pv_kwp: numberOrNull,
+  reserve_soc_pct: numberOrNull.refine((v) => v === null || (v >= 0 && v <= 100)),
   battery_nominal_kwh: numberOrNull,
   battery_dod_pct: numberOrNull,
   system_type: z.enum(['hybrid', 'off_grid', 'grid_zero']),
@@ -82,6 +83,7 @@ export async function updateAnySiteAction(siteId: string, _prevState: AdminSiteF
   const parsed = siteFormSchema.safeParse({
     display_name: formData.get('display_name'),
     pv_kwp: formData.get('pv_kwp'),
+    reserve_soc_pct: formData.get('reserve_soc_pct'),
     battery_nominal_kwh: formData.get('battery_nominal_kwh'),
     battery_dod_pct: formData.get('battery_dod_pct'),
     system_type: formData.get('system_type'),

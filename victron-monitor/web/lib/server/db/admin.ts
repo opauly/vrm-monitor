@@ -380,6 +380,7 @@ export async function getFleetSiteDetail(siteId: string): Promise<FleetOverviewR
 const ADMIN_SITE_WHITELIST = [
   'display_name',
   'pv_kwp',
+  'reserve_soc_pct',
   'battery_nominal_kwh',
   'battery_dod_pct',
   'system_type',
