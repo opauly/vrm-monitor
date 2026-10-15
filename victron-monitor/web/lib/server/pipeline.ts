@@ -425,6 +425,7 @@ export type ForecastOut =
   | {
       available: true;
       generated_at: string;
+      generated_for: string;
       tomorrow: ForecastDay;
       today: ForecastDay;
       storm_ahead: boolean;

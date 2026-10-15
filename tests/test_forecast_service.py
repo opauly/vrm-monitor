@@ -71,6 +71,7 @@ def db(monkeypatch):
     monkeypatch.setattr(svc.open_meteo, "fetch_weather", fake_weather)
     monkeypatch.setattr(svc, "usual_load_profile", fake_profile)
     monkeypatch.delenv("FORECAST", raising=False)
+    svc._WEATHER.clear()
     store["calls"] = calls
     return store
 
@@ -152,3 +153,20 @@ def test_router_needs_the_pipeline_key_and_returns_the_forecast(db, monkeypatch)
     ok = client.get("/v1/forecast/site?site_id=s1", headers={"Authorization": "Bearer k"})
     assert ok.status_code == 200 and ok.json()["available"] and ok.json()["tomorrow"]["solar"]["kwh"] > 0
     assert client.get("/v1/forecast/site?site_id=nope", headers={"Authorization": "Bearer k"}).status_code == 404
+
+
+def test_sites_in_the_same_place_share_one_weather_request(db):
+    db["sites"].append({**db["sites"][0], "site_id": "s2", "vrm_installation_id": 124})
+    db["energy_daily"] += [{**row, "site_id": "s2"} for row in db["energy_daily"] if row["site_id"] == "s1"]
+    db["site_snapshots"].append({**db["site_snapshots"][0], "site_id": "s2"})
+    svc.get_forecast("s1", now=NOW, mode="on")
+    svc.get_forecast("s2", now=NOW, mode="on")
+    assert db["calls"]["weather"] == 1
+
+
+def test_a_forecast_made_before_midnight_is_not_served_after_it(db):
+    svc.get_forecast("s1", now=NOW, mode="on")
+    after_midnight = NOW + timedelta(hours=6)      # NOW is 19:00 on the 8th in Costa Rica, so this is 01:00 on the 9th
+    made_for = db["site_forecasts"][0]["result"]["generated_for"][:10]
+    db["site_forecasts"][0]["generated_at"] = (after_midnight - timedelta(minutes=10)).isoformat()    # fresh by age, but made on the previous local day
+    assert svc.get_forecast("s1", now=after_midnight, mode="on")["generated_for"][:10] != made_for

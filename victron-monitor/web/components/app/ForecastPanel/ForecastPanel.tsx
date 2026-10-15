@@ -16,6 +16,12 @@ type Available = Extract<ForecastOut, { available: true }>;
 type State = { status: 'loading' } | { status: 'hidden' } | { status: 'ready'; forecast: Available };
 
 const hhmm = (iso: string) => iso.slice(11, 16);
+// "2026-10-14" -> "10-14-2026" (English) / "14-10-2026" (Spanish): the site's own calendar
+// date, so the panel says exactly which night and which day it is about.
+const dateLabel = (iso: string, lang: Lang) => {
+  const [y, m, d] = iso.split('-');
+  return lang === 'es' ? `${d}-${m}-${y}` : `${m}-${d}-${y}`;
+};
 const fill = (text: string, values: Record<string, string | number | null | undefined>) =>
   Object.entries(values).reduce((out, [k, v]) => out.replaceAll(`{${k}}`, v === null || v === undefined ? '—' : String(v)), text);
 
@@ -55,7 +61,9 @@ export function ForecastPanel({ lang, endpoint }: { lang: Lang; endpoint: string
       <div className={styles.columns}>
         {backup && (
           <div className={styles.block}>
-            <div className={styles.blockTitle}>{t(lang, 'forecast_tonight')}</div>
+            <div className={styles.blockTitle}>
+              {t(lang, 'forecast_tonight')} ({dateLabel(forecast.today.date, lang)})
+            </div>
             <div className={`${styles.big} ${backup.reaches_sunrise ? '' : styles.warn}`}>
               {backup.reaches_sunrise
                 ? fill(t(lang, 'forecast_backup_ok'), { time: hhmm(backup.until_sunrise), soc: backup.soc_at_sunrise_pct })
@@ -65,7 +73,9 @@ export function ForecastPanel({ lang, endpoint }: { lang: Lang; endpoint: string
           </div>
         )}
         <div className={styles.block}>
-          <div className={styles.blockTitle}>{t(lang, 'forecast_tomorrow')}</div>
+          <div className={styles.blockTitle}>
+            {t(lang, 'forecast_tomorrow')} ({dateLabel(tomorrow.date, lang)})
+          </div>
           <div className={styles.big}>
             {tomorrow.sky ? t(lang, `forecast_sky_${tomorrow.sky}` as StringKey) : '—'}
             {tomorrow.temp_max_c !== null ? ` · ${tomorrow.temp_max_c}°C` : ''}
