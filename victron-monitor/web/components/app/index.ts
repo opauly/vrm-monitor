@@ -25,3 +25,4 @@ export { EnergyCard } from './EnergyCard/EnergyCard';
 export { SiteHealthCard } from './SiteHealthCard/SiteHealthCard';
 export { AiSummary } from './AiSummary/AiSummary';
 export { ForecastPanel } from './ForecastPanel/ForecastPanel';
+export { DevicesCard } from './DevicesCard/DevicesCard';

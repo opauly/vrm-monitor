@@ -1,0 +1,139 @@
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  margin-bottom: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+.title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.summary {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--good);
+}
+.summaryWarn {
+  color: var(--low);
+}
+.scroll {
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.table th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mute);
+  padding: 4px 12px 6px 0;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.table td {
+  padding: 9px 12px 9px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  color: var(--paper);
+}
+.table tr:last-child td {
+  border-bottom: none;
+}
+.dotCell {
+  width: 22px;
+  padding-top: 13px;
+}
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.dot_ok {
+  background: var(--good);
+}
+.dot_warn {
+  background: var(--signal);
+}
+.dot_bad {
+  background: var(--low);
+}
+.name {
+  font-weight: 600;
+}
+.model {
+  margin-left: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mute);
+}
+.now {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.note {
+  color: var(--paper-dim);
+  line-height: 1.45;
+}
+.noteBad {
+  color: var(--paper);
+  line-height: 1.45;
+}
+
+/* A phone: each device is a short stack — name, current figure, note — instead of a
+   sideways-scrolling table. */
+@media (max-width: 640px) {
+  .table thead {
+    display: none;
+  }
+  .table tr {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    border-bottom: 1px solid var(--line);
+    padding: 8px 0;
+  }
+  .table tr:last-child {
+    border-bottom: none;
+  }
+  .table td {
+    grid-column: 2;
+    border-bottom: none;
+    padding: 1px 0;
+  }
+  .table td.dotCell {
+    grid-column: 1;
+    grid-row: 1;
+    padding-top: 6px;
+  }
+  .model {
+    margin-left: 8px;
+  }
+  .now {
+    white-space: normal;
+    color: var(--paper-dim);
+  }
+  .table td:empty {
+    display: none;
+  }
+}

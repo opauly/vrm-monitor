@@ -140,7 +140,9 @@ def build_site_facts(*, site: dict, energy_rows: list[dict], health_row: dict | 
         "load_w": _r(_num((snapshot or {}).get("load_power_w")), 0) if online else None,
     }
     facts["forecast"] = forecast
-    facts["open_alerts"] = [{"kind": a["kind"], "severity": a.get("severity"), "since": a.get("opened_at")} for a in alerts_open]
+    facts["open_alerts"] = [{"kind": a["kind"], "severity": a.get("severity"), "since": a.get("opened_at"),
+                             **({"equipment": a.get("detail")} if a["kind"] == "device_fault" and a.get("detail") else {})}
+                            for a in alerts_open]
     facts["open_anomalies"] = [{"type": a.get("anomaly_type"), "since": a.get("detected_at")} for a in anomalies]
 
     facts["observations"] = observations(facts, system_type=site.get("system_type"))
@@ -163,7 +165,7 @@ def observations(facts: dict, *, system_type: str | None) -> list[dict]:
             add("offline", ATTENTION, minutes=minutes)
     for alert in facts.get("open_alerts") or []:
         if alert["kind"] != "site_offline":
-            add(f"alert_{alert['kind']}", ATTENTION)
+            add(f"alert_{alert['kind']}", ATTENTION, **({"equipment": alert["equipment"]} if alert.get("equipment") else {}))
     for anomaly in facts.get("open_anomalies") or []:
         if anomaly.get("type"):
             add(f"anomaly_{anomaly['type']}", ATTENTION)

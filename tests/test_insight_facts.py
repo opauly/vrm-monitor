@@ -186,3 +186,13 @@ def test_fleet_names_the_sites_with_a_storm_coming():
     b = site_facts("B", forecast=AHEAD)
     fleet = F.build_fleet_facts(site_facts=[a, b], name="All", now=NOW)
     assert fleet["observations"][0] == {"code": "fleet_storm", "severity": "attention", "params": {"count": 1, "sites": ["A"]}}
+
+
+def test_an_open_equipment_alert_names_the_device_in_the_summary():
+    from victron import insight_ai
+    detail = {"count": 1, "devices": [{"kind": "charger", "code": "no_output", "n": 2, "of": 2, "params": {"kwh": 0.01, "others_kwh": 3.9}}]}
+    facts = {"day": None, "observations": [{"code": "alert_device_fault", "severity": "attention", "params": {"equipment": detail}}]}
+    en = insight_ai.render_template(facts, "en", "site")
+    assert en["points"] == ["Solar charger 2 made almost nothing (0.01 kWh) while the others made 3.9 kWh."]
+    assert insight_ai.render_template(facts, "es", "site")["points"][0].startswith("Cargador solar 2 produjo casi nada")
+    assert insight_ai.numbers_ok(en["points"], {"observations": facts["observations"]})

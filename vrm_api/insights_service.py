@@ -104,7 +104,7 @@ def site_facts_for(sites: list[dict], now: datetime) -> dict[str, dict]:
         anomalies.setdefault(row["site_id"], []).append(row)
     alerts: dict[str, list[dict]] = {}
     try:
-        for row in (_t("alerts").select("site_id, kind, severity, opened_at").in_("site_id", ids).eq("status", "open").execute().data or []):
+        for row in (_t("alerts").select("site_id, kind, severity, opened_at, detail").in_("site_id", ids).eq("status", "open").execute().data or []):
             alerts.setdefault(row["site_id"], []).append(row)
     except Exception:  # noqa: BLE001 — alerts table may not exist yet
         logger.info("insights: could not read vrm.alerts")

@@ -512,3 +512,13 @@ def test_one_account_with_both_kinds_of_device_gets_the_right_link_on_each(env, 
     alert(store)
     run_push()
     assert sorted(p["url"] for p in pushes["payloads"]) == ["/admin/fleet/s1", "/app/dashboard/s1"]
+
+
+def test_a_device_fault_reads_as_plain_sentences_in_the_email():
+    from victron import email_i18n
+    alert = {"kind": "device_fault", "severity": "warning", "customer_id": "c1", "site_id": "s1", "id": 1, "detail": {
+        "count": 1, "devices": [{"kind": "charger", "code": "no_output", "n": 2, "of": 2, "params": {"kwh": 0.01, "others_kwh": 3.9}}]}}
+    for lang, expect in (("en", "Solar charger 2 made almost nothing (0.01 kWh) while the others made 3.9 kWh."),
+                         ("es", "Cargador solar 2 produjo casi nada (0.01 kWh) mientras los demás produjeron 3.9 kWh.")):
+        card = ad.describe(alert, resolved=False, site_name="Rancho", tz_name=None, strings=email_i18n.get(lang), site_url="https://x")
+        assert card["body"] == expect, card

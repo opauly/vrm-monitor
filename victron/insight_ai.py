@@ -23,6 +23,8 @@ import logging
 import os
 import re
 
+from victron import devices, email_i18n
+
 logger = logging.getLogger("victron.insight_ai")
 
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
@@ -38,6 +40,7 @@ OBS = {
         "alert_low_battery": "The battery is low right now.",
         "alert_system_alarm": "The system is reporting an alarm.",
         "alert_vrm_link_broken": "The connection to VRM needs to be reconnected.",
+        "alert_device_fault": "A piece of equipment (battery, inverter or solar charger) needs attention — see the Equipment table.",
         "anomaly_unexpected_silence": "Solar produced nothing when it should have been producing.",
         "anomaly_quiet_drift": "Solar output has been slowly drifting down.",
         "anomaly_underperformance": "Solar is producing less than expected for this system.",
@@ -72,6 +75,7 @@ OBS = {
         "alert_low_battery": "La batería está baja ahora mismo.",
         "alert_system_alarm": "El sistema está reportando una alarma.",
         "alert_vrm_link_broken": "Hay que volver a conectar la conexión con VRM.",
+        "alert_device_fault": "Un equipo (batería, inversor o cargador solar) necesita atención — vea la tabla de Equipos.",
         "anomaly_unexpected_silence": "La producción solar fue nula cuando debía estar produciendo.",
         "anomaly_quiet_drift": "La producción solar ha ido bajando poco a poco.",
         "anomaly_underperformance": "La producción solar es menor a la esperada para este sistema.",
@@ -144,11 +148,11 @@ HEAD = {
 }
 # Short reason labels for the fleet's "needs attention" lines.
 SHORT = {
-    "en": {"offline": "stopped reporting", "offline_days": "stopped reporting", "storm_ahead": "storm forecast", "tonight_short": "battery may not last the night", "alert_grid_outage": "grid out", "alert_low_battery": "low battery", "alert_system_alarm": "alarm",
+    "en": {"offline": "stopped reporting", "offline_days": "stopped reporting", "storm_ahead": "storm forecast", "tonight_short": "battery may not last the night", "alert_grid_outage": "grid out", "alert_low_battery": "low battery", "alert_system_alarm": "alarm", "alert_device_fault": "equipment problem",
            "alert_vrm_link_broken": "VRM disconnected", "outage_deep": "battery ran low in an outage", "battery_low": "low battery",
            "solar_below": "solar well below normal", "import_high": "mostly on grid power", "anomaly_unexpected_silence": "no solar output",
            "anomaly_quiet_drift": "solar drifting down", "anomaly_underperformance": "solar underperforming", "anomaly_incomplete_charging": "battery not filling"},
-    "es": {"offline": "dejó de reportar", "offline_days": "dejó de reportar", "storm_ahead": "tormenta pronosticada", "tonight_short": "la batería podría no durar la noche", "alert_grid_outage": "red caída", "alert_low_battery": "batería baja", "alert_system_alarm": "alarma",
+    "es": {"offline": "dejó de reportar", "offline_days": "dejó de reportar", "storm_ahead": "tormenta pronosticada", "tonight_short": "la batería podría no durar la noche", "alert_grid_outage": "red caída", "alert_low_battery": "batería baja", "alert_system_alarm": "alarma", "alert_device_fault": "problema de equipo",
            "alert_vrm_link_broken": "VRM desconectado", "outage_deep": "batería baja en un corte", "battery_low": "batería baja",
            "solar_below": "solar muy por debajo de lo normal", "import_high": "casi todo con energía de la red", "anomaly_unexpected_silence": "sin producción solar",
            "anomaly_quiet_drift": "solar bajando", "anomaly_underperformance": "solar con bajo rendimiento", "anomaly_incomplete_charging": "batería sin llenarse"},
@@ -170,8 +174,11 @@ def _fmt(value) -> str:
     return str(value)
 
 
-def _obs_text(obs_text: dict, o: dict) -> str | None:
+def _obs_text(obs_text: dict, o: dict, lang: str = "en") -> str | None:
     code = o["code"]
+    if code == "alert_device_fault" and o["params"].get("equipment"):
+        # Name the equipment ("Solar charger 2 made almost nothing ...") rather than a generic line.
+        return devices.describe_devices(email_i18n.get(lang), o["params"]["equipment"])
     if o["params"].get("count") == 1 and f"{code}_one" in obs_text:
         code = f"{code}_one"
     return _fill(obs_text[code], o["params"]) if code in obs_text else None
@@ -201,12 +208,12 @@ def render_template(facts: dict, lang: str, scope: str, *, today: str | None = N
         headline = _fill(head[key], {"when": when, "pv": day["pv_kwh"], "load": day["load_kwh"], "ss": day.get("self_sufficiency_pct")})
 
     if scope == "fleet":
-        points = [t for t in (_obs_text(obs_text, o) for o in observations) if t][:MAX_POINTS]
+        points = [t for t in (_obs_text(obs_text, o, lang) for o in observations) if t][:MAX_POINTS]
         for entry in (facts.get("needs_attention") or [])[: max(0, MAX_POINTS - len(points))]:
             reason = SHORT[lang].get(entry["reasons"][0], entry["reasons"][0])
             points.append(f"{entry['site']}: {reason}.")
     else:
-        points = [t for t in (_obs_text(obs_text, o) for o in observations) if t][:MAX_POINTS]
+        points = [t for t in (_obs_text(obs_text, o, lang) for o in observations) if t][:MAX_POINTS]
 
     suggestion = None
     for o in observations:

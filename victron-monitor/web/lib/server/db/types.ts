@@ -359,7 +359,7 @@ export type AppSettingRecord = {
 // vrm.alerts / vrm.alert_preferences (victron-monitor/sql/vrm_alerts.sql,
 // vrm_alert_preferences.sql) — written by the Python refresh sweep
 // (`vrm_api/alerts_service.py`), read here for `/app/alerts`.
-export type AlertKind = 'site_offline' | 'grid_outage' | 'low_battery' | 'system_alarm' | 'vrm_link_broken';
+export type AlertKind = 'site_offline' | 'grid_outage' | 'low_battery' | 'system_alarm' | 'vrm_link_broken' | 'device_fault';
 export type AlertSeverity = 'warning' | 'critical';
 
 export type AlertRecord = {
@@ -393,3 +393,26 @@ export type AdminAlert = {
 export type AlertWithSite = AlertRecord & { site_name: string | null; site_timezone: string | null };
 
 export type AlertPreference = { enabled: boolean; email: boolean; push: boolean };
+
+
+// vrm.site_devices (victron-monitor/sql/vrm_site_devices.sql) — one row per battery /
+// inverter / solar charger, written by the refresh sweep (`vrm_api/devices_service.py`).
+export type DeviceStatus = 'ok' | 'warn' | 'bad';
+export type SiteDevice = {
+  device_key: string;
+  kind: 'charger' | 'battery' | 'inverter';
+  /** Model or maker ("a115", "Pylontech"). */
+  label: string;
+  status: DeviceStatus;
+  note: { code: string; params: Record<string, string | number | null> } | null;
+  metrics: {
+    n?: number;
+    of?: number;
+    last_kwh?: number | null;
+    last_day_offset?: number;
+    modules_online?: number;
+    modules_offline?: number;
+    units?: number;
+  };
+  last_seen: string;
+};

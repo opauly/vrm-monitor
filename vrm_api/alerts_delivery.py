@@ -51,6 +51,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from database.supabase_client import get_client
 from victron import alerts as rules
+from victron import devices
 from victron import email_i18n
 from victron.mailer import MailerError
 from victron.mailer import send as mailer_send
@@ -161,6 +162,8 @@ def describe(alert: dict, *, resolved: bool, site_name: str, tz_name: str | None
     elif kind == rules.SYSTEM_ALARM:
         names = [t.get(f"alert_alarm_{k}", k) for k in detail.get("alarms", [])]
         values["alarms"] = ", ".join(names) or "—"
+    elif kind == rules.DEVICE_FAULT:
+        values["devices"] = devices.describe_devices(t, detail)
 
     return {"title": _fill(t[title_key], **values), "body": _fill(t[body_key], **values), "severity": severity,
             "severity_label": t["alert_severity_critical" if severity == rules.CRITICAL else "alert_severity_warning"],

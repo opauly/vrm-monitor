@@ -155,3 +155,30 @@ def test_customer_level_key_has_empty_site():
     c = A.Condition(A.VRM_LINK_BROKEN, "c1", None, True)
     assert A.reconcile([c], [{"customer_id": "c1", "site_id": None, "kind": A.VRM_LINK_BROKEN,
                               "severity": A.WARNING, "detail": {}}]).opened == []
+
+
+# ── device faults ────────────────────────────────────────────────────────
+def device(status, code=None, kind="charger", **params):
+    return {"device_key": f"{kind}:1", "kind": kind, "label": "a115", "status": status,
+            "note": {"code": code, "params": params} if code else None, "metrics": {"n": 2, "of": 2}}
+
+
+def run_devices(devices, snapshot=None, open_kinds=()):
+    return {c.kind: c for c in A.evaluate_site(site=SITE, snapshot=snapshot or snap(), previous=None, open_kinds=set(open_kinds),
+                                               grid_imported_recently=True, now=NOW, devices=devices)}
+
+
+def test_a_bad_device_raises_one_device_fault_listing_it():
+    got = run_devices([device("ok"), device("bad", "no_output", kwh=0.01, others_kwh=3.9)])[A.DEVICE_FAULT]
+    assert got.active and got.severity == A.WARNING
+    assert got.detail["count"] == 1 and got.detail["devices"][0]["code"] == "no_output" and got.detail["devices"][0]["n"] == 2
+
+
+def test_a_hard_fault_is_critical_and_all_ok_or_warn_clears_it():
+    assert run_devices([device("bad", "modules_offline", kind="battery", online=2, total=3)])[A.DEVICE_FAULT].severity == A.CRITICAL
+    assert run_devices([device("warn", "low_output"), device("ok")])[A.DEVICE_FAULT].active is False
+
+
+def test_no_device_information_says_nothing_and_an_offline_site_keeps_its_device_alert():
+    assert A.DEVICE_FAULT not in run_devices(None) and A.DEVICE_FAULT not in run_devices([])
+    assert list(run_devices([device("bad", "missing")], snapshot=snap(60))) == [A.SITE_OFFLINE]

@@ -3,6 +3,7 @@
 // sentences, so the app and the inbox never disagree).
 import { formatDateTimeInZone } from '@/lib/dates';
 import { t, type Lang } from '@/lib/i18n/strings';
+import { deviceName, deviceNote } from '@/lib/deviceText';
 import type { AlertWithSite } from '@/lib/server/db';
 
 function fill(template: string, values: Record<string, string | number>): string {
@@ -45,6 +46,20 @@ export function describeAlert(lang: Lang, alert: AlertWithSite): { title: string
       return {
         title: fill(t(lang, 'alerts_text_system_alarm_title'), { site }),
         body: fill(t(lang, 'alerts_text_system_alarm_body'), { alarms: names.join(', ') || '—' }),
+      };
+    }
+    case 'device_fault': {
+      const listed = Array.isArray(detail.devices) ? (detail.devices as { kind?: string; code?: string; n?: number; of?: number; params?: Record<string, string | number> }[]) : [];
+      const lines = listed
+        .map((d) => {
+          const note = deviceNote(lang, d.code, d.params);
+          return note ? `${deviceName(lang, d.kind ?? '', d.n, d.of)}: ${note}` : '';
+        })
+        .filter(Boolean);
+      const more = typeof detail.count === 'number' ? detail.count - lines.length : 0;
+      return {
+        title: fill(t(lang, 'alerts_text_device_fault_title'), { site }),
+        body: fill(t(lang, 'alerts_text_device_fault_body'), { devices: (lines.join(' ') || '—') + (more > 0 ? ` (+${more})` : '') }),
       };
     }
     case 'vrm_link_broken':

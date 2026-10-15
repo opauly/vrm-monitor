@@ -8,13 +8,15 @@ database, sends mail or reads the clock on its own, so every rule is
 testable with plain dicts (`tests/test_alerts.py`). Persisting open/resolved
 state and delivering notifications live in `vrm_api/alerts_service.py`.
 
-Five alert kinds (PLAN: first notification set, 2026-10-05):
+Six alert kinds (first notification set 2026-10-05, device_fault 2026-10-15):
 
   site_offline    no fresh reading for 45+ minutes
   grid_outage     the AC input voltage is gone on a grid-connected site
   low_battery     state of charge at or under a threshold
   system_alarm    overload, DC ripple, temperature fault, cell imbalance
   vrm_link_broken the customer's VRM token stopped working (customer-level)
+  device_fault    a battery, inverter or solar charger is "bad" in vrm.site_devices
+                  (rules in victron/devices.py); one alert per site, listing them
 
 A rule returns a `Condition` with `active=True` (raise / keep it open),
 `active=False` (it is definitely fine now — resolve an open alert), or
@@ -36,7 +38,8 @@ GRID_OUTAGE = "grid_outage"
 LOW_BATTERY = "low_battery"
 SYSTEM_ALARM = "system_alarm"
 VRM_LINK_BROKEN = "vrm_link_broken"
-KINDS = (SITE_OFFLINE, GRID_OUTAGE, LOW_BATTERY, SYSTEM_ALARM, VRM_LINK_BROKEN)
+DEVICE_FAULT = "device_fault"
+KINDS = (SITE_OFFLINE, GRID_OUTAGE, LOW_BATTERY, SYSTEM_ALARM, VRM_LINK_BROKEN, DEVICE_FAULT)
 
 WARNING = "warning"
 CRITICAL = "critical"
@@ -77,6 +80,10 @@ GRID_SEEN_WITHIN_DAYS = 7
 # above says the same thing from the SOC, with hysteresis and severity.
 _DEBOUNCED_ALARMS = ("overload",)
 _CRITICAL_ALERT_KEYS = ("dc_ripple", "temp_fault", "cell_imbalance")
+
+# Device findings that mean the system itself is at risk, not just producing less.
+_HARD_DEVICE_FAULTS = ("inverter_error", "battery_failure", "modules_offline", "units_missing")
+MAX_DEVICES_LISTED = 4
 
 
 @dataclass(frozen=True)
@@ -140,6 +147,7 @@ def evaluate_site(
     open_kinds: set[str],
     grid_imported_recently: bool,
     now: datetime,
+    devices: list[dict] | None = None,
 ) -> list[Condition]:
     """Conditions for one site.
 
@@ -148,7 +156,9 @@ def evaluate_site(
     nothing); `previous` is the stored row from before this sweep. `open_kinds`
     is which alert kinds are currently open for this site (drives the
     hysteresis). `grid_imported_recently` is whether `energy_daily` shows
-    grid import in the last GRID_SEEN_WITHIN_DAYS days.
+    grid import in the last GRID_SEEN_WITHIN_DAYS days. `devices` are the site's
+    `vrm.site_devices` rows after this sweep (None/empty = nothing known: no
+    device condition either way).
     """
     customer_id, site_id = site["customer_id"], site["site_id"]
 
@@ -205,6 +215,18 @@ def evaluate_site(
     elif not soft_now:
         out.append(cond(SYSTEM_ALARM, False))
     # else: an unconfirmed first sighting of a debounced alarm — unknown.
+
+    # ── devices ───────────────────────────────────────────────────────────
+    if devices:
+        bad = [d for d in devices if d.get("status") == "bad"]
+        if bad:
+            notes = [{"kind": d.get("kind"), "label": d.get("label") or "", "code": (d.get("note") or {}).get("code"),
+                      "params": (d.get("note") or {}).get("params") or {},
+                      "n": (d.get("metrics") or {}).get("n"), "of": (d.get("metrics") or {}).get("of")} for d in bad[:MAX_DEVICES_LISTED]]
+            hard = any(n["code"] in _HARD_DEVICE_FAULTS for n in notes)
+            out.append(cond(DEVICE_FAULT, True, CRITICAL if hard else WARNING, devices=notes, count=len(bad)))
+        else:
+            out.append(cond(DEVICE_FAULT, False))
 
     return out
 

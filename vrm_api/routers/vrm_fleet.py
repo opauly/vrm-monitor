@@ -72,7 +72,7 @@ from pydantic import ValidationError
 from database.supabase_client import get_client
 
 from victron import ingest as victron_ingest
-from vrm_api import admin_alerts, alerts_delivery, alerts_push, alerts_service
+from vrm_api import admin_alerts, alerts_delivery, alerts_push, alerts_service, devices_service
 from victron.anomaly_battery import check_incomplete_charging
 from victron.anomaly_drift import check_quiet_drift, check_underperformance
 from victron.anomaly_silence import check_unexpected_silence
@@ -413,7 +413,7 @@ def post_sync(body: VrmFleetSyncRequest, background_tasks: BackgroundTasks) -> J
 _SNAPSHOT_FETCH_WORKERS = 4
 
 
-def _fetch_site_snapshot(site: dict, admin_token: str | None) -> tuple[str, dict | None]:
+def _fetch_site_snapshot(site: dict, admin_token: str | None, diagnostics_out: dict | None = None) -> tuple[str, dict | None]:
     """Phase 1 of `post_refresh_snapshots()` for ONE site: resolve its token
     and fetch its live snapshot. Returns `("ok", snapshot)`, `("skipped",
     None)` (no installation id / no token / nothing published) or `("failed",
@@ -438,6 +438,8 @@ def _fetch_site_snapshot(site: dict, admin_token: str | None) -> tuple[str, dict
     try:
         client = VrmRemoteClient(token)
         diagnostics = client.get_diagnostics(id_site)
+        if diagnostics_out is not None:
+            diagnostics_out[site["site_id"]] = diagnostics
         snapshot = fetch_live_snapshot(client, id_site, site["site_id"],
                                       tz=site.get("timezone") or DEFAULT_TZ_NAME,
                                       diagnostics=diagnostics)
@@ -533,8 +535,9 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
     # client's per-instance throttle is unaffected. Phase 2 below — the
     # database writes — stays sequential and unchanged.
     started = time.monotonic()
+    diagnostics_by_site: dict[str, dict] = {}
     with ThreadPoolExecutor(max_workers=_SNAPSHOT_FETCH_WORKERS) as pool:
-        fetched = list(pool.map(lambda site: _fetch_site_snapshot(site, admin_token), sites))
+        fetched = list(pool.map(lambda site: _fetch_site_snapshot(site, admin_token, diagnostics_by_site), sites))
 
     refreshed, skipped, failed = 0, 0, 0
     for site, (status, snapshot) in zip(sites, fetched):
@@ -579,7 +582,16 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
             logger.exception("vrm-fleet refresh-snapshots: unexpected_silence check failed for site %s",
                              site["site_id"])
 
-    # Fleet alerts (offline / grid outage / low battery / alarms / VRM link).
+    # Per-device health (batteries / inverters / solar chargers), from the same diagnostics.
+    # Walled off like the alerts below: a failure is logged and never costs the sweep.
+    devices_by_site: dict[str, list[dict]] = {}
+    if devices_service.devices_mode() == "on":
+        try:
+            devices_by_site = devices_service.run_pass(sites, diagnostics_by_site)
+        except Exception:  # noqa: BLE001
+            logger.exception("vrm-fleet refresh-snapshots: device pass failed (snapshots are unaffected)")
+
+    # Fleet alerts (offline / grid outage / low battery / alarms / VRM link / device fault).
     # Off unless ALERTS_MODE is set, and walled off from everything above: a
     # failure here is logged and ignored, never a failed or slow snapshot sweep.
     if alerts_service.alerts_mode() != "off":
@@ -587,6 +599,7 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
             summary = alerts_service.run_alert_pass(
                 sites=sites, fetched=fetched,
                 previous_by_site=previous_snapshots_by_site, energy_by_site=energy_daily_by_site,
+                devices_by_site=devices_by_site,
             )
             logger.info("vrm-fleet refresh-snapshots: alerts %s", summary)
         except Exception:  # noqa: BLE001

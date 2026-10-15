@@ -60,6 +60,8 @@ export type { CreateFeedbackFields } from './feedback';
 export { listOpenAdminAlerts, listRecentResolvedAdminAlerts } from './adminAlerts';
 export { ALERT_KINDS, listOpenAlerts, listRecentResolvedAlerts, countOpenAlerts, getAlertPreferences, saveAlertPreferences } from './alerts';
 
+export { getSiteDevices } from './devices';
+
 export { savePushSubscription, deletePushSubscription } from './push';
 export type { PushOwner } from './push';
 
@@ -67,4 +69,5 @@ export { NotAuthorized } from './errors';
 
 export type { CustomerRecord, SiteRecord, IngestionLogRecord, Lang, AccountType, SystemType, ReportSchedule } from './types';
 export type { FeedbackRecord, FeedbackKind, FeedbackSeverity } from './types';
+export type { SiteDevice, DeviceStatus } from './types';
 export type { AlertKind, AlertSeverity, AlertRecord, AlertWithSite, AlertPreference, AdminAlert, AdminAlertKind } from './types';

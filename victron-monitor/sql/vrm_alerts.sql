@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS vrm.alerts (
   customer_id           uuid        NOT NULL REFERENCES vrm.customers(id) ON DELETE CASCADE,
   site_id               text,
   kind                  text        NOT NULL
-    CHECK (kind IN ('site_offline','grid_outage','low_battery','system_alarm','vrm_link_broken')),
+    CHECK (kind IN ('site_offline','grid_outage','low_battery','system_alarm','vrm_link_broken','device_fault')),
   severity              text        NOT NULL DEFAULT 'warning'
     CHECK (severity IN ('warning','critical')),
   status                text        NOT NULL DEFAULT 'open'

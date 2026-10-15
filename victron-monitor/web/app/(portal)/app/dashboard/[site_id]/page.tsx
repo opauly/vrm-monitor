@@ -2,12 +2,12 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireCustomer } from '@/lib/server/auth';
-import { getCustomer, getDashboardAccess, getCustomerFleetSiteDetail, type SiteAnomalyRow } from '@/lib/server/db';
+import { getCustomer, getDashboardAccess, getCustomerFleetSiteDetail, getSiteDevices, type SiteAnomalyRow } from '@/lib/server/db';
 import { batteryRuntime, formatHours } from '@/lib/batteryRuntime';
 import { formatDateTimeInZone } from '@/lib/dates';
 import { t } from '@/lib/i18n/strings';
 import { Panel, Button } from '@/components/ui';
-import { AiSummary, ForecastPanel, PeriodProvider, SiteHealthCard } from '@/components/app';
+import { AiSummary, DevicesCard, ForecastPanel, PeriodProvider, SiteHealthCard } from '@/components/app';
 import { FleetLiveSection } from '../../../../(admin)/admin/fleet/FleetLiveSection';
 import { PeriodStatsPanel } from '../../../../(admin)/admin/fleet/PeriodStatsPanel';
 import { ShapeChart } from '../../../../(admin)/admin/fleet/ShapeChart';
@@ -143,6 +143,7 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
   const site = await getCustomerFleetSiteDetail(session.customerId, site_id);
   if (!site) notFound();
 
+  const devices = await getSiteDevices(site.site_id);
   const runtime = batteryRuntime(site.live_soc_pct, site.battery_usable_kwh, site.live_battery_power_w);
 
   return (
@@ -254,6 +255,7 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
 
       <AiSummary lang={lang} endpoint={`/api/pipeline/insights/site?siteId=${encodeURIComponent(site.site_id)}`} />
       <ForecastPanel lang={lang} endpoint={`/api/pipeline/forecast/site?siteId=${encodeURIComponent(site.site_id)}`} />
+      <DevicesCard lang={lang} devices={devices} />
 
       <PeriodProvider siteId={site.site_id} apiBasePath="/api/pipeline/vrm-fleet">
         <FleetLiveSection

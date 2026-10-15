@@ -137,6 +137,7 @@ def apply_transitions(table, transitions: rules.Transitions, now: datetime) -> d
 
 def run_alert_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]],
                    previous_by_site: dict[str, dict], energy_by_site: dict[str, list[dict]],
+                   devices_by_site: dict[str, list[dict]] | None = None,
                    mode: str | None = None, now: datetime | None = None) -> dict:
     """Evaluate every site (and each customer's VRM link) and reconcile with
     the open alerts. `fetched[i]` is `(status, snapshot)` for `sites[i]`."""
@@ -172,6 +173,7 @@ def run_alert_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]],
             open_kinds=open_kinds.get(site["site_id"], set()),
             grid_imported_recently=_grid_imported_recently(energy_by_site.get(site["site_id"], []), now),
             now=now,
+            devices=(devices_by_site or {}).get(site["site_id"]),
         )
 
     if customer_ids:

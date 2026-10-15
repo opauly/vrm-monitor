@@ -12,7 +12,7 @@ import 'server-only';
 import { getSupabaseAdmin } from '@/lib/server/supabase';
 import type { AlertKind, AlertPreference, AlertRecord, AlertWithSite } from './types';
 
-export const ALERT_KINDS: readonly AlertKind[] = ['site_offline', 'grid_outage', 'low_battery', 'system_alarm', 'vrm_link_broken'];
+export const ALERT_KINDS: readonly AlertKind[] = ['site_offline', 'grid_outage', 'low_battery', 'system_alarm', 'vrm_link_broken', 'device_fault'];
 
 const DEFAULT_PREFERENCE: AlertPreference = { enabled: true, email: true, push: true };
 
