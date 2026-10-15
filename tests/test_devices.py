@@ -120,3 +120,20 @@ def test_yield_history_is_seeded_from_yesterday_and_kept_from_the_evening_total(
     assert evening["charger:0"]["state"]["daily"]["2026-10-14"] == 4.1
     later = run(charger(0, today=4.0, yesterday=3.9), list(evening.values()))
     assert later["charger:0"]["state"]["daily"]["2026-10-14"] == 4.1               # the highest value of the evening wins
+
+
+def test_bad_sweeps_are_counted_per_local_day_for_the_health_score():
+    first = run(battery(online=3))
+    bad = run(battery(online=2), list(first.values()))
+    again = run(battery(online=2), list(bad.values()))
+    assert again["battery:512"]["state"]["bad_sweeps"] == {"2026-10-14": 2}
+    healthy = run(battery(online=3), list(again.values()))
+    assert healthy["battery:512"]["state"]["bad_sweeps"] == {"2026-10-14": 2}      # an OK sweep does not add
+
+
+def test_a_missing_device_keeps_counting_while_it_is_gone():
+    first = run(battery())
+    one = run(charger(0, today=3.0, yesterday=3.0), list(first.values()))
+    two = run(charger(0, today=3.0, yesterday=3.0), list(one.values()))
+    three = run(charger(0, today=3.0, yesterday=3.0), list(two.values()))
+    assert three["battery:512"]["state"]["bad_sweeps"] == {"2026-10-14": 2}

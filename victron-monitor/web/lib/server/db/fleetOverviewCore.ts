@@ -146,6 +146,8 @@ export type FleetOverviewRow = {
   // generically — no change needed here when a new type starts being
   // written. `[]`, never omitted, when this site has no open anomaly.
   active_anomalies: SiteAnomalyRow[];
+  /** Equipment (batteries / inverters / solar chargers) not OK, from vrm.site_devices: `bad` = needs attention, `warn` = worth a look. */
+  devices_attention: { bad: number; warn: number };
   // Fleet Dashboard Phase 2 (2026-08-30) — from `vrm.site_snapshots`
   // (migration 031), upserted by the ~15-minute `refresh-snapshots` sweep
   // (`vrm_api/routers/vrm_fleet.py`). `null` for every field, including
@@ -478,6 +480,7 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
     { data: snapshots, error: snapshotsError },
     { data: energyDaily, error: energyDailyError },
     { data: anomalies, error: anomaliesError },
+    { data: deviceRows },
   ] = await Promise.all([
     admin.schema('vrm').from('customers').select('id, name'),
     // `battery_cycles` deliberately NOT selected here — `vrm.compute_daily_health()`
@@ -534,6 +537,9 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
     admin.schema('vrm').from('site_anomalies')
       .select('id, site_id, anomaly_type, detected_at, detail')
       .in('site_id', siteIds).is('cleared_at', null).order('detected_at', { ascending: false }),
+    // Equipment that is not OK, from vrm.site_devices (sql/vrm_site_devices.sql). Optional: until
+    // that SQL has run the query errors, which here simply means "nothing to report".
+    admin.schema('vrm').from('site_devices').select('site_id, status').in('site_id', siteIds).neq('status', 'ok'),
   ]);
   if (customersError) throw customersError;
   if (healthError) throw healthError;
@@ -543,6 +549,12 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
 
   const customerNameById = new Map((customers ?? []).map((c) => [c.id as string, c.name as string]));
   const snapshotBySite = new Map((snapshots ?? []).map((s) => [s.site_id as string, s]));
+  const devicesBySite = new Map<string, { bad: number; warn: number }>();
+  for (const row of (deviceRows ?? []) as { site_id: string; status: 'warn' | 'bad' }[]) {
+    const entry = devicesBySite.get(row.site_id) ?? { bad: 0, warn: 0 };
+    entry[row.status] += 1;
+    devicesBySite.set(row.site_id, entry);
+  }
   const anomaliesBySite = new Map<string, SiteAnomalyRow[]>();
   for (const row of (anomalies ?? []) as SiteAnomalyRow[]) {
     const list = anomaliesBySite.get(row.site_id) ?? [];
@@ -723,6 +735,7 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
       active_alarms: _activeCountFromRaw(snapshot?.raw, 'alarms'),
       active_critical_alerts: _activeCountFromRaw(snapshot?.raw, 'critical_alerts'),
       active_anomalies: anomaliesBySite.get(s.site_id) ?? [],
+      devices_attention: devicesBySite.get(s.site_id) ?? { bad: 0, warn: 0 },
       live_captured_at: snapshot?.captured_at ?? null,
       live_pv_power_w: snapshot?.pv_power_w ?? null,
       live_load_power_w: snapshot?.load_power_w ?? null,

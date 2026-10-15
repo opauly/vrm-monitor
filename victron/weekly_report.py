@@ -814,6 +814,10 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
         "tankDetail": tank_detail, "hasTank": has_tank,
         "criticalAlertsByCategory": critical_by_category,
         "criticalAlertsTotal": critical_total,
+        # Equipment block: vrm.site_devices rows (vrm schema only) and the window they are read against.
+        "devices": window.get("devices") or [],
+        "periodStartIso": str(window["period_start"]),
+        "periodEndIso": str(window["period_end"]),
         # PLAN_PHASE17.md §4 — see this function's own docstring. `None`
         # unless a caller explicitly resolved and passed one.
         "branding": branding,
@@ -963,6 +967,32 @@ _CRITICAL_CATEGORY_LABEL_KEYS = {
 }
 
 
+def _equipment_rows(d: dict) -> list[dict]:
+    """One row per device: its name and how it stands, with the number of days in this report's
+    period it was flagged (bad in 4+ sweeps — the same rule the health score uses)."""
+    t = d["t"]
+    start, end = d.get("periodStartIso"), d.get("periodEndIso")
+    order = {"bad": 0, "warn": 1, "ok": 2}
+    kinds = {"charger": 0, "battery": 1, "inverter": 2}
+    devices = sorted(d.get("devices") or [], key=lambda x: (order.get(x.get("status"), 2), kinds.get(x.get("kind"), 3),
+                                                              (x.get("metrics") or {}).get("n") or 0))
+    rows = []
+    for dev in devices:
+        m = dev.get("metrics") or {}
+        if dev.get("kind") == "charger":
+            name = t["deviceCharger"].format(n=m.get("n")) if (m.get("of") or 1) > 1 else t["deviceChargerSingle"]
+        else:
+            name = t["deviceBattery"] if dev.get("kind") == "battery" else t["deviceInverter"]
+        status = dev.get("status") or "ok"
+        label = {"ok": t["equipmentOk"], "warn": t["equipmentWarn"], "bad": t["equipmentBad"]}[status]
+        days = sum(1 for day, n in ((dev.get("state") or {}).get("bad_sweeps") or {}).items()
+                   if start and end and start <= day <= end and int(n) >= 4)
+        value = f"{label} · {t['equipmentDays'].format(n=days)}" if days else label
+        rows.append({"label": name, "value": value,
+                     "valueColor": {"ok": S.GREEN, "warn": S.AMBER, "bad": S.RED}[status]})
+    return rows
+
+
 def _phase2_rows(d: dict) -> tuple[list, list, list, list]:
     """PLAN_PHASE18.md §7 — rows for the four Phase 2 modules, same
     `[{"label", "value", ...}]` shape `_rows()` above builds for the
@@ -1066,6 +1096,7 @@ def render_html(d: dict, selected: set[str] | None = None) -> str:
     logo_b64 = branding.get("logo_b64") or get_logo_b64()
     batt, grid, events, perf, weather = _rows(d)
     critical, grid_meter_rows, generator_hours_rows, tank_rows = _phase2_rows(d)
+    equipment_rows = _equipment_rows(d)
     has_grid = d["systemType"] in ("grid_zero", "hybrid")
     has_batt = d["systemType"] in ("off_grid", "hybrid")
 
@@ -1132,6 +1163,9 @@ def render_html(d: dict, selected: set[str] | None = None) -> str:
         pool_specs.append({"title": t["tariffSavings"], "rows": savings_rows, "sub": savings_sub})
     if want_critical:
         pool_specs.append({"title": t["sectionCriticalAlerts"], "rows": critical, "sub": t["subCriticalAlerts"]})
+    # Equipment is not a selectable module: every report for a site with checked devices has it.
+    if equipment_rows:
+        pool_specs.append({"title": t["sectionEquipment"], "rows": equipment_rows, "sub": t["subEquipment"]})
     if want_grid_meter:
         pool_specs.append({"title": t["sectionGridMeter"], "rows": grid_meter_rows, "sub": t["subGridMeter"]})
     if want_generator:

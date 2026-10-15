@@ -171,6 +171,18 @@ EN = {
     # Period-neutral wording throughout (no "this week"), same reasoning
     # `subGrid`/`subEventsOffGrid`/`subSolarPerf` already follow — none of
     # these four need a `_PERIOD_OVERRIDES` entry below.
+    "sectionEquipment": "Equipment",
+    "subEquipment": "Each battery, inverter and solar charger as last checked. \"Days\" are the days of "
+                    "this period on which a fault was flagged for an hour or more; it also lowers the "
+                    "System health score.",
+    "equipmentOk": "Working",
+    "equipmentWarn": "Check",
+    "equipmentBad": "Needs attention",
+    "equipmentDays": "{n} day(s)",
+    "deviceCharger": "Solar charger {n}",
+    "deviceChargerSingle": "Solar charger",
+    "deviceBattery": "Battery",
+    "deviceInverter": "Inverter",
     "sectionCriticalAlerts": "Critical Alerts",
     "subCriticalAlerts": "DC ripple, cell imbalance, and temperature faults "
                          "detected on the battery system — safety-relevant "
@@ -322,6 +334,18 @@ ES = dict(EN, **{
     "narrativeUnavailable": "Resumen no disponible esta semana.",
     "narrativeNoKey": "Resumen no disponible (clave API no configurada).",
 
+    "sectionEquipment": "Equipos",
+    "subEquipment": "Cada batería, inversor y cargador solar según la última revisión. \"Días\" son los días "
+                    "de este periodo en que se marcó una falla durante una hora o más; también baja el "
+                    "puntaje de salud del Sistema.",
+    "equipmentOk": "Funciona",
+    "equipmentWarn": "Revisar",
+    "equipmentBad": "Requiere atención",
+    "equipmentDays": "{n} día(s)",
+    "deviceCharger": "Cargador solar {n}",
+    "deviceChargerSingle": "Cargador solar",
+    "deviceBattery": "Batería",
+    "deviceInverter": "Inversor",
     "sectionCriticalAlerts": "Alertas Críticas",
     "subCriticalAlerts": "Rizado de CD, desbalance de celdas y fallas de "
                          "temperatura detectados en el sistema de baterías — "

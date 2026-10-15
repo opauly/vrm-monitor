@@ -148,11 +148,11 @@ HEAD = {
 }
 # Short reason labels for the fleet's "needs attention" lines.
 SHORT = {
-    "en": {"offline": "stopped reporting", "offline_days": "stopped reporting", "storm_ahead": "storm forecast", "tonight_short": "battery may not last the night", "alert_grid_outage": "grid out", "alert_low_battery": "low battery", "alert_system_alarm": "alarm", "alert_device_fault": "equipment problem",
+    "en": {"offline": "stopped reporting", "offline_days": "stopped reporting", "storm_ahead": "storm forecast", "tonight_short": "battery may not last the night", "alert_grid_outage": "grid out", "alert_low_battery": "low battery", "alert_system_alarm": "alarm", "alert_device_fault": "equipment problem", "device_fault": "equipment fault",
            "alert_vrm_link_broken": "VRM disconnected", "outage_deep": "battery ran low in an outage", "battery_low": "low battery",
            "solar_below": "solar well below normal", "import_high": "mostly on grid power", "anomaly_unexpected_silence": "no solar output",
            "anomaly_quiet_drift": "solar drifting down", "anomaly_underperformance": "solar underperforming", "anomaly_incomplete_charging": "battery not filling"},
-    "es": {"offline": "dejó de reportar", "offline_days": "dejó de reportar", "storm_ahead": "tormenta pronosticada", "tonight_short": "la batería podría no durar la noche", "alert_grid_outage": "red caída", "alert_low_battery": "batería baja", "alert_system_alarm": "alarma", "alert_device_fault": "problema de equipo",
+    "es": {"offline": "dejó de reportar", "offline_days": "dejó de reportar", "storm_ahead": "tormenta pronosticada", "tonight_short": "la batería podría no durar la noche", "alert_grid_outage": "red caída", "alert_low_battery": "batería baja", "alert_system_alarm": "alarma", "alert_device_fault": "problema de equipo", "device_fault": "falla de equipo",
            "alert_vrm_link_broken": "VRM desconectado", "outage_deep": "batería baja en un corte", "battery_low": "batería baja",
            "solar_below": "solar muy por debajo de lo normal", "import_high": "casi todo con energía de la red", "anomaly_unexpected_silence": "sin producción solar",
            "anomaly_quiet_drift": "solar bajando", "anomaly_underperformance": "solar con bajo rendimiento", "anomaly_incomplete_charging": "batería sin llenarse"},

@@ -384,6 +384,20 @@ def get_critical_alert_counts_by_category(site_id: str, start: str | date, end: 
     return counts
 
 
+def get_site_devices(site_id: str, schema: str) -> list[dict]:
+    """The site's batteries / inverters / solar chargers as last checked (`vrm.site_devices`,
+    written by the 15-minute sweep) — the report's "Equipment" block. `vrm` schema only; `[]`
+    for `monitoring` sites and, quietly, when the table does not exist yet: the report is
+    never allowed to fail over an optional section."""
+    if schema != "vrm":
+        return []
+    try:
+        return (_table(schema, "site_devices").select("device_key, kind, label, status, note, metrics, state")
+                .eq("site_id", site_id).execute().data or [])
+    except Exception:  # noqa: BLE001
+        return []
+
+
 def bucket_days(rows: list[dict], start: date, end: date,
                 bucket_len_days: int) -> list[dict]:
     """Groups `rows` (already-fetched `energy_daily` rows) into consecutive
@@ -612,6 +626,8 @@ def fetch_report_window(site_id: str, start: str | date, end: str | date,
         # see get_critical_alert_counts_by_category()'s own docstring.
         "critical_alert_counts_by_category": get_critical_alert_counts_by_category(
             site_id, start, end, schema),
+        # The Equipment block (vrm.site_devices) — see get_site_devices().
+        "devices": get_site_devices(site_id, schema),
         # A window can be short because the CSV didn't cover it or because
         # Node-RED missed days. The report must be able to say so rather than
         # present 3 days of data as a full window.

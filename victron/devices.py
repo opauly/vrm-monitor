@@ -43,6 +43,7 @@ STALE_AFTER = timedelta(minutes=45)
 MISSING_SWEEPS = 2
 FINAL_HOUR = 18            # local hour from which "yield today" counts as the day's total
 HISTORY_DAYS = 21
+BAD_SWEEPS_KEPT_DAYS = 45
 MIN_HISTORY_DAYS = 5       # own days needed before a charger is judged against itself
 NO_OUTPUT_KWH = 0.1
 NO_OUTPUT_PEAK_W = 50
@@ -144,6 +145,19 @@ def parse(diagnostics) -> list[dict]:
         seen_so_far[d["kind"]] = seen_so_far.get(d["kind"], 0) + 1
         d["metrics"]["n"], d["metrics"]["of"] = seen_so_far[d["kind"]], totals[d["kind"]]
     return devices
+
+
+def _count_bad_sweep(state: dict, status: str, today: date) -> None:
+    """Remember how many sweeps found this device bad on each local day — what the daily
+    health score reads (`vrm.compute_daily_health`: a device counts against a day once it was
+    bad in 4+ sweeps, about an hour, so a one-sweep glitch costs nothing)."""
+    if status != BAD:
+        return
+    counts = dict(state.get("bad_sweeps") or {})
+    key = _iso_date(today)
+    counts[key] = int(counts.get(key, 0)) + 1
+    cutoff = _iso_date(today - timedelta(days=BAD_SWEEPS_KEPT_DAYS))
+    state["bad_sweeps"] = {k: v for k, v in counts.items() if k >= cutoff}
 
 
 def _worse(a: str, b: str) -> str:
@@ -255,6 +269,7 @@ def evaluate(parsed: list[dict], existing: list[dict], *, now: datetime, local: 
                 raise_to(BAD, vnote["code"], **vnote["params"])
             elif verdict == WARN:
                 raise_to(BAD if streak >= 2 else WARN, vnote["code"], **vnote["params"])
+        _count_bad_sweep(state, status, today)
         if d["kind"] == "charger":      # the last full day's yield, what the table shows
             offset = 0 if hour >= FINAL_HOUR else 1
             m = {**m, "last_kwh": state["daily"].get(_iso_date(today - timedelta(days=offset))), "last_day_offset": offset}
@@ -273,7 +288,9 @@ def evaluate(parsed: list[dict], existing: list[dict], *, now: datetime, local: 
         missing = int(row.get("missing_sweeps") or 0) + 1
         gone = {**row, "missing_sweeps": missing, "updated_at": stamp}
         if missing >= MISSING_SWEEPS:
-            gone.update(status=BAD, note={"code": "missing", "params": {}})
+            gone_state = dict(row.get("state") or {})
+            _count_bad_sweep(gone_state, BAD, today)
+            gone.update(status=BAD, note={"code": "missing", "params": {}}, state=gone_state)
         rows.append(gone)
     return rows
 

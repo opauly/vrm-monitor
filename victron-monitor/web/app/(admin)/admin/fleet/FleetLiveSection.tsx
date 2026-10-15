@@ -57,6 +57,10 @@ function attentionReasons(site: FleetOverviewRow, lang: Lang): Reason[] {
       text: t(lang, site.connection_status === 'never_synced' ? 'fleet_live_reason_never' : 'fleet_live_reason_offline'),
     });
   }
+  if (site.devices_attention.bad > 0) {
+    const n = site.devices_attention.bad;
+    reasons.push({ severity: 4, text: t(lang, n === 1 ? 'fleet_live_reason_device_one' : 'fleet_live_reason_device_many').replace('{n}', String(n)) });
+  }
   if (site.active_alarms > 0) {
     reasons.push({ severity: 3, text: t(lang, 'fleet_live_reason_alarms').replace('{n}', String(site.active_alarms)) });
   }
