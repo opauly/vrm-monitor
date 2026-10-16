@@ -43,15 +43,15 @@ const SOFTWARE_JSON_LD = {
   operatingSystem: 'Web',
   url: `${SITE_URL}/es`,
   description:
-    'Un panel en vivo y un reporte semanal en PDF narrado por IA para cualquier sistema solar o híbrido de Victron Energy, construido por Pauly & Co., un Integrador de Software Recomendado por Victron.',
+    'Un panel en vivo, alertas por correo y al teléfono, y un reporte en PDF diario, semanal o mensual narrado por IA para cualquier sistema solar o híbrido de Victron Energy, construido por Pauly & Co., un Integrador de Software Recomendado por Victron.',
   provider: {
     '@type': 'Organization',
     name: 'Pauly & Co.',
     url: 'https://paulyco.com',
   },
   offers: [
-    { '@type': 'Offer', name: 'Starter', price: '29.99', priceCurrency: 'USD', description: 'Hasta 10 sitios, reportes semanales y de resumen automáticos.' },
-    { '@type': 'Offer', name: 'Growth', price: '99.99', priceCurrency: 'USD', description: 'Hasta 50 sitios, agrega el panel en vivo y AI Insights.' },
+    { '@type': 'Offer', name: 'Starter', price: '29.99', priceCurrency: 'USD', description: 'Hasta 10 sitios, reportes diarios, semanales y de resumen automáticos.' },
+    { '@type': 'Offer', name: 'Growth', price: '99.99', priceCurrency: 'USD', description: 'Hasta 50 sitios, agrega el panel en vivo, las alertas y AI Insights.' },
   ],
 };
 

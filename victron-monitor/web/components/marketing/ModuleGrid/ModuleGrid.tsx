@@ -185,6 +185,13 @@ export function ModuleGrid({ lang }: { lang: Lang }) {
                 <h3>{t(lang, 'marketing_modules_critical_alerts_title')}</h3>
                 <p className={styles.body}>{t(lang, 'marketing_modules_critical_alerts_body')}</p>
               </Panel>
+
+              <Panel className={styles.moduleCard} variant="card" interactive led>
+                <span className={styles.icon} aria-hidden="true">{FIXED_MODULE_ICONS.equipment}</span>
+                <span className={styles.tag}>{t(lang, 'marketing_modules_tag_equipment')}</span>
+                <h3>{t(lang, 'marketing_modules_equipment_title')}</h3>
+                <p className={styles.body}>{t(lang, 'marketing_modules_equipment_body')}</p>
+              </Panel>
             </div>
           </details>
 

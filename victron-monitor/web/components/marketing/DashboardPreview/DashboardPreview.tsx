@@ -84,6 +84,12 @@ export function DashboardPreview({ lang }: { lang: Lang }) {
             {t(lang, 'marketing_dashboard_avg_grid')} <b className={styles.summaryGood}>88/100</b>
           </span>
         </div>
+        <div className={styles.aiSummary}>
+          <span className={styles.aiLabel}>
+            {t(lang, 'marketing_dashboard_summary_label')} <i>AI</i>
+          </span>
+          <p>{t(lang, 'marketing_dashboard_summary_text')}</p>
+        </div>
         <ul className={styles.siteList}>
           {SAMPLE_SITES.map((site) => (
             <li key={site.name} className={styles.siteRow}>
@@ -98,6 +104,15 @@ export function DashboardPreview({ lang }: { lang: Lang }) {
           ))}
         </ul>
         <p className={styles.narr}>{t(lang, 'marketing_dashboard_flagged_narrative')}</p>
+        <div className={styles.equipment}>
+          <span className={styles.aiLabel}>{t(lang, 'marketing_dashboard_equipment_label')}</span>
+          <div className={styles.equipRow}>
+            <span className={`${styles.dot} ${styles.dotBad}`} aria-hidden="true" />
+            <span className={styles.equipName}>{t(lang, 'marketing_dashboard_equipment_name')}</span>
+            <span className={styles.equipNote}>{t(lang, 'marketing_dashboard_equipment_note')}</span>
+            <span className={styles.equipBadge}>{t(lang, 'marketing_dashboard_equipment_badge')}</span>
+          </div>
+        </div>
       </Panel>
 
       <div className={styles.liveChartWrap}>

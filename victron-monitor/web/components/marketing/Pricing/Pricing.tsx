@@ -145,6 +145,10 @@ export function Pricing({ starterPlanId, growthPlanId, lang }: PricingProps) {
                 </li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
+                  {t(lang, 'marketing_pricing_growth_li_alerts')}
+                </li>
+                <li>
+                  <span className={styles.dot} aria-hidden="true" />
                   {t(lang, 'marketing_pricing_growth_li4')}
                 </li>
                 <li>

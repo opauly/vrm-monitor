@@ -58,7 +58,7 @@ import styles from './whats-inside.module.css';
 export const metadata: Metadata = {
   title: "What's Inside",
   description:
-    "Every report section and every live-dashboard signal VRM Monitor computes, in detail — plus what a Victron Recommended Software Integrator actually is.",
+    "Every report section and every live-dashboard signal, alert and equipment check VRM Monitor computes, in detail — plus what a Victron Recommended Software Integrator actually is.",
   alternates: {
     canonical: '/whats-inside',
     languages: { 'en-US': '/whats-inside', 'es-CR': '/es/whats-inside', 'x-default': '/whats-inside' },
@@ -74,6 +74,8 @@ const FAQS = [
   { q: t(lang, 'marketing_whatsinside_faq_q4'), a: t(lang, 'marketing_whatsinside_faq_a4') },
   { q: t(lang, 'marketing_whatsinside_faq_q5'), a: t(lang, 'marketing_whatsinside_faq_a5') },
   { q: t(lang, 'marketing_whatsinside_faq_q6'), a: t(lang, 'marketing_whatsinside_faq_a6') },
+  { q: t(lang, 'marketing_whatsinside_faq_q7'), a: t(lang, 'marketing_whatsinside_faq_a7') },
+  { q: t(lang, 'marketing_whatsinside_faq_q8'), a: t(lang, 'marketing_whatsinside_faq_a8') },
 ];
 
 export default function WhatsInsidePage() {
@@ -161,6 +163,42 @@ export default function WhatsInsidePage() {
               <span className={styles.signalTag}>{t(lang, 'marketing_tag_ai_insight')}</span>
               <h3>{t(lang, 'marketing_whatsinside_signal6_title')}</h3>
               <p className={styles.signalBody}>{t(lang, 'marketing_whatsinside_signal6_body')}</p>
+            </Panel>
+            <Panel className={styles.signalCard} variant="card" interactive led>
+              <span className={styles.signalIcon} aria-hidden="true">{FIXED_MODULE_ICONS.equipment}</span>
+              <span className={styles.signalTag}>{t(lang, 'marketing_tag_equipment')}</span>
+              <h3>{t(lang, 'marketing_whatsinside_signal7_title')}</h3>
+              <p className={styles.signalBody}>{t(lang, 'marketing_whatsinside_signal7_body')}</p>
+            </Panel>
+            <Panel className={styles.signalCard} variant="card" interactive led>
+              <span className={styles.signalIcon} aria-hidden="true">{REPORT_MODULE_ICONS.critical_alerts}</span>
+              <span className={styles.signalTag}>{t(lang, 'marketing_tag_alerts')}</span>
+              <h3>{t(lang, 'marketing_whatsinside_signal8_title')}</h3>
+              <p className={styles.signalBody}>{t(lang, 'marketing_whatsinside_signal8_body')}</p>
+            </Panel>
+            <Panel className={styles.signalCard} variant="card" interactive led>
+              <span className={styles.signalIcon} aria-hidden="true">{FIXED_MODULE_ICONS.narrative}</span>
+              <span className={styles.signalTag}>{t(lang, 'marketing_tag_ai_insight')}</span>
+              <h3>{t(lang, 'marketing_whatsinside_signal9_title')}</h3>
+              <p className={styles.signalBody}>{t(lang, 'marketing_whatsinside_signal9_body')}</p>
+            </Panel>
+            <Panel className={styles.signalCard} variant="card" interactive led>
+              <span className={styles.signalIcon} aria-hidden="true">{REPORT_MODULE_ICONS.weather}</span>
+              <span className={styles.signalTag}>{t(lang, 'marketing_tag_ai_insight')}</span>
+              <h3>{t(lang, 'marketing_whatsinside_signal10_title')}</h3>
+              <p className={styles.signalBody}>{t(lang, 'marketing_whatsinside_signal10_body')}</p>
+            </Panel>
+            <Panel className={styles.signalCard} variant="card" interactive led>
+              <span className={styles.signalIcon} aria-hidden="true">{REPORT_MODULE_ICONS.energy_mix}</span>
+              <span className={styles.signalTag}>{t(lang, 'marketing_tag_live')}</span>
+              <h3>{t(lang, 'marketing_whatsinside_signal11_title')}</h3>
+              <p className={styles.signalBody}>{t(lang, 'marketing_whatsinside_signal11_body')}</p>
+            </Panel>
+            <Panel className={styles.signalCard} variant="card" interactive led>
+              <span className={styles.signalIcon} aria-hidden="true">{REPORT_MODULE_ICONS.battery_health}</span>
+              <span className={styles.signalTag}>{t(lang, 'marketing_tag_live')}</span>
+              <h3>{t(lang, 'marketing_whatsinside_signal12_title')}</h3>
+              <p className={styles.signalBody}>{t(lang, 'marketing_whatsinside_signal12_body')}</p>
             </Panel>
           </div>
 

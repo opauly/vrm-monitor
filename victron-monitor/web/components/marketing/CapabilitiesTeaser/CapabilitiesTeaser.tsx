@@ -33,6 +33,7 @@ export function CapabilitiesTeaser({ lang }: { lang: Lang }) {
               <li>{t(lang, 'marketing_capabilities_dash_li1')}</li>
               <li>{t(lang, 'marketing_capabilities_dash_li2')}</li>
               <li>{t(lang, 'marketing_capabilities_dash_li3')}</li>
+              <li>{t(lang, 'marketing_capabilities_dash_li4')}</li>
             </ul>
           </Panel>
 

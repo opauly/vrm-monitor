@@ -30,6 +30,14 @@ const ICON_PROPS = {
 // the 13 selectable ones for a complete picture of what a report contains,
 // so they get matching icon treatment too (2026-08-29 live-test feedback).
 export const FIXED_MODULE_ICONS: Record<string, ReactElement> = {
+  // Equipment status — a battery, an inverter and a charger, as one device outline with a check.
+  equipment: (
+    <svg {...ICON_PROPS}>
+      <rect x="3.5" y="6.5" width="17" height="11" rx="2" />
+      <path d="M7.5 10.5 v3 M11 9.5 v5 M14.5 11 v2" />
+      <path d="M9 3.5 h6 M9 20.5 h6" />
+    </svg>
+  ),
   kpi: (
     <svg {...ICON_PROPS}>
       <path d="M4 20 V13 M9.3 20 V9 M14.7 20 V15.5 M20 20 V6" />

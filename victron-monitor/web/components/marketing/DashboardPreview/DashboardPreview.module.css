@@ -153,3 +153,68 @@
     display: none;
   }
 }
+
+/* The newer dashboard blocks, sketched: the daily AI summary above the site list, and the
+   equipment line under it (one device needing attention). */
+.aiSummary {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: var(--ink-2);
+  border-left: 2px solid var(--victron-glow);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+.aiSummary p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--paper);
+}
+.aiLabel {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--victron-glow);
+}
+.aiLabel i {
+  margin-left: 4px;
+  padding: 1px 6px;
+  font-style: normal;
+  border: 1px solid var(--victron-glow);
+  border-radius: 999px;
+  font-size: 9.5px;
+}
+.equipment {
+  margin-top: 14px;
+}
+.equipRow {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 10px 12px;
+  background: var(--ink-2);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+}
+.dotBad {
+  background: var(--low);
+}
+.equipName {
+  font-weight: 600;
+  color: var(--paper);
+}
+.equipNote {
+  flex: 1 1 200px;
+  color: var(--paper-dim);
+}
+.equipBadge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(var(--low-rgb), 0.18);
+  color: #e8827a;
+}

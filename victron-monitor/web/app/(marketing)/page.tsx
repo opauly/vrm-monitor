@@ -21,9 +21,9 @@ import { SITE_URL } from '@/lib/site';
 // template — the home page's title already reads as a full sentence, not a
 // page name that wants "VRM Monitor" appended a second time.
 export const metadata: Metadata = {
-  title: { absolute: 'VRM Monitor — Live dashboard + weekly reports for your Victron system' },
+  title: { absolute: 'VRM Monitor — Live dashboard, alerts and reports for your Victron system' },
   description:
-    'Watch your Victron system live, and get a branded, AI-narrated report every week — for your own home, or every customer on an installer fleet.',
+    'Watch your Victron system live, get alerted when something needs attention, and receive a branded, AI-narrated report daily, weekly or monthly — for your own home, or every customer on an installer fleet.',
   // Explicit now that `metadataBase` (app/layout.tsx) resolves it to a
   // real absolute URL — matters once the real domain and the Vercel
   // preview URL both serve this same deployment, so search engines
@@ -36,9 +36,9 @@ export const metadata: Metadata = {
   // matches neither tag explicitly.
   alternates: { canonical: '/', languages: { 'en-US': '/', 'es-CR': '/es', 'x-default': '/' } },
   openGraph: {
-    title: 'VRM Monitor — Live dashboard + weekly reports for your Victron system',
+    title: 'VRM Monitor — Live dashboard, alerts and reports for your Victron system',
     description:
-      'Watch your Victron system live, and get a branded, AI-narrated report every week — for your own home, or every customer on an installer fleet.',
+      'Watch your Victron system live, get alerted when something needs attention, and receive a branded, AI-narrated report daily, weekly or monthly — for your own home, or every customer on an installer fleet.',
     images: [{ url: '/sample_report.png', width: 1819, height: 2573, alt: 'A sample VRM Monitor weekly report' }],
   },
 };
@@ -73,15 +73,15 @@ const SOFTWARE_JSON_LD = {
   operatingSystem: 'Web',
   url: SITE_URL,
   description:
-    'A live dashboard and weekly AI-narrated PDF report for any Victron Energy solar or hybrid system, built by Pauly & Co., a Victron Recommended Software Integrator.',
+    'A live dashboard, email and phone alerts, and a daily, weekly or monthly AI-narrated PDF report for any Victron Energy solar or hybrid system, built by Pauly & Co., a Victron Recommended Software Integrator.',
   provider: {
     '@type': 'Organization',
     name: 'Pauly & Co.',
     url: 'https://paulyco.com',
   },
   offers: [
-    { '@type': 'Offer', name: 'Starter', price: '29.99', priceCurrency: 'USD', description: 'Up to 10 sites, automatic weekly & overview reports.' },
-    { '@type': 'Offer', name: 'Growth', price: '99.99', priceCurrency: 'USD', description: 'Up to 50 sites, adds the live dashboard and AI Insights.' },
+    { '@type': 'Offer', name: 'Starter', price: '29.99', priceCurrency: 'USD', description: 'Up to 10 sites, automatic daily, weekly & overview reports.' },
+    { '@type': 'Offer', name: 'Growth', price: '99.99', priceCurrency: 'USD', description: 'Up to 50 sites, adds the live dashboard, alerts and AI Insights.' },
   ],
 };
 
