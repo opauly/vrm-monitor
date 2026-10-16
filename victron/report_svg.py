@@ -807,10 +807,12 @@ def two_block_row_svg(left_title: str, left_rows: list[dict], left_sub: str,
     first = max(info_block_first_row_y(left_sub), info_block_first_row_y(right_sub))
     lh = first + (len(left_rows) - 1) * ROW_H + 16
     rh = first + (len(right_rows) - 1) * ROW_H + 16
+    # Both blocks are drawn as tall as the taller one: a side-by-side pair reads as one row of equal cards,
+    # not two boxes ending at different heights.
     h = max(lh, rh)
-    c = (info_block_svg(0, 0, BG_GREY, left_title, left_rows, lh, left_sub,
+    c = (info_block_svg(0, 0, BG_GREY, left_title, left_rows, h, left_sub,
                         first_row_y=first, row_size=row_size)
-         + info_block_svg(IW + GAP, 0, right_bg, right_title, right_rows, rh,
+         + info_block_svg(IW + GAP, 0, right_bg, right_title, right_rows, h,
                           right_sub, first_row_y=first, row_size=row_size))
     return _svg(c, PW, h)
 

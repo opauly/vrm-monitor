@@ -17,7 +17,7 @@ def test_equipment_block_is_a_summary_plus_a_row_for_each_device_that_is_not_fin
         dev("inverter:274", "inverter", "ok", bad={"2026-10-12": 9}),       # recovered, but was flagged inside the period
     ]))
     assert [(r["label"], r["value"]) for r in rows] == [
-        ("Devices working", "3 / 4"), ("Solar charger 2", "Needs attention · 2 day(s)"), ("Inverter", "Working · 1 day(s)")]
+        ("Devices working", "3 / 4"), ("Solar charger 2", "Needs attention · 2 days"), ("Inverter", "Working · 1 day")]
 
 
 def test_a_healthy_site_costs_one_row_and_one_without_devices_none():

@@ -89,6 +89,34 @@ def _min_max_nonzero(series: pd.Series) -> tuple[float | None, float | None]:
     return float(s.min()), float(s.max())
 
 
+DROPOUT_FREQ_RATIO = 0.95      # a 15-min average under 95% of nominal frequency is a bucket the grid was partly absent for
+
+
+def split_grid_dropouts(freq: pd.Series) -> tuple[pd.Series, float]:
+    """`(mask, minutes)`: which samples are PARTLY-absent-grid averages, and roughly how long the grid was gone.
+
+    VRM hands us 15-minute averages. If the grid disappears for ~90 seconds inside one of them, the average
+    frequency reads ~54 Hz and both voltages ~108 V: all three about 90% of normal, because 10% of the bucket
+    was zero. Nothing on a real grid does that (it is the average of a dropout, not a measurement), but taken
+    at face value it makes the day's frequency and voltage ranges look terrible. Such samples are left out of
+    those ranges and reported as a brief interruption instead. Nominal frequency is the day's own median, so
+    50 Hz grids work too. Needs at least a few samples to judge against."""
+    f = pd.to_numeric(freq, errors="coerce")
+    live = f[f > 0].dropna()
+    empty = pd.Series(False, index=freq.index)
+    if len(live) < 4:
+        return empty, 0.0
+    nominal = float(live.median())
+    mask = f.notna() & (f > 0) & (f < DROPOUT_FREQ_RATIO * nominal)
+    if not mask.any():
+        return empty, 0.0
+    spacing = pd.Series(f.index).diff().dropna()
+    bucket_min = float(spacing.median().total_seconds() / 60) if len(spacing) else 15.0
+    bucket_min = min(max(bucket_min, 1.0), 60.0)
+    minutes = float(((1 - f[mask] / nominal) * bucket_min).sum())
+    return mask, minutes
+
+
 def _grid_outages(tidied: pd.DataFrame, max_gap_s: int) -> pd.DataFrame:
     """Grid outages from AC-input voltage absence.
 
@@ -337,9 +365,11 @@ def to_energy_daily_rows(tidied: pd.DataFrame, site_id: str, *, max_gap_s: int,
         temp = pd.to_numeric(g["batt_temp_c"], errors="coerce").dropna()
         temp = temp[(temp >= _PLAUSIBLE_BATT_TEMP_C[0]) & (temp <= _PLAUSIBLE_BATT_TEMP_C[1])]
 
-        min_v_l1, max_v_l1 = _min_max_nonzero(g["grid_v_l1"])
-        min_v_l2, max_v_l2 = _min_max_nonzero(g["grid_v_l2"])
-        min_hz, max_hz = _min_max_nonzero(g["grid_freq"])
+        dropout_mask, dropout_minutes = split_grid_dropouts(g["grid_freq"])
+        keep = ~dropout_mask.reindex(g.index, fill_value=False)
+        min_v_l1, max_v_l1 = _min_max_nonzero(g["grid_v_l1"][keep])
+        min_v_l2, max_v_l2 = _min_max_nonzero(g["grid_v_l2"][keep])
+        min_hz, max_hz = _min_max_nonzero(g["grid_freq"][keep])
 
         # Per-charger daily yield: each charger's own "Yield today" counter,
         # taken at its maximum for the day (it resets at midnight).
@@ -452,6 +482,8 @@ def to_energy_daily_rows(tidied: pd.DataFrame, site_id: str, *, max_gap_s: int,
             "max_temperature": round(float(temp.max()), 1) if not temp.empty else None,
             "avg_temperature": round(float(temp.mean()), 1) if not temp.empty else None,
 
+            # Approximate minutes the grid was gone inside buckets too short to count as an outage; 0.0 = none.
+            "grid_dropout_minutes": round(dropout_minutes, 1),
             "min_grid_freq": round(min_hz, 2) if min_hz is not None else None,
             "max_grid_freq": round(max_hz, 2) if max_hz is not None else None,
             "min_grid_v_l1": round(min_v_l1, 1) if min_v_l1 is not None else None,

@@ -50,3 +50,13 @@ def test_a_single_day_says_whether_it_reached_full_charge_instead_of_0_of_1_days
     assert wr._full_charge_row(d)["value"] == "Yes" and wr._grid_data_rows(d) == []
     week = {"t": report_i18n.get("en", 7), "dailyGrouped": [1] * 7, "totals": {"daysFullCharge": 5, "daysNoGridData": 1}}
     assert wr._full_charge_row(week)["value"] == "5 / 7 days" and wr._grid_data_rows(week)[0]["value"] == "6 / 7"
+
+
+def test_a_side_by_side_pair_of_blocks_is_drawn_at_one_height():
+    import re
+    from victron import report_svg as S
+    short = [{"label": "a", "value": "1"}, {"label": "b", "value": "2"}]
+    tall = short + [{"label": "c", "value": "3"}, {"label": "d", "value": "4"}]
+    svg = S.two_block_row_svg("Left", tall, "sub", "Right", short, "sub")
+    heights = {float(h) for h in re.findall(r"<rect[^>]*height='([\d.]+)'[^>]*rx='8'", svg)}
+    assert len(heights) == 1, heights

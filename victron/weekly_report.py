@@ -342,6 +342,13 @@ def generate_narrative(stats: dict, lang: str) -> str:
     if not is_off_grid:
         prompt += (f"\n- Grid quality: {stats['gridQualityScore']}/100 "
                    f"({stats['gridQualityStatus']})")
+        if stats.get("briefDropoutMinutes"):
+            prompt += (f"\n- Brief grid interruptions: about {stats['briefDropoutMinutes']} minutes in total, each too short to "
+                       "count as an outage and not included in the grid quality score — mention them as short interruptions, "
+                       "not as outages.")
+    if stats.get("equipment"):
+        prompt += ("\n- Equipment findings (these lowered the health score; say what was wrong and whether it is resolved, "
+                   "using only these facts):\n  " + "\n  ".join(stats["equipment"]))
 
     try:
         import anthropic
@@ -367,6 +374,59 @@ def _minmax(rows: list[dict], key: str) -> tuple[float | None, float | None]:
     vals = [_num(r[key], None) for r in rows if r.get(key) is not None]
     vals = [v for v in vals if v is not None]
     return (min(vals), max(vals)) if vals else (None, None)
+
+
+_LEGACY_DROPOUT_RATIO = 0.95
+
+
+def _grid_ranges_source(days: list[dict]) -> tuple[list[dict], float]:
+    """Day rows to take the grid frequency/voltage ranges from, and the minutes of brief grid interruptions.
+
+    New rows already leave partly-absent-grid buckets out (`victron.vrm_daily.split_grid_dropouts`) and carry
+    `grid_dropout_minutes`. Rows ingested before that can still hold the artifact — a "minimum frequency" far under
+    the same day's maximum (54 Hz next to 60 Hz) — so for those the day's frequency and voltage minimums are
+    ignored and the minutes estimated from the dip."""
+    rows, minutes = [], 0.0
+    for r in days:
+        stored = r.get("grid_dropout_minutes")
+        lo, hi = r.get("min_grid_freq"), r.get("max_grid_freq")
+        artifact = stored is None and lo is not None and hi and lo < _LEGACY_DROPOUT_RATIO * hi
+        if artifact:
+            rows.append({**r, "min_grid_freq": None, "min_grid_v_l1": None, "min_grid_v_l2": None})
+            minutes += (1 - lo / hi) * 15
+        else:
+            rows.append(r)
+            minutes += _num(stored)
+    return rows, minutes
+
+
+_EQUIPMENT_PHRASES = {
+    "modules_offline": "battery modules offline", "battery_failure": "an internal battery failure", "blocking": "a battery module blocking charge or discharge",
+    "charger_error": "a solar charger error", "no_output": "a solar charger producing almost nothing while its siblings produced", "low_output": "a solar charger far below its usual output",
+    "not_reporting": "a device that stopped reporting", "missing": "a device missing from the system's data", "units_missing": "inverter units not responding",
+    "inverter_error": "an inverter error", "inverter_warning": "an inverter warning",
+}
+
+
+def _equipment_findings(devices: list[dict], start: str | None, end: str | None) -> list[str]:
+    """Plain English lines for the AI paragraph: devices flagged during the period (bad in 4+ sweeps on a day, the
+    health score's own rule) or not fine right now."""
+    names = {"charger": "Solar charger", "battery": "Battery", "inverter": "Inverter"}
+    out = []
+    for dev in devices:
+        m = dev.get("metrics") or {}
+        days = sum(1 for day, n in ((dev.get("state") or {}).get("bad_sweeps") or {}).items()
+                   if start and end and start <= day <= end and int(n) >= 4)
+        status = dev.get("status") or "ok"
+        if not days and status == "ok":
+            continue
+        name = names.get(dev.get("kind"), "Device")
+        if dev.get("kind") == "charger" and (m.get("of") or 1) > 1:
+            name += f" {m.get('n')}"
+        now = ("working again" if status == "ok" else
+               _EQUIPMENT_PHRASES.get((dev.get("note") or {}).get("code"), "needs attention") if status == "bad" else "worth a check")
+        out.append(f"{name}: flagged on {days} day(s) of this period; right now {now}" if days else f"{name}: right now {now}")
+    return out
 
 
 def build_report_data(site_id: str, start: str | date, end: str | date, schema: str,
@@ -466,12 +526,13 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
     avg_temp_vals = [_num(r.get("avg_temperature"), None) for r in days]
     avg_temp_vals = [v for v in avg_temp_vals if v is not None]
     avg_temp = round(sum(avg_temp_vals) / len(avg_temp_vals), 1) if avg_temp_vals else None
-    min_f, _ = _minmax(days, "min_grid_freq")
-    _, max_f = _minmax(days, "max_grid_freq")
-    min_l1, _ = _minmax(days, "min_grid_v_l1")
-    _, max_l1 = _minmax(days, "max_grid_v_l1")
-    min_l2, _ = _minmax(days, "min_grid_v_l2")
-    _, max_l2 = _minmax(days, "max_grid_v_l2")
+    grid_days, brief_dropout_minutes = _grid_ranges_source(days)
+    min_f, _ = _minmax(grid_days, "min_grid_freq")
+    _, max_f = _minmax(grid_days, "max_grid_freq")
+    min_l1, _ = _minmax(grid_days, "min_grid_v_l1")
+    _, max_l1 = _minmax(grid_days, "max_grid_v_l1")
+    min_l2, _ = _minmax(grid_days, "min_grid_v_l2")
+    _, max_l2 = _minmax(grid_days, "max_grid_v_l2")
 
     # ── PLAN_PHASE18.md §7 items 4a-c, 9 — Phase 2 hardware-conditional /
     # critical-alert data. Every one of these reads `None`/0/empty exactly
@@ -763,6 +824,8 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
                               if site.get("exports_to_grid") else None),
             "gridExportPct": (round(totals["gridExport"] / totals["pv"] * 100)
                               if site.get("exports_to_grid") and totals["pv"] else 0),
+            "briefDropoutMinutes": round(brief_dropout_minutes) if system_type != "off_grid" else 0,
+            "equipment": _equipment_findings(window.get("devices") or [], window["period_start"], window["period_end"]),
             "isOverview": window["is_overview"],
             "bucketTrendLines": (_bucket_trend_lines(overview_buckets, overview_trend)
                                  if window["is_overview"] else ""),
@@ -826,6 +889,7 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
         # Equipment block: vrm.site_devices rows (vrm schema only) and the window they are read against.
         "devices": window.get("devices") or [],
         "isDaily": len(days) == 1 and not window["is_overview"],
+        "briefDropoutMinutes": brief_dropout_minutes,
         "periodStartIso": str(window["period_start"]),
         "periodEndIso": str(window["period_end"]),
         # PLAN_PHASE17.md §4 — see this function's own docstring. `None`
@@ -854,7 +918,7 @@ def _full_charge_row(d: dict) -> dict:
     t, n, full = d["t"], len(d["dailyGrouped"]), d["totals"]["daysFullCharge"]
     if d.get("isDaily"):
         return {"label": t["fullChargeToday"], "value": t["yes"] if full else t["no"], "valueColor": S.GREEN if full else S.AMBER}
-    return {"label": t["daysFullCharge"], "value": f"{full} / {n} {t['days']}", "valueColor": S.GREEN}
+    return {"label": t["daysFullCharge"], "value": f"{full} / {n} {t['daySingular'] if n == 1 else t['days']}", "valueColor": S.GREEN}
 
 
 def _grid_data_rows(d: dict) -> list[dict]:
@@ -916,6 +980,8 @@ def _rows(d: dict) -> tuple[list, list, list, list, list]:
                       else f"{oc} ({d['totals']['outageMinutes']} min)"),
             "valueColor": S.AMBER if oc > 0 else "#222",
         })
+    if d["systemType"] != "off_grid" and d.get("briefDropoutMinutes", 0) >= 1:
+        events.append({"label": t["briefDropouts"], "value": f"~{round(d['briefDropoutMinutes'])} min", "valueColor": S.AMBER})
     events.append({"label": t["alarmEpisodes"], "value": str(d["alarmEpisodesTotal"])})
     # Per-category breakdown (report bug fix, 2026-08-19) — categories with
     # zero episodes are omitted rather than shown as "Batería baja: 0",
@@ -974,7 +1040,7 @@ def _rows(d: dict) -> tuple[list, list, list, list, list]:
     w = d["weather"]
     weather = ([
         {"label": t["weatherSunshine"], "value": f"{w['avgSunshineHrs']} hrs/day"},
-        {"label": t["weatherRainDays"], "value": f"{w['rainyDays']} days (>5mm)"},
+        {"label": t["weatherRainDays"], "value": t["rainDaysOne" if w["rainyDays"] == 1 else "rainDaysMany"].format(n=w["rainyDays"])},
         {"label": t["weatherCloudCover"], "value": f"{w['avgCloudPct']}%"},
     ] if w else [{"label": t["weatherUnavailable"], "value": ""}])
     return batt, grid, events, perf, weather
@@ -1019,7 +1085,7 @@ def _equipment_rows(d: dict) -> list[dict]:
         else:
             name = t["deviceBattery"] if dev.get("kind") == "battery" else t["deviceInverter"]
         label = {"ok": t["equipmentOk"], "warn": t["equipmentWarn"], "bad": t["equipmentBad"]}[status]
-        rows.append({"label": name, "value": f"{label} · {t['equipmentDays'].format(n=days)}" if days else label,
+        rows.append({"label": name, "value": f"{label} · {t['equipmentDayOne' if days == 1 else 'equipmentDayMany'].format(n=days)}" if days else label,
                      "valueColor": colour[status]})
     return rows
 
