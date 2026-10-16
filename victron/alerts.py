@@ -17,6 +17,8 @@ Six alert kinds (first notification set 2026-10-05, device_fault 2026-10-15):
   vrm_link_broken the customer's VRM token stopped working (customer-level)
   device_fault    a battery, inverter or solar charger is "bad" in vrm.site_devices
                   (rules in victron/devices.py); one alert per site, listing them
+  generator_use   off-grid sites only: the AC input is live, i.e. a generator (or shore power) is
+                  supplying the system. Off unless switched on.
 
 A rule returns a `Condition` with `active=True` (raise / keep it open),
 `active=False` (it is definitely fine now — resolve an open alert), or
@@ -39,7 +41,12 @@ LOW_BATTERY = "low_battery"
 SYSTEM_ALARM = "system_alarm"
 VRM_LINK_BROKEN = "vrm_link_broken"
 DEVICE_FAULT = "device_fault"
-KINDS = (SITE_OFFLINE, GRID_OUTAGE, LOW_BATTERY, SYSTEM_ALARM, VRM_LINK_BROKEN, DEVICE_FAULT)
+GENERATOR_USE = "generator_use"
+KINDS = (SITE_OFFLINE, GRID_OUTAGE, LOW_BATTERY, SYSTEM_ALARM, VRM_LINK_BROKEN, DEVICE_FAULT, GENERATOR_USE)
+
+# Alert kinds that are OFF until a customer switches them on (no stored preference = off). A generator running is
+# often exactly what the owner planned, so it informs only those who ask.
+DEFAULT_OFF_KINDS = (GENERATOR_USE,)
 
 WARNING = "warning"
 CRITICAL = "critical"
@@ -67,6 +74,11 @@ LOW_BATTERY_RESOLVE_PCT = 25.0
 # clearly restored. In between, an open alert stays open.
 GRID_V_OPEN = 60.0
 GRID_V_RESOLVE = 100.0
+
+# Generator on an off-grid site: AC input voltage present (a 15-min average of a generator that just started is
+# lower than its steady ~118 V, hence the lower open level), cleared once it has clearly gone.
+GENERATOR_V_OPEN = 80.0
+GENERATOR_V_RESOLVE = 60.0
 
 # A site only counts as "grid-connected" for outage purposes if it actually
 # imported from the grid in the last few days — an off-grid or genset-only
@@ -215,6 +227,14 @@ def evaluate_site(
     elif not soft_now:
         out.append(cond(SYSTEM_ALARM, False))
     # else: an unconfirmed first sighting of a debounced alarm — unknown.
+
+    # ── generator (off-grid sites: nothing but a generator ever feeds the AC input) ─────
+    if site.get("system_type") == "off_grid" and grid_v is not None:
+        limit = GENERATOR_V_RESOLVE if GENERATOR_USE in open_kinds else GENERATOR_V_OPEN
+        if grid_v >= limit:
+            out.append(cond(GENERATOR_USE, True, WARNING, soc_pct=None if soc is None else round(soc, 1), ac_input_v=round(grid_v)))
+        else:
+            out.append(cond(GENERATOR_USE, False))
 
     # ── devices ───────────────────────────────────────────────────────────
     if devices:

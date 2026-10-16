@@ -51,6 +51,9 @@ OBS = {
         "outage_held": "The grid was out for {minutes} minutes and the battery kept the loads running (lowest charge {min_soc}%).",
         "outage_deep": "The grid was out for {minutes} minutes and the battery went down to {min_soc}%.",
         "battery_low": "The battery dropped to {min_soc}% at its lowest.",
+        "generator_used": "The batteries were topped up from the generator: {kwh} kWh over about {hours} hours.",
+        "generator_used_kwh": "The batteries were topped up from the generator: {kwh} kWh.",
+        "generator_reliance": "The generator was needed on {days} of the last {window} days.",
         "at_reserve": "The battery rested at {min_soc}%, the minimum charge the system is set to keep — the grid covered the rest.",
         "solar_below": "Solar made {pv} kWh, well below the recent average of {average} kWh.",
         "solar_above": "Solar made {pv} kWh, above the recent average of {average} kWh.",
@@ -87,6 +90,9 @@ OBS = {
         "outage_held": "La red estuvo caída {minutes} minutos y la batería mantuvo las cargas funcionando (carga mínima {min_soc}%).",
         "outage_deep": "La red estuvo caída {minutes} minutos y la batería bajó hasta {min_soc}%.",
         "battery_low": "La batería bajó hasta {min_soc}% en su punto más bajo.",
+        "generator_used": "Las baterías se recargaron con el generador: {kwh} kWh durante unas {hours} horas.",
+        "generator_used_kwh": "Las baterías se recargaron con el generador: {kwh} kWh.",
+        "generator_reliance": "Se necesitó el generador en {days} de los últimos {window} días.",
         "at_reserve": "La batería se mantuvo en {min_soc}%, la carga mínima que el sistema está configurado para conservar; la red cubrió el resto.",
         "solar_below": "La energía solar fue de {pv} kWh, bastante por debajo del promedio reciente de {average} kWh.",
         "solar_above": "La energía solar fue de {pv} kWh, por encima del promedio reciente de {average} kWh.",
@@ -120,6 +126,7 @@ SUGGEST = {
         "solar_below": "If this keeps up, check the panels for dirt or shade.",
         "import_high": "Running heavy loads around midday uses more of your own solar.",
         "battery_low": "Keeping the battery topped up ahead of an outage gives you more backup time.",
+        "generator_reliance": "Frequent generator top-ups usually mean the solar and batteries cannot cover the load — worth checking the panels, the battery health and the heaviest loads.",
         "outage_deep": "Keeping the battery topped up ahead of an outage gives you more backup time.",
         "load_above": "Check whether something is running that normally isn't.",
         "no_float": "A sunny stretch usually tops the battery up; if it keeps happening, a technician check is worth it.",
@@ -136,6 +143,7 @@ SUGGEST = {
         "solar_below": "Si esto continúa, revisa si los paneles tienen suciedad o sombra.",
         "import_high": "Usar las cargas pesadas alrededor del mediodía aprovecha más tu propia energía solar.",
         "battery_low": "Mantener la batería cargada antes de un corte te da más tiempo de respaldo.",
+        "generator_reliance": "Las recargas frecuentes con generador suelen indicar que la energía solar y las baterías no alcanzan para la carga — conviene revisar los paneles, la salud de la batería y las cargas más grandes.",
         "outage_deep": "Mantener la batería cargada antes de un corte te da más tiempo de respaldo.",
         "load_above": "Revisa si hay algo encendido que normalmente no lo está.",
         "no_float": "Un periodo soleado suele completar la carga; si sigue pasando, vale la pena una revisión técnica.",
@@ -154,11 +162,11 @@ HEAD = {
 # Short reason labels for the fleet's "needs attention" lines.
 SHORT = {
     "en": {"offline": "stopped reporting", "offline_days": "stopped reporting", "storm_ahead": "storm forecast", "tonight_short": "battery may not last the night", "alert_grid_outage": "grid out", "alert_low_battery": "low battery", "alert_system_alarm": "alarm", "alert_device_fault": "equipment problem", "device_fault": "equipment fault",
-           "alert_vrm_link_broken": "VRM disconnected", "outage_deep": "battery ran low in an outage", "battery_low": "low battery",
+           "alert_vrm_link_broken": "VRM disconnected", "outage_deep": "battery ran low in an outage", "battery_low": "low battery", "generator_reliance": "frequent generator use",
            "solar_below": "solar well below normal", "import_high": "mostly on grid power", "anomaly_unexpected_silence": "no solar output",
            "anomaly_quiet_drift": "solar drifting down", "anomaly_underperformance": "solar underperforming", "anomaly_incomplete_charging": "battery not filling"},
     "es": {"offline": "dejó de reportar", "offline_days": "dejó de reportar", "storm_ahead": "tormenta pronosticada", "tonight_short": "la batería podría no durar la noche", "alert_grid_outage": "red caída", "alert_low_battery": "batería baja", "alert_system_alarm": "alarma", "alert_device_fault": "problema de equipo", "device_fault": "falla de equipo",
-           "alert_vrm_link_broken": "VRM desconectado", "outage_deep": "batería baja en un corte", "battery_low": "batería baja",
+           "alert_vrm_link_broken": "VRM desconectado", "outage_deep": "batería baja en un corte", "battery_low": "batería baja", "generator_reliance": "uso frecuente del generador",
            "solar_below": "solar muy por debajo de lo normal", "import_high": "casi todo con energía de la red", "anomaly_unexpected_silence": "sin producción solar",
            "anomaly_quiet_drift": "solar bajando", "anomaly_underperformance": "solar con bajo rendimiento", "anomaly_incomplete_charging": "batería sin llenarse"},
 }
@@ -184,6 +192,8 @@ def _obs_text(obs_text: dict, o: dict, lang: str = "en") -> str | None:
     if code == "alert_device_fault" and o["params"].get("equipment"):
         # Name the equipment ("Solar charger 2 made almost nothing ...") rather than a generic line.
         return devices.describe_devices(email_i18n.get(lang), o["params"]["equipment"])
+    if code == "generator_used" and not o["params"].get("hours"):
+        code = "generator_used_kwh"        # the running time is not recorded for every day
     if o["params"].get("count") == 1 and f"{code}_one" in obs_text:
         code = f"{code}_one"
     return _fill(obs_text[code], o["params"]) if code in obs_text else None

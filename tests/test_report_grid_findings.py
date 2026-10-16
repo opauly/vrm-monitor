@@ -86,3 +86,11 @@ def test_one_day_reads_as_a_singular_in_both_languages():
         t = report_i18n.get(lang)
         assert t["rainDaysOne"].format(n=1) == one and t["rainDaysMany"].format(n=2) == many
         assert t["equipmentDayOne"].format(n=1).endswith(("day", "día")) and t["equipmentDayMany"].format(n=3).endswith(("days", "días"))
+
+
+def test_generator_running_time_is_the_share_of_buckets_the_ac_input_was_live():
+    # an hour and a half: two full buckets, one 40%, then nothing
+    v = freq_series([0, 0, 118, 118, 118, 118, 118, 118, 47, 0], start="2026-10-08 21:00")
+    assert 86 < vrm_daily.ac_input_minutes(v) < 100            # ~6 full buckets (90 min) + 0.4 of one
+    assert vrm_daily.ac_input_minutes(freq_series([0, 0, 0, 0])) == 0.0
+    assert vrm_daily.ac_input_minutes(freq_series([5, 8, 0, 3])) == 0.0   # noise on a dead input is not a generator

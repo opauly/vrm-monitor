@@ -346,6 +346,11 @@ def generate_narrative(stats: dict, lang: str) -> str:
             prompt += (f"\n- Brief grid interruptions: about {stats['briefDropoutMinutes']} minutes in total, each too short to "
                        "count as an outage and not included in the grid quality score — mention them as short interruptions, "
                        "not as outages.")
+    if stats.get("generator"):
+        g = stats["generator"]
+        prompt += (f"\n- Generator: this off-grid site charged its batteries from a generator on {g['days']} day(s) of this period"
+                   + (f", about {g['hours']} hours" if g.get("hours") else "") + f", {g['kwh']} kWh in total. Say so plainly (it is the only thing "
+                   "ever connected to the AC input here) and do not call it grid power.")
     if stats.get("equipment"):
         prompt += ("\n- Equipment findings (these lowered the health score; say what was wrong and whether it is resolved, "
                    "using only these facts):\n  " + "\n  ".join(stats["equipment"]))
@@ -377,6 +382,21 @@ def _minmax(rows: list[dict], key: str) -> tuple[float | None, float | None]:
 
 
 _LEGACY_DROPOUT_RATIO = 0.95
+_GENERATOR_MIN_KWH = 0.5      # AC-input energy in a day that counts as "the generator ran" on an off-grid site
+
+
+def _generator_use_value(d: dict) -> str | None:
+    """"2 days · ~3.0 h · 9.6 kWh" for an off-grid site's period, or None when it never ran."""
+    tot, t = d["totals"], d["t"]
+    if d["systemType"] != "off_grid" or tot.get("generatorDays", 0) == 0:
+        return None
+    parts = []
+    if tot["generatorDays"] > 1:
+        parts.append(f"{tot['generatorDays']} {t['days']}")
+    if tot.get("acInMinutes", 0) >= 1:
+        parts.append(f"~{tot['acInMinutes'] / 60:.1f} h")
+    parts.append(f"{tot['grid']:.1f} {t['kwh']}")
+    return " · ".join(parts)
 
 
 def _grid_ranges_source(days: list[dict]) -> tuple[list[dict], float]:
@@ -497,6 +517,8 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
         "discharge": sum(_num(r.get("battery_discharge_kwh")) for r in days),
         "outageCount": sum(int(_num(r.get("outage_count"))) for r in days),
         "outageMinutes": round(sum(_num(r.get("outage_minutes")) for r in days), 1),
+        "acInMinutes": sum(_num(r.get("ac_in_minutes")) for r in days),
+        "generatorDays": sum(1 for r in days if _num(r.get("grid_kwh")) >= _GENERATOR_MIN_KWH),
         "daysFullCharge": sum(1 for r in days if r.get("battery_reached_float")),
         "daysNoGridData": sum(1 for r in days if not r.get("grid_data_available")),
         "daysSelfSufficient": sum(1 for r in days if _num(r.get("grid_kwh")) <= 0),
@@ -825,6 +847,8 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
             "gridExportPct": (round(totals["gridExport"] / totals["pv"] * 100)
                               if site.get("exports_to_grid") and totals["pv"] else 0),
             "briefDropoutMinutes": round(brief_dropout_minutes) if system_type != "off_grid" else 0,
+            "generator": ({"days": totals["generatorDays"], "hours": round(totals["acInMinutes"] / 60, 1) if totals["acInMinutes"] >= 1 else None,
+                           "kwh": round(totals["grid"], 1)} if system_type == "off_grid" and totals["generatorDays"] else None),
             "equipment": _equipment_findings(window.get("devices") or [], window["period_start"], window["period_end"]),
             "isOverview": window["is_overview"],
             "bucketTrendLines": (_bucket_trend_lines(overview_buckets, overview_trend)
@@ -980,6 +1004,9 @@ def _rows(d: dict) -> tuple[list, list, list, list, list]:
                       else f"{oc} ({d['totals']['outageMinutes']} min)"),
             "valueColor": S.AMBER if oc > 0 else "#222",
         })
+    generator_value = _generator_use_value(d)
+    if generator_value:
+        events.append({"label": t["generatorUse"], "value": generator_value, "valueColor": S.AMBER})
     if d["systemType"] != "off_grid" and d.get("briefDropoutMinutes", 0) >= 1:
         events.append({"label": t["briefDropouts"], "value": f"~{round(d['briefDropoutMinutes'])} min", "valueColor": S.AMBER})
     events.append({"label": t["alarmEpisodes"], "value": str(d["alarmEpisodesTotal"])})

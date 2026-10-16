@@ -361,7 +361,7 @@ export type AppSettingRecord = {
 // vrm.alerts / vrm.alert_preferences (victron-monitor/sql/vrm_alerts.sql,
 // vrm_alert_preferences.sql) — written by the Python refresh sweep
 // (`vrm_api/alerts_service.py`), read here for `/app/alerts`.
-export type AlertKind = 'site_offline' | 'grid_outage' | 'low_battery' | 'system_alarm' | 'vrm_link_broken' | 'device_fault';
+export type AlertKind = 'site_offline' | 'grid_outage' | 'low_battery' | 'system_alarm' | 'vrm_link_broken' | 'device_fault' | 'generator_use';
 export type AlertSeverity = 'warning' | 'critical';
 
 export type AlertRecord = {

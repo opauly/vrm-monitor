@@ -220,11 +220,13 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
         <div className={styles.kpi}>
           <div className={styles.kpiLabel}>
             <span className={styles.swatch} style={{ background: 'var(--mute)' }} />
-            Grid
+            {t(lang, site.system_type === 'off_grid' ? 'admin_fleetsite_kpi_generator' : 'admin_fleetsite_kpi_grid')}
           </div>
           <div className={styles.kpiValue}>{site.has_grid_meter ? formatWatts(site.live_grid_power_w) : '—'}</div>
           {site.live_grid_source === 'inverter' && (
-            <div className={styles.kpiDelta}>Via inverter (no dedicated meter)</div>
+            <div className={styles.kpiDelta}>
+              {site.system_type === 'off_grid' ? t(lang, 'admin_fleetsite_generator_note') : 'Via inverter (no dedicated meter)'}
+            </div>
           )}
           {site.live_grid_source === null && <div className={styles.kpiDelta}>No grid reading available</div>}
         </div>

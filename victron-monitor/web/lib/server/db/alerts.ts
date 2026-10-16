@@ -12,7 +12,10 @@ import 'server-only';
 import { getSupabaseAdmin } from '@/lib/server/supabase';
 import type { AlertKind, AlertPreference, AlertRecord, AlertWithSite } from './types';
 
-export const ALERT_KINDS: readonly AlertKind[] = ['site_offline', 'grid_outage', 'low_battery', 'system_alarm', 'vrm_link_broken', 'device_fault'];
+export const ALERT_KINDS: readonly AlertKind[] = ['site_offline', 'grid_outage', 'low_battery', 'system_alarm', 'vrm_link_broken', 'device_fault', 'generator_use'];
+
+/** Alert kinds that are off until the customer switches them on (matches `DEFAULT_OFF_KINDS` in victron/alerts.py). */
+const DEFAULT_OFF_KINDS: readonly AlertKind[] = ['generator_use'];
 
 const DEFAULT_PREFERENCE: AlertPreference = { enabled: true, email: true, push: true };
 
@@ -95,9 +98,11 @@ export async function countOpenAlerts(customerId: string): Promise<number> {
   }
 }
 
-/** One entry per kind; kinds with no saved row get the defaults (everything on). */
+/** One entry per kind; kinds with no saved row get the defaults (everything on, except the kinds that start off). */
 export async function getAlertPreferences(customerId: string): Promise<Record<AlertKind, AlertPreference>> {
-  const result = Object.fromEntries(ALERT_KINDS.map((k) => [k, { ...DEFAULT_PREFERENCE }])) as Record<AlertKind, AlertPreference>;
+  const result = Object.fromEntries(
+    ALERT_KINDS.map((k) => [k, { ...DEFAULT_PREFERENCE, enabled: !DEFAULT_OFF_KINDS.includes(k) }]),
+  ) as Record<AlertKind, AlertPreference>;
   // `push` came with the phone-notification migration; if only the earlier one
   // has run, the column is missing and the read falls back to the columns that
   // exist — the saved enabled/email choices must still show.

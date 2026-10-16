@@ -22,12 +22,15 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 OFFLINE_AFTER = timedelta(minutes=45)  # same freshness the dashboard and alerts use
+GENERATOR_MIN_KWH = 0.5      # AC-input energy in a day (off-grid) that counts as "the generator ran"
+GENERATOR_WINDOW_DAYS = 14
+GENERATOR_RELIANCE_DAYS = 4  # generator days within the window that make it a pattern worth saying
 
 # Observation severities, most urgent first.
 ATTENTION, GOOD, INFO = "attention", "good", "info"
 
 _ORDER = [
-    "offline", "offline_days", "alert_", "storm_ahead", "outage_deep", "tonight_short", "anomaly_", "battery_low", "at_reserve", "solar_below",
+    "offline", "offline_days", "alert_", "storm_ahead", "outage_deep", "tonight_short", "anomaly_", "battery_low", "generator_reliance", "at_reserve", "generator_used", "solar_below",
     "tomorrow_low_solar", "import_high", "outage_held", "load_above", "no_float", "export", "solar_above", "tomorrow_high_solar",
     "load_below", "self_sufficient",
 ]
@@ -129,6 +132,16 @@ def build_site_facts(*, site: dict, energy_rows: list[dict], health_row: dict | 
         if site.get("pv_kwp") and day["pv_kwh"] is not None and _num(site["pv_kwp"]):
             facts["day"]["yield_kwh_per_kwp"] = _r(day["pv_kwh"] / _num(site["pv_kwp"]), 2)
 
+    # ── generator (off-grid only: nothing but a generator ever feeds the AC input) ─────
+    if row and site.get("system_type") == "off_grid":
+        last14 = [r for r in energy_rows if str(r.get("date")) <= str(row["date"]) and r.get("complete_day") is not False]
+        last14 = sorted(last14, key=lambda r: str(r["date"]), reverse=True)[:GENERATOR_WINDOW_DAYS]
+        minutes = _num(row.get("ac_in_minutes"))
+        facts["generator"] = {
+            "kwh": day["grid_import_kwh"], "hours": _r(minutes / 60) if minutes else None,
+            "days": sum(1 for r in last14 if (_num(r.get("grid_kwh")) or 0) >= GENERATOR_MIN_KWH), "window_days": len(last14),
+        }
+
     if health_row:
         facts["scores"] = {"system": health_row.get("system_score"), "grid": health_row.get("grid_score"),
                            "system_reasons": [{"code": i.get("code"), "points": i.get("points")} for i in (health_row.get("system_breakdown") or []) if i.get("points")],
@@ -210,6 +223,13 @@ def observations(facts: dict, *, system_type: str | None) -> list[dict]:
         add("at_reserve", INFO, min_soc=day["min_soc_pct"], floor=floor)
     elif day["min_soc_pct"] is not None and day["min_soc_pct"] < 30 and (facts["site"].get("battery_kwh") or system_type in ("off_grid", "hybrid")):
         add("battery_low", ATTENTION, min_soc=day["min_soc_pct"])
+
+    gen = facts.get("generator")
+    if gen:
+        if (gen["kwh"] or 0) >= GENERATOR_MIN_KWH:
+            add("generator_used", INFO, kwh=gen["kwh"], **({"hours": gen["hours"]} if gen.get("hours") else {}))
+        if gen["days"] >= GENERATOR_RELIANCE_DAYS:
+            add("generator_reliance", ATTENTION, days=gen["days"], window=gen["window_days"])
 
     pv, avg_pv = day["pv_kwh"], prev.get("pv_kwh")
     if pv is not None and avg_pv and avg_pv >= 1 and vs.get("pv") is not None:

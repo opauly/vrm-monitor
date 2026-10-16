@@ -182,6 +182,7 @@ export function FleetLiveSection({
             gridSplit={single ? undefined : splitCounts(meteredSites.map((s) => s.live_grid_power_w))}
             gridNote={single ? undefined : ofSites(meteredSites.length)}
             gross={single ? undefined : gross}
+            generator={single && sites[0]?.system_type === 'off_grid'}
           />
         </div>
 

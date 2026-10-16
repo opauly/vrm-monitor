@@ -105,7 +105,7 @@ def get_or_create_admin_portfolio_customer() -> dict:
 # Ingest
 # ──────────────────────────────────────────────────────────────────
 # Columns that arrived after the table did (sql/vrm_grid_dropouts.sql) — ingestion survives them being absent.
-_OPTIONAL_ENERGY_COLUMNS = ("grid_dropout_minutes",)
+_OPTIONAL_ENERGY_COLUMNS = ("grid_dropout_minutes", "ac_in_minutes")
 
 
 def _chunks(seq: list, size: int = _CHUNK):
@@ -213,17 +213,18 @@ def ingest_parsed(parsed: dict, site_id: str, filename: str = "",
     # 2. Daily rows — trigger fires per row and scores each day.
     written = 0
     for chunk in _chunks(rows):
-        try:
-            res = _t("energy_daily").upsert(chunk, on_conflict="site_id,date").execute()
-        except Exception as exc:  # noqa: BLE001
-            # A column added by a newer migration that has not been run yet must not stop ingestion:
-            # write the rest and let the new figure start flowing once the column exists.
-            missing = [c for c in _OPTIONAL_ENERGY_COLUMNS if c in str(exc)]
-            if not missing:
-                raise
-            logger.warning("ingest: energy_daily lacks %s (migration not run yet) — writing without it", missing)
-            chunk = [{k: v for k, v in r.items() if k not in missing} for r in chunk]
-            res = _t("energy_daily").upsert(chunk, on_conflict="site_id,date").execute()
+        for _attempt in range(len(_OPTIONAL_ENERGY_COLUMNS) + 1):
+            try:
+                res = _t("energy_daily").upsert(chunk, on_conflict="site_id,date").execute()
+                break
+            except Exception as exc:  # noqa: BLE001
+                # A column added by a newer migration that has not been run yet must not stop ingestion:
+                # write the rest and let the new figure start flowing once the column exists.
+                missing = [c for c in _OPTIONAL_ENERGY_COLUMNS if c in str(exc)]
+                if not missing:
+                    raise
+                logger.warning("ingest: energy_daily lacks %s (migration not run yet) — writing without it", missing)
+                chunk = [{k: v for k, v in r.items() if k not in missing} for r in chunk]
         written += len(res.data or chunk)
 
     # PLAN_PHASE15.md §5.3: vrm.daily_health is keyed (site_id, date,

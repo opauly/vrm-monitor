@@ -182,3 +182,20 @@ def test_a_hard_fault_is_critical_and_all_ok_or_warn_clears_it():
 def test_no_device_information_says_nothing_and_an_offline_site_keeps_its_device_alert():
     assert A.DEVICE_FAULT not in run_devices(None) and A.DEVICE_FAULT not in run_devices([])
     assert list(run_devices([device("bad", "missing")], snapshot=snap(60))) == [A.SITE_OFFLINE]
+
+
+# ── generator (off-grid sites) ───────────────────────────────────────────
+OFF_GRID = {"site_id": "s1", "customer_id": "c1", "system_type": "off_grid"}
+
+
+def test_a_live_ac_input_on_an_off_grid_site_is_a_generator_and_clears_once_it_is_gone():
+    assert run(snap(v=118.0), site=OFF_GRID)[A.GENERATOR_USE].active
+    assert run(snap(v=85.0), site=OFF_GRID)[A.GENERATOR_USE].active                       # a start-up bucket averages lower
+    assert run(snap(v=70.0), site=OFF_GRID)[A.GENERATOR_USE].active is False              # below the open level while closed
+    assert run(snap(v=70.0), site=OFF_GRID, open_kinds={A.GENERATOR_USE})[A.GENERATOR_USE].active    # hysteresis once open
+    assert run(snap(v=40.0), site=OFF_GRID, open_kinds={A.GENERATOR_USE})[A.GENERATOR_USE].active is False
+    assert A.GENERATOR_USE not in run(snap(v=118.0))                                       # a grid-connected site: that is just the grid
+
+
+def test_generator_alerts_are_off_until_switched_on():
+    assert A.GENERATOR_USE in A.DEFAULT_OFF_KINDS and A.DEVICE_FAULT not in A.DEFAULT_OFF_KINDS

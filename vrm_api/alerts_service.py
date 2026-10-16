@@ -157,7 +157,7 @@ def run_alert_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]],
     prefs = load_preferences(customer_ids)
 
     def allowed(customer_id: str, kind: str) -> bool:
-        return customer_id in eligible and prefs.get((customer_id, kind), {}).get("enabled", True)
+        return customer_id in eligible and prefs.get((customer_id, kind), {}).get("enabled", kind not in rules.DEFAULT_OFF_KINDS)
 
     # Open alerts that should no longer exist at all (customer lost the tier, or
     # switched that alert type off): closed silently below — no email either way.

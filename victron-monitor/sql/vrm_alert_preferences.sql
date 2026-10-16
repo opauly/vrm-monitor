@@ -15,7 +15,7 @@
 CREATE TABLE IF NOT EXISTS vrm.alert_preferences (
   customer_id  uuid        NOT NULL REFERENCES vrm.customers(id) ON DELETE CASCADE,
   kind         text        NOT NULL
-    CHECK (kind IN ('site_offline','grid_outage','low_battery','system_alarm','vrm_link_broken','device_fault')),
+    CHECK (kind IN ('site_offline','grid_outage','low_battery','system_alarm','vrm_link_broken','device_fault','generator_use')),
   enabled      boolean     NOT NULL DEFAULT true,
   email        boolean     NOT NULL DEFAULT true,
   updated_at   timestamptz NOT NULL DEFAULT now(),

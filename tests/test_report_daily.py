@@ -60,3 +60,22 @@ def test_a_side_by_side_pair_of_blocks_is_drawn_at_one_height():
     svg = S.two_block_row_svg("Left", tall, "sub", "Right", short, "sub")
     heights = {float(h) for h in re.findall(r"<rect[^>]*height='([\d.]+)'[^>]*rx='8'", svg)}
     assert len(heights) == 1, heights
+
+
+def test_the_energy_mix_calls_an_off_grid_sites_ac_input_a_generator_and_leaves_room_for_the_longer_label():
+    from victron import report_svg as S
+    assert S._grid_source_label({"systemType": "off_grid"}, report_i18n.get("es")) == "Generador"
+    assert S._grid_source_label({"systemType": "hybrid"}, report_i18n.get("es")) == "Red"
+    short = [("Solar", "#0", "90", 1), ("Grid", "#1", "10", 1)]
+    longer = [("Solar", "#0", "90", 1), ("Generador", "#1", "10", 1)]
+    assert S._legend_value_dx(short) == 55 and S._legend_value_dx(longer) > 55
+
+
+def test_generator_use_reads_as_days_hours_and_kwh_only_for_off_grid_sites_that_ran_one():
+    t = report_i18n.get("en")
+    d = {"t": t, "systemType": "off_grid", "totals": {"generatorDays": 2, "acInMinutes": 180, "grid": 9.64}}
+    assert wr._generator_use_value(d) == "2 days · ~3.0 h · 9.6 kWh"
+    d["totals"].update(generatorDays=1, acInMinutes=0, grid=4.84)
+    assert wr._generator_use_value(d) == "4.8 kWh"
+    d["totals"]["generatorDays"] = 0
+    assert wr._generator_use_value(d) is None and wr._generator_use_value({**d, "systemType": "hybrid", "totals": {"generatorDays": 3, "acInMinutes": 0, "grid": 5}}) is None

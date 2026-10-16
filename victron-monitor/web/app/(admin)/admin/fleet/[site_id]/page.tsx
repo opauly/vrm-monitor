@@ -240,11 +240,11 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
         <div className={styles.kpi}>
           <div className={styles.kpiLabel}>
             <span className={styles.swatch} style={{ background: 'var(--mute)' }} />
-            {t(lang, 'admin_fleetsite_kpi_grid')}
+            {t(lang, site.system_type === 'off_grid' ? 'admin_fleetsite_kpi_generator' : 'admin_fleetsite_kpi_grid')}
           </div>
           <div className={styles.kpiValue}>{site.has_grid_meter ? formatWatts(site.live_grid_power_w) : '—'}</div>
           {site.live_grid_source === 'inverter' && (
-            <div className={styles.kpiDelta}>{t(lang, 'admin_fleetsite_via_inverter_note')}</div>
+            <div className={styles.kpiDelta}>{t(lang, site.system_type === 'off_grid' ? 'admin_fleetsite_generator_note' : 'admin_fleetsite_via_inverter_note')}</div>
           )}
           {site.live_grid_source === null && <div className={styles.kpiDelta}>{t(lang, 'admin_fleetsite_no_grid_reading')}</div>}
         </div>

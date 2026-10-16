@@ -172,8 +172,9 @@ def test_a_normal_forecast_adds_nothing():
 def test_forecast_findings_are_reported_with_their_numbers():
     off_grid = {**SITE, "system_type": "off_grid"}      # only an off-grid battery runs the night alone
     f = build(site=off_grid, forecast={**AHEAD, "storm": True, "backup_reaches_sunrise": False, "backup_hours": 5.3, "tomorrow_pv_kwh": 8.0, "tomorrow_vs_typical_pct": -60})
-    assert codes(f) == ["storm_ahead", "tonight_short", "tomorrow_low_solar"]
-    assert f["observations"][1]["params"] == {"hours": 5.3} and f["observations"][2]["params"] == {"pv": 8.0, "typical": 20.0, "change_pct": -60}
+    assert [c for c in codes(f) if not c.startswith("generator")] == ["storm_ahead", "tonight_short", "tomorrow_low_solar"]    # (this fixture's grid import reads as generator use)
+    by = {o["code"]: o["params"] for o in f["observations"]}
+    assert by["tonight_short"] == {"hours": 5.3} and by["tomorrow_low_solar"] == {"pv": 8.0, "typical": 20.0, "change_pct": -60}
     assert f["forecast"]["storm"] is True
 
 
@@ -232,3 +233,30 @@ def test_a_fleet_storm_lists_projects_not_the_first_four_sites():
              stormy("e", "Emtec CR", 9.92203, -84.1396), stormy("f", "Proyecto KM Ukiyo", 9.885509, -84.19457, storm=False)]
     storm = next(o for o in F.build_fleet_facts(site_facts=facts, name="x", now=NOW)["observations"] if o["code"] == "fleet_storm")
     assert storm["params"] == {"count": 5, "sites": ["Vista Atenas LP (2)", "El Encino (2)", "Emtec CR"]}
+
+
+def _gen_rows(kwhs, minutes=None):
+    rows = []
+    for i, kwh in enumerate(kwhs):
+        rows.append(day(f"2026-09-{22 + i:02d}" if i < 9 else f"2026-10-{i - 8:02d}", grid=kwh, **({"ac_in_minutes": minutes} if (minutes and i == len(kwhs) - 1) else {})))
+    return rows
+
+
+def test_an_off_grid_site_that_charged_from_a_generator_says_so_with_hours_and_kwh():
+    off = {**SITE, "system_type": "off_grid"}
+    f = build(rows=_gen_rows([0, 0, 0, 0, 0, 0, 0, 4.8], minutes=92), site=off)
+    used = next(o for o in f["observations"] if o["code"] == "generator_used")
+    assert used["params"] == {"kwh": 4.8, "hours": 1.5}
+    assert "generator_reliance" not in codes(f) and f["generator"]["days"] == 1
+
+
+def test_the_generator_becoming_a_habit_is_flagged_and_a_grid_site_never_gets_these():
+    off = {**SITE, "system_type": "off_grid"}
+    f = build(rows=_gen_rows([3.0, 0, 4.0, 0, 5.0, 2.0, 0, 4.8]), site=off)
+    reliance = next(o for o in f["observations"] if o["code"] == "generator_reliance")
+    assert reliance["params"] == {"days": 5, "window": 8}
+    assert "generator" not in build(rows=_gen_rows([3.0, 4.0, 5.0, 2.0, 4.8]))      # hybrid: AC input is the grid
+    from victron import insight_ai
+    text = insight_ai.render_template(f, "en", "site")["points"]
+    assert any("generator was needed on 5 of the last 8 days" in p for p in text)
+    assert insight_ai.render_template(build(rows=_gen_rows([0, 0, 0, 0, 0, 0, 0, 4.8]), site=off), "es", "site")["points"][0].startswith("Las baterías se recargaron con el generador: 4.8 kWh")

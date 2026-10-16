@@ -137,6 +137,7 @@ export function FlowDiagram({
   gridNote,
   gridSplit,
   gross,
+  generator = false,
 }: {
   lang: Lang;
   solarW: number | null;
@@ -157,6 +158,8 @@ export function FlowDiagram({
   /** Fleet roll-up: gross flows per direction (see GrossFlows). Replaces the
    * net-direction animation and the netted mix with per-direction figures. */
   gross?: GrossFlows;
+  /** An off-grid site: whatever comes in through the AC input is a generator, not a grid. */
+  generator?: boolean;
 }) {
   const batteryCharging = batteryW !== null && batteryW >= 0;
   const batteryAmt = batteryW === null ? '—' : `${batteryCharging ? '+' : ''}${formatW(batteryW)}`;
@@ -182,7 +185,9 @@ export function FlowDiagram({
     ? null
     : gridSplit
       ? splitText(gridSplit, 'flow_diagram_importing', 'flow_diagram_exporting')
-      : netText(gridW, 'flow_diagram_importing', 'flow_diagram_exporting');
+      : generator
+        ? netText(gridW, 'flow_diagram_generator_running', 'flow_diagram_generator_running')
+        : netText(gridW, 'flow_diagram_importing', 'flow_diagram_exporting');
   const batteryState = batterySplit
     ? splitText(batterySplit, 'flow_diagram_charging', 'flow_diagram_discharging')
     : netText(batteryW, 'flow_diagram_charging', 'flow_diagram_discharging');
@@ -268,7 +273,7 @@ export function FlowDiagram({
             <path d="M6 21V10l6-6 6 6v11M9 21v-6h6v6" />
           </svg>
         </div>
-        <div className={styles.name}>{t(lang, 'flow_diagram_grid')}</div>
+        <div className={styles.name}>{t(lang, generator ? 'flow_diagram_generator' : 'flow_diagram_grid')}</div>
         {gross && hasGridMeter ? (
           <GrossRows
             lang={lang}

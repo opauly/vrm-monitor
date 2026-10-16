@@ -117,6 +117,22 @@ def split_grid_dropouts(freq: pd.Series) -> tuple[pd.Series, float]:
     return mask, minutes
 
 
+def ac_input_minutes(voltage: pd.Series) -> float:
+    """Roughly how many minutes the AC input (IV1) was live in the day: each sample counts for its share of the
+    bucket, so a 15-min average of 40 V against ~118 V counts about a third. On an off-grid site nothing but a
+    generator (or shore power) is ever connected there, so this is its running time."""
+    v = pd.to_numeric(voltage, errors="coerce")
+    present = v[v > 20].dropna()
+    if present.empty:
+        return 0.0
+    full = present[present > 100]
+    ref = float(full.median()) if not full.empty else 115.0
+    spacing = pd.Series(v.index).diff().dropna()
+    bucket_min = float(spacing.median().total_seconds() / 60) if len(spacing) else 15.0
+    bucket_min = min(max(bucket_min, 1.0), 60.0)
+    return float((present / ref).clip(upper=1.0).sum() * bucket_min)
+
+
 def _grid_outages(tidied: pd.DataFrame, max_gap_s: int) -> pd.DataFrame:
     """Grid outages from AC-input voltage absence.
 
@@ -484,6 +500,8 @@ def to_energy_daily_rows(tidied: pd.DataFrame, site_id: str, *, max_gap_s: int,
 
             # Approximate minutes the grid was gone inside buckets too short to count as an outage; 0.0 = none.
             "grid_dropout_minutes": round(dropout_minutes, 1),
+            # Minutes the AC input was live — the generator's running time on an off-grid site.
+            "ac_in_minutes": round(ac_input_minutes(g["grid_v_l1"]), 1),
             "min_grid_freq": round(min_hz, 2) if min_hz is not None else None,
             "max_grid_freq": round(max_hz, 2) if max_hz is not None else None,
             "min_grid_v_l1": round(min_v_l1, 1) if min_v_l1 is not None else None,

@@ -62,6 +62,11 @@ export function describeAlert(lang: Lang, alert: AlertWithSite): { title: string
         body: fill(t(lang, 'alerts_text_device_fault_body'), { devices: (lines.join(' ') || '—') + (more > 0 ? ` (+${more})` : '') }),
       };
     }
+    case 'generator_use':
+      return {
+        title: fill(t(lang, 'alerts_text_generator_use_title'), { site }),
+        body: fill(t(lang, 'alerts_text_generator_use_body'), { soc_phrase: soc === null ? '' : fill(t(lang, 'alerts_text_generator_use_soc'), { soc }) }),
+      };
     case 'vrm_link_broken':
       return { title: t(lang, 'alerts_text_vrm_link_broken_title'), body: t(lang, 'alerts_text_vrm_link_broken_body') };
   }

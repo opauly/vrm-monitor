@@ -165,6 +165,9 @@ def describe(alert: dict, *, resolved: bool, site_name: str, tz_name: str | None
         values["alarms"] = ", ".join(names) or "—"
     elif kind == rules.DEVICE_FAULT:
         values["devices"] = devices.describe_devices(t, detail)
+    elif kind == rules.GENERATOR_USE:
+        soc = detail.get("soc_pct")
+        values["soc_phrase"] = _fill(t["alert_generator_use_soc_phrase"], soc=round(soc)) if isinstance(soc, (int, float)) else ""
 
     push_key = "alert_low_battery_critical_push" if (kind == rules.LOW_BATTERY and severity == rules.CRITICAL) else f"alert_{kind}_push"
     return {"title": _fill(t[title_key], **values), "body": _fill(t[body_key], **values), "severity": severity,

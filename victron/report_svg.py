@@ -581,6 +581,13 @@ def _legend_value_text(pctd: str | None, kwh: float, t: dict) -> str:
     return f"{pctd}% · {_f(kwh)} {t['kwh']}"
 
 
+def _legend_value_dx(legend_rows: list[tuple]) -> float:
+    """Where the legend's value column starts, from the start of the label column: 55 fits "Battery" / "Solar", but a
+    longer label ("Generador") would run into its own figure."""
+    longest = max((len(row[0]) for row in legend_rows), default=0)
+    return max(55.0, 12 + longest * 4.9 + 8)
+
+
 def _donut_dx(card_w: float, legend_rows: list[tuple], t: dict) -> float:
     """Left offset for the donut, chosen so donut+legend sit centered in a
     card of width `card_w` instead of hugging the left edge.
@@ -592,8 +599,13 @@ def _donut_dx(card_w: float, legend_rows: list[tuple], t: dict) -> float:
     """
     max_value_w = max(len(_legend_value_text(pctd, kwh, t))
                       for _, _, pctd, kwh in legend_rows) * _DONUT_CWID
-    content_w = 80 + 55 + max_value_w  # 80: donut-to-legend gap; 55: label-to-value gap
+    content_w = 80 + _legend_value_dx(legend_rows) + max_value_w  # 80: donut-to-legend gap; then label-to-value gap
     return max(8.0, (card_w - content_w) / 2)
+
+
+def _grid_source_label(d: dict, t: dict) -> str:
+    """On an off-grid site the AC input is never a grid: whatever came in through it came from a generator."""
+    return t["labelGenerator"] if d.get("systemType") == "off_grid" else t["labelGrid"]
 
 
 def row1_svg(d: dict, t: dict, batt_rows: list[dict],
@@ -618,7 +630,7 @@ def row1_svg(d: dict, t: dict, batt_rows: list[dict],
     legend_rows = [
         (t["labelSolar"], GREEN, sd, tot["pv"]),
         (t["labelBattery"], BLUE, bd, tot["discharge"]),
-        (t["labelGrid"], MINT, gd, tot["grid"]),
+        (_grid_source_label(d, t), MINT, gd, tot["grid"]),
     ]
 
     batt_h = measure_info_block(batt_rows, t["subBattery"])
@@ -657,7 +669,7 @@ def row1_svg(d: dict, t: dict, batt_rows: list[dict],
         s += (f"<circle cx='{LX + 4}' cy='{cy}' r='4' fill='{col}'/>"
               f"<text x='{LX + 12}' y='{cy + 4}' font-size='9' fill='#555'>"
               f"{esc(lbl)}</text>"
-              f"<text x='{LX + 55}' y='{cy + 4}' font-size='9' font-weight='600' "
+              f"<text x='{LX + _legend_value_dx(legend_rows)}' y='{cy + 4}' font-size='9' font-weight='600' "
               f"fill='#222'>{esc(_legend_value_text(pctd, kwh, t))}</text>")
 
     s += info_block_svg(IW + GAP, 0, BG_GREY, t["sectionBattery"],
@@ -686,7 +698,7 @@ def energy_mix_full_svg(d: dict, t: dict) -> str:
     gd = _f(tot["grid"] / total_energy * 100) if total_energy else "0.0"
     legend_rows = [
         (t["labelSolar"], GREEN, sd, tot["pv"]),
-        (t["labelGrid"], MINT, gd, tot["grid"]),
+        (_grid_source_label(d, t), MINT, gd, tot["grid"]),
     ]
 
     em_sub = wrap_svg_lines(t["subEnergyMix"], int((PW - 2 * IPAD) / 3.4))
@@ -719,7 +731,7 @@ def energy_mix_full_svg(d: dict, t: dict) -> str:
         s += (f"<circle cx='{LX + 4}' cy='{cy}' r='4' fill='{col}'/>"
               f"<text x='{LX + 12}' y='{cy + 4}' font-size='9' fill='#555'>"
               f"{esc(lbl)}</text>"
-              f"<text x='{LX + 55}' y='{cy + 4}' font-size='9' font-weight='600' "
+              f"<text x='{LX + _legend_value_dx(legend_rows)}' y='{cy + 4}' font-size='9' font-weight='600' "
               f"fill='#222'>{esc(_legend_value_text(pctd, kwh, t))}</text>")
 
     return _svg(s, PW, h)
@@ -754,7 +766,7 @@ def energy_mix_full_svg_3way(d: dict, t: dict) -> str:
     legend_rows = [
         (t["labelSolar"], GREEN, sd, tot["pv"]),
         (t["labelBattery"], BLUE, bd, tot["discharge"]),
-        (t["labelGrid"], MINT, gd, tot["grid"]),
+        (_grid_source_label(d, t), MINT, gd, tot["grid"]),
     ]
 
     em_sub = wrap_svg_lines(t["subEnergyMix"], int((PW - 2 * IPAD) / 3.4))
@@ -789,7 +801,7 @@ def energy_mix_full_svg_3way(d: dict, t: dict) -> str:
         s += (f"<circle cx='{LX + 4}' cy='{cy}' r='4' fill='{col}'/>"
               f"<text x='{LX + 12}' y='{cy + 4}' font-size='9' fill='#555'>"
               f"{esc(lbl)}</text>"
-              f"<text x='{LX + 55}' y='{cy + 4}' font-size='9' font-weight='600' "
+              f"<text x='{LX + _legend_value_dx(legend_rows)}' y='{cy + 4}' font-size='9' font-weight='600' "
               f"fill='#222'>{esc(_legend_value_text(pctd, kwh, t))}</text>")
 
     return _svg(s, PW, h)
