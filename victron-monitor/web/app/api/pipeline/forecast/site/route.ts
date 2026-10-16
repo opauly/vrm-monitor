@@ -7,6 +7,9 @@ import { requireCustomerForRoute } from '@/lib/server/auth';
 import { assertOwnsSite, getCustomer, getDashboardAccess, NotAuthorized } from '@/lib/server/db';
 import { getSiteForecast, toErrorResponse } from '@/lib/server/pipeline';
 
+// The server may have to rewrite the text or rebuild the forecast first; give it room to finish.
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   const session = await requireCustomerForRoute();
   if (session instanceof NextResponse) return session;

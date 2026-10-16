@@ -59,15 +59,17 @@ def _active_sites(*, site_id: str | None = None, customer_id: str | None = None)
     return query.execute().data or []
 
 
-def _forecasts_for(sites: list[dict], now: datetime) -> dict[str, dict]:
-    """Compact forecast figures per site (cached, or built now), when forecasts are switched on.
+def _forecasts_for(sites: list[dict], now: datetime, *, build: bool = True) -> dict[str, dict]:
+    """Compact forecast figures per site, when forecasts are switched on: built now, or — with `build=False`,
+    for a summary written while someone waits — only what is already stored (the forecast panel and the daily
+    job keep those fresh), so a page view never waits on the weather service or VRM.
     A site whose forecast fails simply has none — the summary then says nothing about tomorrow."""
     if forecast_service.forecast_mode() != "on":
         return {}
     out: dict[str, dict] = {}
     for site in sites:
         try:
-            compact = forecast_service.compact(forecast_service.get_forecast(site["site_id"], now=now))
+            compact = forecast_service.compact(forecast_service.get_forecast(site["site_id"], now=now, cached_only=not build))
         except Exception:  # noqa: BLE001
             logger.warning("insights: no forecast for %s", site["site_id"], exc_info=True)
             continue
@@ -86,11 +88,11 @@ def configured_floor(site: dict, from_system: float | None) -> float | None:
     return from_system
 
 
-def site_facts_for(sites: list[dict], now: datetime) -> dict[str, dict]:
+def site_facts_for(sites: list[dict], now: datetime, *, build_forecasts: bool = True) -> dict[str, dict]:
     """Facts for every site in `sites`, with one query per table for the batch."""
     if not sites:
         return {}
-    forecasts = _forecasts_for(sites, now)
+    forecasts = _forecasts_for(sites, now, build=build_forecasts)
     ids = [s["site_id"] for s in sites]
     since = (now - timedelta(days=ENERGY_LOOKBACK_DAYS)).date().isoformat()
 
@@ -261,7 +263,7 @@ def site_summary(site_id: str, lang: str, *, now: datetime | None = None, force:
         return None
     if not force and _is_current(_cached("site", site_id, None, lang), sites, now, fleet=False):
         return _present(_cached("site", site_id, None, lang))
-    facts = (prefetched or site_facts_for(sites, now))[site_id]
+    facts = (prefetched or site_facts_for(sites, now, build_forecasts=False))[site_id]
     facts["live_signature"] = signature_from_facts(facts)
     return _present(_store("site", site_id, None, lang, facts, _write(facts, lang, "site", now, mode), now))
 
@@ -277,7 +279,7 @@ def fleet_summary(customer_id: str | None, lang: str, *, now: datetime | None = 
     sites = _active_sites(customer_id=customer_id)
     if not force and _is_current(_cached("fleet", None, customer_id, lang), sites, now, fleet=True):
         return _present(_cached("fleet", None, customer_id, lang))
-    by_site = prefetched if prefetched is not None else site_facts_for(sites, now)
+    by_site = prefetched if prefetched is not None else site_facts_for(sites, now, build_forecasts=False)
     members = [by_site[s["site_id"]] for s in sites if s["site_id"] in by_site]
     name = "All sites" if customer_id is None else "Your sites"
     facts = insight_facts.build_fleet_facts(site_facts=members, name=name, now=now)

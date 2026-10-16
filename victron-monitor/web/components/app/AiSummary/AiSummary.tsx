@@ -23,10 +23,19 @@ export function AiSummary({ lang, endpoint }: { lang: Lang; endpoint: string }) 
 
   useEffect(() => {
     let active = true;
-    fetch(endpoint)
-      .then((r) => (r.ok ? (r.json() as Promise<InsightOut>) : Promise.reject(new Error('fetch failed'))))
-      .then((insight) => active && setState(insight.enabled && insight.headline ? { status: 'ready', insight } : { status: 'hidden' }))
-      .catch(() => active && setState({ status: 'hidden' }));
+    // A summary that has to be rewritten takes several seconds; if the first try times out the server
+    // usually finishes it anyway, so one more try a few seconds later normally finds it ready.
+    const load = (attemptsLeft: number): void => {
+      fetch(endpoint)
+        .then((r) => (r.ok ? (r.json() as Promise<InsightOut>) : Promise.reject(new Error('fetch failed'))))
+        .then((insight) => active && setState(insight.enabled && insight.headline ? { status: 'ready', insight } : { status: 'hidden' }))
+        .catch(() => {
+          if (!active) return;
+          if (attemptsLeft > 0) setTimeout(() => load(attemptsLeft - 1), 5000);
+          else setState({ status: 'hidden' });
+        });
+    };
+    load(1);
     return () => {
       active = false;
     };

@@ -27,6 +27,9 @@ from victron import devices, email_i18n
 
 logger = logging.getLogger("victron.insight_ai")
 
+# A summary is often written while someone waits for the page: a model that has not answered by then loses to the
+# plain template, which is always right. No retries for the same reason.
+MODEL_TIMEOUT_S = 15.0
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 MAX_POINTS = 3
 MAX_HEADLINE, MAX_POINT = 130, 170
@@ -321,7 +324,7 @@ def generate(facts: dict, lang: str, scope: str, *, today: str | None = None, cl
     try:
         if client is None:
             import anthropic
-            client = anthropic.Anthropic(api_key=key)
+            client = anthropic.Anthropic(api_key=key, timeout=MODEL_TIMEOUT_S, max_retries=0)
         message = client.messages.create(
             model=model, max_tokens=500, system=_system_prompt(lang, scope),
             messages=[{"role": "user", "content": "FACTS:\n" + json.dumps(facts, ensure_ascii=False, default=str) +

@@ -170,3 +170,10 @@ def test_a_forecast_made_before_midnight_is_not_served_after_it(db):
     made_for = db["site_forecasts"][0]["result"]["generated_for"][:10]
     db["site_forecasts"][0]["generated_at"] = (after_midnight - timedelta(minutes=10)).isoformat()    # fresh by age, but made on the previous local day
     assert svc.get_forecast("s1", now=after_midnight, mode="on")["generated_for"][:10] != made_for
+
+
+def test_cached_only_serves_what_is_stored_however_old_and_builds_nothing(db):
+    assert svc.get_forecast("s1", now=NOW, mode="on", cached_only=True) is None and db["calls"]["weather"] == 0
+    first = svc.get_forecast("s1", now=NOW, mode="on")
+    again = svc.get_forecast("s1", now=NOW + timedelta(days=3), mode="on", cached_only=True)
+    assert again == first and db["calls"] == {"weather": 1, "profile": 1}

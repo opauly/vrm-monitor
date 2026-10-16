@@ -127,14 +127,19 @@ def _soc(site_id: str, now_utc: datetime) -> float | None:
     return float(soc) if seen is not None and now_utc - seen <= OFFLINE_AFTER and isinstance(soc, (int, float)) else None
 
 
-def get_forecast(site_id: str, *, now: datetime | None = None, force: bool = False, mode: str | None = None) -> dict | None:
-    """The forecast for one site. None = no such VRM site; `{"available": False, ...}` = cannot make one."""
+def get_forecast(site_id: str, *, now: datetime | None = None, force: bool = False, mode: str | None = None,
+                 cached_only: bool = False) -> dict | None:
+    """The forecast for one site. None = no such VRM site; `{"available": False, ...}` = cannot make one.
+    `cached_only` serves whatever is stored, however old, and builds nothing (None if nothing is stored):
+    for callers on a page-view path that must not wait on the weather service or VRM."""
     mode = mode or forecast_mode()
     if mode == "off":
         return {"available": False, "reason": "off"}
     now = now or datetime.now(timezone.utc)
 
     cached = (_t("site_forecasts").select("*").eq("site_id", site_id).execute().data or [None])[0]
+    if cached_only:
+        return cached["result"] if cached else None
     if cached and not force:
         made = _parse(cached.get("generated_at"))
         # Also stale once the site's calendar day has turned: "tomorrow" in a forecast made

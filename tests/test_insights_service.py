@@ -218,3 +218,20 @@ def test_the_fleet_summary_follows_the_same_rule(db):
     assert svc.fleet_summary(None, "en", now=later, mode="template")["generated_at"] == NOW.isoformat()    # nothing changed
     db["site_snapshots"][1]["captured_at"] = (later - timedelta(minutes=50)).isoformat()                      # s2 went quiet
     assert svc.fleet_summary(None, "en", now=later, mode="template")["generated_at"] == later.isoformat()
+
+
+def test_a_summary_written_for_a_page_view_never_builds_a_forecast(db, monkeypatch):
+    monkeypatch.setenv("FORECAST", "on")
+    calls = []
+
+    def fake_get_forecast(site_id, **kw):
+        calls.append(kw)
+        return None
+
+    monkeypatch.setattr(svc.forecast_service, "get_forecast", fake_get_forecast)
+    svc.site_summary("s1", "en", now=NOW, mode="template")
+    svc.fleet_summary(None, "en", now=NOW, mode="template", force=True)
+    assert calls and all(kw.get("cached_only") is True for kw in calls)
+    calls.clear()
+    svc.generate_daily(now=NOW, mode="template")         # the background job is allowed to build them
+    assert calls and all(not kw.get("cached_only") for kw in calls)

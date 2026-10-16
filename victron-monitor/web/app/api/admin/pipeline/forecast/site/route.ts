@@ -4,6 +4,9 @@ import { NextResponse } from 'next/server';
 import { requireAdminForRoute } from '@/lib/server/auth';
 import { getSiteForecast, toErrorResponse } from '@/lib/server/pipeline';
 
+// The server may have to rewrite the text or rebuild the forecast first; give it room to finish.
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   const session = await requireAdminForRoute();
   if (session instanceof NextResponse) return session;

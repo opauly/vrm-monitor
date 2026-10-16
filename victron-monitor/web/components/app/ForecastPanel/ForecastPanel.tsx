@@ -30,10 +30,19 @@ export function ForecastPanel({ lang, endpoint }: { lang: Lang; endpoint: string
 
   useEffect(() => {
     let active = true;
-    fetch(endpoint)
-      .then((r) => (r.ok ? (r.json() as Promise<ForecastOut>) : Promise.reject(new Error('fetch failed'))))
-      .then((data) => active && setState(data.available ? { status: 'ready', forecast: data } : { status: 'hidden' }))
-      .catch(() => active && setState({ status: 'hidden' }));
+    // Building a forecast calls a weather service (and VRM once a day), so the first try can time out while
+    // the server still finishes it: try once more shortly after before giving up and showing nothing.
+    const load = (attemptsLeft: number): void => {
+      fetch(endpoint)
+        .then((r) => (r.ok ? (r.json() as Promise<ForecastOut>) : Promise.reject(new Error('fetch failed'))))
+        .then((data) => active && setState(data.available ? { status: 'ready', forecast: data } : { status: 'hidden' }))
+        .catch(() => {
+          if (!active) return;
+          if (attemptsLeft > 0) setTimeout(() => load(attemptsLeft - 1), 5000);
+          else setState({ status: 'hidden' });
+        });
+    };
+    load(1);
     return () => {
       active = false;
     };
