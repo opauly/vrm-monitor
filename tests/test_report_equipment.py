@@ -24,3 +24,14 @@ def test_a_healthy_site_costs_one_row_and_one_without_devices_none():
     rows = wr._equipment_rows(d([dev("charger:0", "charger", "ok"), dev("battery:512", "battery", "ok")], "es"))
     assert [(r["label"], r["value"]) for r in rows] == [("Equipos funcionando", "2 / 2")]
     assert wr._equipment_rows(d([])) == []
+
+
+def test_repeated_warnings_get_a_quiet_row_each_and_reach_the_narrative():
+    patterns = [{"category": "overload", "count": 4, "window_days": 14}, {"category": "temperature", "count": 2, "window_days": 14}]
+    data = {**d([dev("battery:512", "battery", "ok")]), "alarmPatterns": patterns}
+    rows = wr._equipment_rows(data)
+    assert [(r["label"], r["value"]) for r in rows[1:]] == [("Repeated: inverter overload", "4× in 14 days"), ("Repeated: overheating", "2× in 14 days")]
+    assert [(r["label"], r["value"]) for r in wr._equipment_rows({**data, "t": report_i18n.get("es")})[1:]][0] == ("Repetida: sobrecarga del inversor", "4× en 14 días")
+    assert [r["label"] for r in wr._equipment_rows({**d([]), "alarmPatterns": patterns})] == ["Repeated: inverter overload", "Repeated: overheating"]
+    lines = wr._pattern_findings(patterns)
+    assert "inverter overloads 4 times in the last 14 days" in lines[0] and "no alert was sent" in lines[0]

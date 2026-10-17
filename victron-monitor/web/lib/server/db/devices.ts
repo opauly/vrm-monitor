@@ -5,7 +5,7 @@ import 'server-only';
 // (admin, or the customer who owns it), so this takes a plain site id. A missing table
 // (SQL not run yet) reads as "no devices" so the page simply omits the card.
 import { getSupabaseAdmin } from '@/lib/server/supabase';
-import type { SiteDevice } from './types';
+import type { SiteAlarmPattern, SiteDevice } from './types';
 
 const KIND_ORDER = { charger: 0, battery: 1, inverter: 2 } as const;
 const STATUS_ORDER = { bad: 0, warn: 1, ok: 2 } as const;
@@ -28,4 +28,18 @@ export async function getSiteDevices(siteId: string): Promise<SiteDevice[]> {
       KIND_ORDER[a.kind] - KIND_ORDER[b.kind] ||
       (a.metrics.n ?? 0) - (b.metrics.n ?? 0),
   );
+}
+
+/** Alarms that keep repeating on a site, most frequent first. A missing table reads as none. */
+export async function getSiteAlarmPatterns(siteId: string): Promise<SiteAlarmPattern[]> {
+  const { data, error } = await getSupabaseAdmin()
+    .schema('vrm')
+    .from('site_alarm_patterns')
+    .select('category, count, window_days, last_at, active, device, detail')
+    .eq('site_id', siteId);
+  if (error) {
+    if (error.code === '42P01' || error.code === 'PGRST205') return [];
+    throw error;
+  }
+  return ((data ?? []) as SiteAlarmPattern[]).sort((a, b) => b.count - a.count);
 }

@@ -177,6 +177,16 @@ def _pv_power_from_diagnostics(
     return float(total), latest, by_instance
 
 
+# These attributes are all the same three-state enum: 0 Ok, 1 Warning, 2 Alarm. A VE.Bus inverter holds an
+# overload for a while at "Warning" and only raises the official "Alarm" (then shuts down) when that time runs
+# out, so only 2 is an alarm. Counting 1 as well fired "overload" alerts that Victron's own log never showed.
+ALARM_STATE = 2
+
+
+def _is_alarm(raw) -> bool:
+    return isinstance(raw, (int, float)) and not isinstance(raw, bool) and raw >= ALARM_STATE
+
+
 def check_live_alarms(diagnostics: dict) -> dict[str, dict]:
     """Current instantaneous state of every scored alarm/critical-alert
     category, straight from diagnostics' own `rawValue` — see the module
@@ -200,13 +210,13 @@ def check_live_alarms(diagnostics: dict) -> dict[str, dict]:
         present = [c for c in codes if c in raw_by_code]
         if not present:
             continue
-        active = any((raw_by_code[c] or 0) != 0 for c in present)
+        active = any(_is_alarm(raw_by_code[c]) for c in present)
         result[source] = {"label": label, "table": "alarm_events", "active": active}
     for category, (label, codes) in CRITICAL_ALARM_CATEGORIES.items():
         present = [c for c in codes if c in raw_by_code]
         if not present:
             continue
-        active = any((raw_by_code[c] or 0) != 0 for c in present)
+        active = any(_is_alarm(raw_by_code[c]) for c in present)
         result[category] = {"label": label, "table": "critical_alerts", "active": active}
     return result
 

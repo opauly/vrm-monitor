@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireAdmin } from '@/lib/server/auth';
 import { getFleetSiteDetail, type SiteAnomalyRow } from '@/lib/server/db/admin';
-import { getSiteDevices } from '@/lib/server/db';
+import { getSiteAlarmPatterns, getSiteDevices } from '@/lib/server/db';
 import { batteryRuntime, formatHours } from '@/lib/batteryRuntime';
 import { formatDateTimeInZone } from '@/lib/dates';
 import { AiSummary, DevicesCard, ForecastPanel, PeriodProvider, SiteHealthCard } from '@/components/app';
@@ -157,7 +157,7 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
   const site = await getFleetSiteDetail(site_id);
   if (!site) notFound();
 
-  const devices = await getSiteDevices(site.site_id);
+  const [devices, alarmPatterns] = await Promise.all([getSiteDevices(site.site_id), getSiteAlarmPatterns(site.site_id)]);
   const runtime = batteryRuntime(site.live_soc_pct, site.battery_usable_kwh, site.live_battery_power_w);
 
   return (
@@ -275,7 +275,7 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
 
       <AiSummary lang={lang} endpoint={`/api/admin/pipeline/insights/site?siteId=${encodeURIComponent(site.site_id)}`} />
       <ForecastPanel lang={lang} endpoint={`/api/admin/pipeline/forecast/site?siteId=${encodeURIComponent(site.site_id)}`} />
-      <DevicesCard lang={lang} devices={devices} />
+      <DevicesCard lang={lang} devices={devices} patterns={alarmPatterns} timeZone={site.timezone} />
 
       <PeriodProvider siteId={site.site_id} apiBasePath="/api/admin/pipeline/vrm-fleet">
         <FleetLiveSection

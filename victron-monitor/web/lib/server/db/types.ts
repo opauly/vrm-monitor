@@ -400,6 +400,16 @@ export type AlertPreference = { enabled: boolean; email: boolean; push: boolean 
 // vrm.site_devices (victron-monitor/sql/vrm_site_devices.sql) — one row per battery /
 // inverter / solar charger, written by the refresh sweep (`vrm_api/devices_service.py`).
 export type DeviceStatus = 'ok' | 'warn' | 'bad';
+// A kind of alarm that keeps coming back on a site (`vrm.site_alarm_patterns`, from Victron's alarm log).
+export type SiteAlarmPattern = {
+  category: string;
+  count: number;
+  window_days: number;
+  last_at: string;
+  active: boolean;
+  device: string;
+  detail: string;
+};
 export type SiteDevice = {
   device_key: string;
   kind: 'charger' | 'battery' | 'inverter';

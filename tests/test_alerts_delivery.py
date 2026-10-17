@@ -533,3 +533,14 @@ def test_a_long_site_name_never_decides_what_the_push_title_says():
     assert payload["title"] == "Equipment problem" and payload["body"].startswith("Vista Atenas LP M2 (Studios) — Battery")
     resolved = ad._push_payload(alert, ad.describe(alert, resolved=True, site_name="Vista Atenas LP M2 (Studios)", tz_name=None, strings=email_i18n.get("es"), site_url="https://x"))
     assert resolved["title"] == "Problema de equipo resuelto" and resolved["body"] == "Vista Atenas LP M2 (Studios)"
+
+
+def test_an_overload_raised_from_the_official_log_says_when_and_for_how_long():
+    from victron import email_i18n
+    alert = {"id": "a1", "kind": "system_alarm", "severity": "warning", "site_id": "s1",
+             "detail": {"alarms": ["overload"], "overload_log": {"at": "2026-10-15T19:54:20+00:00", "seconds": 32, "count": 2}}}
+    for lang, expect in (("en", "13:54"), ("es", "13:54")):
+        body = ad.describe(alert, resolved=False, site_name="Ukiyo", tz_name="America/Costa_Rica", strings=email_i18n.get(lang), site_url="https://x")["body"]
+        assert expect in body and "32" in body and "2" in body and "{" not in body
+    live = dict(alert, detail={"alarms": ["overload"]})
+    assert ad.describe(live, resolved=False, site_name="U", tz_name=None, strings=email_i18n.get("en"), site_url="https://x")["body"] == "Active: overload."

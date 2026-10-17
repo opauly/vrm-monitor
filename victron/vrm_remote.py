@@ -294,6 +294,12 @@ class VrmRemoteClient:
         """
         return self._request("GET", f"/installations/{id_site}/diagnostics")
 
+    def get_alarm_log(self, id_site, *, count: int = 100) -> dict:
+        """`GET /installations/{id_site}/alarm-log` -> the official alarm log the VRM portal shows:
+        `records` newest first, each with `description`, `nameEnum` (the state), `started`/`cleared`
+        epoch seconds, `isActive`, `device`, `instance`. `count` caps how many come back."""
+        return self._request("GET", f"/installations/{id_site}/alarm-log", params={"count": count})
+
     def get_stats(self, id_site, *, type, interval, start, end,
                   attribute_codes: list[str] | None = None,
                   show_instance: bool = False) -> dict:

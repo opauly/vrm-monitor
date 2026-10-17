@@ -35,6 +35,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
+from victron import alarm_log
+
 SITE_OFFLINE = "site_offline"
 GRID_OUTAGE = "grid_outage"
 LOW_BATTERY = "low_battery"
@@ -160,6 +162,7 @@ def evaluate_site(
     grid_imported_recently: bool,
     now: datetime,
     devices: list[dict] | None = None,
+    alarm_events: list | None = None,
 ) -> list[Condition]:
     """Conditions for one site.
 
@@ -222,8 +225,13 @@ def evaluate_site(
     soft_before, _ = _active_alarm_keys(previous) if snapshot is not None else ([], [])
     soft_confirmed = [k for k in soft_now if k in soft_before or SYSTEM_ALARM in open_kinds]
     active_keys = critical_now + soft_confirmed
+    # Victron's own log is already a confirmed record (and sees the ~30 s trips a sweep never does).
+    overload = alarm_log.recent_overload(alarm_events, now) if alarm_events else None
+    if overload and "overload" not in active_keys:
+        active_keys.append("overload")
+    extra = {"overload_log": overload} if overload else {}
     if active_keys:
-        out.append(cond(SYSTEM_ALARM, True, CRITICAL if critical_now else WARNING, alarms=active_keys))
+        out.append(cond(SYSTEM_ALARM, True, CRITICAL if critical_now else WARNING, alarms=active_keys, **extra))
     elif not soft_now:
         out.append(cond(SYSTEM_ALARM, False))
     # else: an unconfirmed first sighting of a debounced alarm — unknown.

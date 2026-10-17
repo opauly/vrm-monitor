@@ -163,6 +163,15 @@ def describe(alert: dict, *, resolved: bool, site_name: str, tz_name: str | None
     elif kind == rules.SYSTEM_ALARM:
         names = [t.get(f"alert_alarm_{k}", k) for k in detail.get("alarms", [])]
         values["alarms"] = ", ".join(names) or "—"
+        log = detail.get("overload_log")
+        if isinstance(log, dict) and detail.get("alarms") == ["overload"]:
+            # Raised from Victron's own log: say when it happened and for how long, not "active".
+            seconds, count = log.get("seconds"), log.get("count") or 1
+            values.update(
+                time=_local(log.get("at"), tz_name)[-5:],
+                lasted=_fill(t["alert_system_alarm_overload_lasted"], seconds=seconds) if isinstance(seconds, int) else "",
+                repeats=_fill(t["alert_system_alarm_overload_repeats"], count=count) if count > 1 else "")
+            body_key = "alert_system_alarm_overload_body"
     elif kind == rules.DEVICE_FAULT:
         values["devices"] = devices.describe_devices(t, detail)
     elif kind == rules.GENERATOR_USE:

@@ -72,7 +72,7 @@ from pydantic import ValidationError
 from database.supabase_client import get_client
 
 from victron import ingest as victron_ingest
-from vrm_api import admin_alerts, alerts_delivery, alerts_push, alerts_service, devices_service
+from vrm_api import admin_alerts, alarm_log_service, alerts_delivery, alerts_push, alerts_service, devices_service
 from victron.anomaly_battery import check_incomplete_charging
 from victron.anomaly_drift import check_quiet_drift, check_underperformance
 from victron.anomaly_silence import check_unexpected_silence
@@ -413,7 +413,8 @@ def post_sync(body: VrmFleetSyncRequest, background_tasks: BackgroundTasks) -> J
 _SNAPSHOT_FETCH_WORKERS = 4
 
 
-def _fetch_site_snapshot(site: dict, admin_token: str | None, diagnostics_out: dict | None = None) -> tuple[str, dict | None]:
+def _fetch_site_snapshot(site: dict, admin_token: str | None, diagnostics_out: dict | None = None,
+                         alarm_log_out: dict | None = None) -> tuple[str, dict | None]:
     """Phase 1 of `post_refresh_snapshots()` for ONE site: resolve its token
     and fetch its live snapshot. Returns `("ok", snapshot)`, `("skipped",
     None)` (no installation id / no token / nothing published) or `("failed",
@@ -440,6 +441,12 @@ def _fetch_site_snapshot(site: dict, admin_token: str | None, diagnostics_out: d
         diagnostics = client.get_diagnostics(id_site)
         if diagnostics_out is not None:
             diagnostics_out[site["site_id"]] = diagnostics
+        if alarm_log_out is not None:
+            # Best effort: the log is extra to the snapshot, never a reason to lose it.
+            try:
+                alarm_log_out[site["site_id"]] = client.get_alarm_log(id_site)
+            except Exception:  # noqa: BLE001
+                logger.warning("vrm-fleet refresh-snapshots: alarm log unavailable for site %s", site["site_id"])
         snapshot = fetch_live_snapshot(client, id_site, site["site_id"],
                                       tz=site.get("timezone") or DEFAULT_TZ_NAME,
                                       diagnostics=diagnostics)
@@ -536,8 +543,10 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
     # database writes — stays sequential and unchanged.
     started = time.monotonic()
     diagnostics_by_site: dict[str, dict] = {}
+    alarm_logs_by_site: dict[str, dict] = {}
+    log_sink = alarm_logs_by_site if alarm_log_service.alarm_log_mode() == "on" else None
     with ThreadPoolExecutor(max_workers=_SNAPSHOT_FETCH_WORKERS) as pool:
-        fetched = list(pool.map(lambda site: _fetch_site_snapshot(site, admin_token, diagnostics_by_site), sites))
+        fetched = list(pool.map(lambda site: _fetch_site_snapshot(site, admin_token, diagnostics_by_site, log_sink), sites))
 
     refreshed, skipped, failed = 0, 0, 0
     for site, (status, snapshot) in zip(sites, fetched):
@@ -591,6 +600,14 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
         except Exception:  # noqa: BLE001
             logger.exception("vrm-fleet refresh-snapshots: device pass failed (snapshots are unaffected)")
 
+    # Victron's own alarm log: real overload trips for the alert pass, repeating warnings for the site pages.
+    alarm_events_by_site: dict[str, list] = {}
+    if alarm_logs_by_site:
+        try:
+            alarm_events_by_site = alarm_log_service.run_pass(sites, alarm_logs_by_site)
+        except Exception:  # noqa: BLE001
+            logger.exception("vrm-fleet refresh-snapshots: alarm log pass failed (snapshots are unaffected)")
+
     # Fleet alerts (offline / grid outage / low battery / alarms / VRM link / device fault).
     # Off unless ALERTS_MODE is set, and walled off from everything above: a
     # failure here is logged and ignored, never a failed or slow snapshot sweep.
@@ -599,7 +616,7 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
             summary = alerts_service.run_alert_pass(
                 sites=sites, fetched=fetched,
                 previous_by_site=previous_snapshots_by_site, energy_by_site=energy_daily_by_site,
-                devices_by_site=devices_by_site,
+                devices_by_site=devices_by_site, alarm_events_by_site=alarm_events_by_site,
             )
             logger.info("vrm-fleet refresh-snapshots: alerts %s", summary)
         except Exception:  # noqa: BLE001

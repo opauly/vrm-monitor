@@ -398,6 +398,20 @@ def get_site_devices(site_id: str, schema: str) -> list[dict]:
         return []
 
 
+def get_site_alarm_patterns(site_id: str, schema: str, start: date) -> list[dict]:
+    """Alarms that keep repeating on the site (`vrm.site_alarm_patterns`, from Victron's alarm log),
+    for the report's Equipment block: only kinds seen again since `start`. `vrm` schema only; `[]`
+    when the table does not exist yet — an optional section never fails a report."""
+    if schema != "vrm":
+        return []
+    try:
+        rows = (_table(schema, "site_alarm_patterns").select("category, count, window_days, last_at, device, detail")
+                .eq("site_id", site_id).execute().data or [])
+    except Exception:  # noqa: BLE001
+        return []
+    return [r for r in rows if str(r.get("last_at") or "")[:10] >= start.isoformat()]
+
+
 def bucket_days(rows: list[dict], start: date, end: date,
                 bucket_len_days: int) -> list[dict]:
     """Groups `rows` (already-fetched `energy_daily` rows) into consecutive
@@ -628,6 +642,7 @@ def fetch_report_window(site_id: str, start: str | date, end: str | date,
             site_id, start, end, schema),
         # The Equipment block (vrm.site_devices) — see get_site_devices().
         "devices": get_site_devices(site_id, schema),
+        "alarm_patterns": get_site_alarm_patterns(site_id, schema, start),
         # A window can be short because the CSV didn't cover it or because
         # Node-RED missed days. The report must be able to say so rather than
         # present 3 days of data as a full window.

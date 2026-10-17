@@ -449,6 +449,20 @@ def _equipment_findings(devices: list[dict], start: str | None, end: str | None)
     return out
 
 
+_PATTERN_NAMES = {
+    "overload": "inverter overloads", "temperature": "overheating", "high_current": "high battery current",
+    "low_battery": "the battery running low", "battery_voltage": "battery voltage out of range", "bms": "the battery losing contact with the system",
+    "grid_input": "the grid input dropping", "vebus_error": "inverter system errors", "internal_failure": "battery monitor failures",
+    "charger_error": "solar charger errors",
+}
+
+
+def _pattern_findings(patterns: list[dict]) -> list[str]:
+    """Alarms that cleared by themselves but keep coming back, for the AI paragraph. Said as a quiet watch-item, never an emergency."""
+    return [f"Repeated warning (no alert was sent, each cleared by itself): {_PATTERN_NAMES.get(p.get('category'), 'an alarm')} "
+            f"{p.get('count')} times in the last {p.get('window_days')} days" for p in patterns[:3]]
+
+
 def build_report_data(site_id: str, start: str | date, end: str | date, schema: str,
                       with_narrative: bool = True,
                       with_weather: bool = True,
@@ -849,7 +863,8 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
             "briefDropoutMinutes": round(brief_dropout_minutes) if system_type != "off_grid" else 0,
             "generator": ({"days": totals["generatorDays"], "hours": round(totals["acInMinutes"] / 60, 1) if totals["acInMinutes"] >= 1 else None,
                            "kwh": round(totals["grid"], 1)} if system_type == "off_grid" and totals["generatorDays"] else None),
-            "equipment": _equipment_findings(window.get("devices") or [], window["period_start"], window["period_end"]),
+            "equipment": _equipment_findings(window.get("devices") or [], window["period_start"], window["period_end"])
+                         + _pattern_findings(window.get("alarm_patterns") or []),
             "isOverview": window["is_overview"],
             "bucketTrendLines": (_bucket_trend_lines(overview_buckets, overview_trend)
                                  if window["is_overview"] else ""),
@@ -912,6 +927,7 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
         "criticalAlertsTotal": critical_total,
         # Equipment block: vrm.site_devices rows (vrm schema only) and the window they are read against.
         "devices": window.get("devices") or [],
+        "alarmPatterns": window.get("alarm_patterns") or [],
         "isDaily": len(days) == 1 and not window["is_overview"],
         "briefDropoutMinutes": brief_dropout_minutes,
         "periodStartIso": str(window["period_start"]),
@@ -1090,8 +1106,12 @@ def _equipment_rows(d: dict) -> list[dict]:
     device: page 2 is already full."""
     t = d["t"]
     devices = d.get("devices") or []
+    patterns = (d.get("alarmPatterns") or [])[:3]
+    pattern_rows = [{"label": t.get(f"alarmPattern_{p.get('category')}", p.get("category")),
+                     "value": t["alarmPatternTimes"].format(n=p.get("count"), days=p.get("window_days")), "valueColor": S.AMBER}
+                    for p in patterns]
     if not devices:
-        return []
+        return pattern_rows
     start, end = d.get("periodStartIso"), d.get("periodEndIso")
     order = {"bad": 0, "warn": 1, "ok": 2}
     kinds = {"charger": 0, "battery": 1, "inverter": 2}
@@ -1114,7 +1134,7 @@ def _equipment_rows(d: dict) -> list[dict]:
         label = {"ok": t["equipmentOk"], "warn": t["equipmentWarn"], "bad": t["equipmentBad"]}[status]
         rows.append({"label": name, "value": f"{label} · {t['equipmentDayOne' if days == 1 else 'equipmentDayMany'].format(n=days)}" if days else label,
                      "valueColor": colour[status]})
-    return rows
+    return rows + pattern_rows
 
 
 def _phase2_rows(d: dict) -> tuple[list, list, list, list]:

@@ -43,6 +43,19 @@ export function describeAlert(lang: Lang, alert: AlertWithSite): { title: string
     case 'system_alarm': {
       const keys = Array.isArray(detail.alarms) ? (detail.alarms as unknown[]) : [];
       const names = keys.map((k) => ((ALARM_KEYS as readonly string[]).includes(k as string) ? t(lang, `alerts_alarm_${k as AlarmKey}`) : String(k)));
+      // Raised from Victron's own alarm log: say when it happened and for how long, not "active".
+      const log = detail.overload_log as { at?: string; seconds?: number | null; count?: number } | undefined;
+      if (log && typeof log.at === 'string' && keys.length === 1 && keys[0] === 'overload') {
+        const count = log.count ?? 1;
+        return {
+          title: fill(t(lang, 'alerts_text_system_alarm_title'), { site }),
+          body: fill(t(lang, 'alerts_text_system_alarm_overload_body'), {
+            time: formatDateTimeInZone(log.at, alert.site_timezone, 'en-US'),
+            lasted: typeof log.seconds === 'number' ? fill(t(lang, 'alerts_text_system_alarm_overload_lasted'), { seconds: log.seconds }) : '',
+            repeats: count > 1 ? fill(t(lang, 'alerts_text_system_alarm_overload_repeats'), { count }) : '',
+          }),
+        };
+      }
       return {
         title: fill(t(lang, 'alerts_text_system_alarm_title'), { site }),
         body: fill(t(lang, 'alerts_text_system_alarm_body'), { alarms: names.join(', ') || '—' }),
