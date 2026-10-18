@@ -70,11 +70,11 @@ function getRanges(lang: Lang): { key: Range; label: string }[] {
   ];
 }
 
-function getSeries(lang: Lang): { key: SeriesKey; label: string; color: string; fill?: string }[] {
+function getSeries(lang: Lang, generator = false): { key: SeriesKey; label: string; color: string; fill?: string }[] {
   return [
     { key: 'solar', label: t(lang, 'shape_chart_series_solar'), color: 'var(--signal)', fill: 'rgba(var(--signal-rgb), 0.16)' },
     { key: 'load', label: t(lang, 'shape_chart_series_load'), color: 'var(--paper-dim)' },
-    { key: 'grid', label: t(lang, 'shape_chart_series_grid'), color: 'var(--victron-glow)' },
+    { key: 'grid', label: t(lang, generator ? 'shape_chart_series_generator' : 'shape_chart_series_grid'), color: 'var(--victron-glow)' },
     { key: 'battery', label: t(lang, 'shape_chart_series_battery'), color: 'var(--good)', fill: 'rgba(var(--good-rgb), 0.14)' },
   ];
 }
@@ -255,15 +255,18 @@ export function ShapeChart({
   // answer for a given siteId, which is exactly what this prop parameterizes.
   apiBasePath = '/api/admin/pipeline/vrm-fleet',
   lang = 'en',
+  generator = false,
 }: {
   siteIds: string[];
   title: string;
   cardSub: string;
   apiBasePath?: string;
   lang?: Lang;
+  /** An off-grid site: its AC input is a generator, so the "Grid" series reads "Generator". */
+  generator?: boolean;
 }) {
   const RANGES = useMemo(() => getRanges(lang), [lang]);
-  const SERIES = useMemo(() => getSeries(lang), [lang]);
+  const SERIES = useMemo(() => getSeries(lang, generator), [lang, generator]);
   const [range, setRange] = useState<Range>('today');
   const [checked, setChecked] = useState<Record<SeriesKey, boolean>>({ solar: true, load: true, grid: false, battery: false });
   // `ready` is the last successfully loaded data — kept on screen across a
@@ -392,7 +395,7 @@ export function ShapeChart({
 
   const gridAvailableCount = ready?.gridAvailableCount ?? null;
   const gridDisabled = gridAvailableCount === 0;
-  const gridSeriesLabel = t(lang, 'shape_chart_series_grid');
+  const gridSeriesLabel = t(lang, generator ? 'shape_chart_series_generator' : 'shape_chart_series_grid');
   const gridLabel = gridAvailableCount === null
     ? gridSeriesLabel
     : `${gridSeriesLabel} ${

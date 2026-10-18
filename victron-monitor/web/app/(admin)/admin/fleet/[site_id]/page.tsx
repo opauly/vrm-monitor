@@ -310,6 +310,7 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
 
       <ShapeChart
         siteIds={[site.site_id]}
+        generator={site.system_type === 'off_grid'}
         title={t(lang, 'admin_fleetsite_shape_title')}
         cardSub={t(lang, 'admin_fleetsite_shape_sub')}
         lang={lang}
@@ -320,7 +321,7 @@ export default async function AdminFleetSitePage({ params }: { params: Promise<{
           <span>{t(lang, 'admin_fleetsite_meta_yield').replace('{value}', String(site.specific_yield_kwh_per_kwp))}</span>
         )}
         {site.grid_dependency_pct !== null && (
-          <span>{t(lang, 'admin_fleetsite_meta_grid_dep').replace('{value}', String(site.grid_dependency_pct))}</span>
+          <span>{t(lang, site.system_type === 'off_grid' ? 'admin_fleetsite_meta_generator_dep' : 'admin_fleetsite_meta_grid_dep').replace('{value}', String(site.grid_dependency_pct))}</span>
         )}
         {site.pv_kwp !== null && <span>{t(lang, 'admin_fleetsite_meta_installed').replace('{value}', String(site.pv_kwp))}</span>}
         {site.battery_usable_kwh !== null && (

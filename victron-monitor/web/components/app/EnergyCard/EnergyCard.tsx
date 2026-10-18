@@ -18,8 +18,15 @@ const ROWS: { field: keyof EnergyTotals; label: StringKey }[] = [
   { field: 'gridExport', label: 'site_live_energy_export' },
 ];
 
-function Totals({ lang, totals }: { lang: Lang; totals: EnergyTotals }) {
-  const rows = ROWS.filter((row) => totals[row.field] !== null);
+// An off-grid site has no grid: what comes in through its AC input is a generator, and nothing can be sent back.
+function rowsFor(totals: EnergyTotals, generator: boolean) {
+  return ROWS.filter((row) => totals[row.field] !== null && !(generator && row.field === 'gridExport')).map((row) =>
+    generator && row.field === 'gridImport' ? { ...row, label: 'site_live_energy_import_generator' as StringKey } : row,
+  );
+}
+
+function Totals({ lang, totals, generator }: { lang: Lang; totals: EnergyTotals; generator: boolean }) {
+  const rows = rowsFor(totals, generator);
   if (rows.length === 0) return <div className={styles.note}>{t(lang, 'site_energy_none')}</div>;
   return (
     <div className={styles.grid}>
@@ -35,7 +42,7 @@ function Totals({ lang, totals }: { lang: Lang; totals: EnergyTotals }) {
   );
 }
 
-export function EnergyCard({ lang, week, month }: { lang: Lang; week: EnergyTotals; month: EnergyTotals }) {
+export function EnergyCard({ lang, week, month, generator = false }: { lang: Lang; week: EnergyTotals; month: EnergyTotals; generator?: boolean }) {
   const today = useToday();
   return (
     <div className={styles.card}>
@@ -50,16 +57,16 @@ export function EnergyCard({ lang, week, month }: { lang: Lang; week: EnergyTota
         ) : today.status === 'error' ? (
           <div className={styles.note}>{t(lang, 'site_energy_unavailable')}</div>
         ) : (
-          <Totals lang={lang} totals={today.totals} />
+          <Totals lang={lang} totals={today.totals} generator={generator} />
         )}
       </PeriodPane>
       <PeriodPane period="week">
         <div className={styles.note}>{t(lang, 'site_energy_sub_week')}</div>
-        <Totals lang={lang} totals={week} />
+        <Totals lang={lang} totals={week} generator={generator} />
       </PeriodPane>
       <PeriodPane period="month">
         <div className={styles.note}>{t(lang, 'site_energy_sub_month')}</div>
-        <Totals lang={lang} totals={month} />
+        <Totals lang={lang} totals={month} generator={generator} />
       </PeriodPane>
     </div>
   );

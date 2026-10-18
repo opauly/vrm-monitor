@@ -294,6 +294,7 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
 
       <ShapeChart
         siteIds={[site.site_id]}
+        generator={site.system_type === 'off_grid'}
         title={t(lang, 'admin_fleetsite_shape_title')}
         cardSub={t(lang, 'admin_fleetsite_shape_sub')}
         apiBasePath="/api/pipeline/vrm-fleet"
@@ -302,7 +303,7 @@ export default async function CustomerDashboardSitePage({ params }: { params: Pr
 
       <div className={styles.metaRow}>
         {site.specific_yield_kwh_per_kwp !== null && <span>Specific yield: {site.specific_yield_kwh_per_kwp} kWh/kWp</span>}
-        {site.grid_dependency_pct !== null && <span>Grid dependency: {site.grid_dependency_pct}%</span>}
+        {site.grid_dependency_pct !== null && <span>{site.system_type === 'off_grid' ? 'Generator' : 'Grid'} dependency: {site.grid_dependency_pct}%</span>}
         {site.pv_kwp !== null && <span>Installed: {site.pv_kwp} kWp</span>}
         {site.battery_usable_kwh !== null && <span>Usable battery: {site.battery_usable_kwh} kWh</span>}
       </div>
