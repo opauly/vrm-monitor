@@ -135,7 +135,7 @@ def test_a_down_vrm_does_not_stop_the_forecast(db, monkeypatch):
 def test_compact_keeps_only_what_the_summary_may_say(db):
     r = svc.get_forecast("s1", now=NOW, mode="on")
     c = svc.compact(r)
-    assert set(c) == {"tomorrow_sky", "tomorrow_pv_kwh", "tomorrow_vs_typical_pct", "typical_pv_kwh", "storm", "backup_hours", "backup_reaches_sunrise", "soc_at_sunrise_pct"}
+    assert set(c) == {"tomorrow_sky", "tomorrow_pv_kwh", "tomorrow_vs_typical_pct", "typical_pv_kwh", "storm", "storm_windows", "backup_hours", "backup_reaches_sunrise", "soc_at_sunrise_pct"}
     assert svc.compact({"available": False}) is None and svc.compact(None) is None
 
 

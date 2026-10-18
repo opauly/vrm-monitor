@@ -99,6 +99,23 @@ def storm_ahead(weather: dict, now: datetime) -> bool:
     return any(r.get("code") in STORM_CODES and (t := _dt(r["time"])) is not None and now <= t < end for r in weather.get("hourly", []))
 
 
+def storm_windows(weather: dict, now: datetime) -> list[dict]:
+    """When the thunderstorm hours fall, from now to the end of tomorrow: `[{day: "today"|"tomorrow", from: "15:00",
+    to: "18:00"}]`, one entry per run of consecutive hours. `to` is the end of the last stormy hour."""
+    first = now.replace(minute=0, second=0, microsecond=0)
+    tomorrow = (now.date() + timedelta(days=1))
+    end = datetime.combine(now.date() + timedelta(days=2), datetime.min.time())
+    hours = sorted(t for r in weather.get("hourly", []) if r.get("code") in STORM_CODES and (t := _dt(r["time"])) is not None and first <= t < end)
+    runs: list[list[datetime]] = []
+    for t in hours:
+        if runs and t - runs[-1][-1] == timedelta(hours=1) and t.date() == runs[-1][-1].date():
+            runs[-1].append(t)
+        else:
+            runs.append([t])
+    return [{"day": "tomorrow" if run[0].date() == tomorrow else "today", "from": run[0].strftime("%H:00"),
+             "to": (run[-1] + timedelta(hours=1)).strftime("%H:00") if run[-1].hour < 23 else "24:00"} for run in runs]
+
+
 def sky(day: dict) -> str:
     """One word for the day: storm | rain | cloudy | partly | sunny."""
     if day.get("storm"):
@@ -214,7 +231,7 @@ def build_forecast(*, weather: dict, now: datetime, pv_history: list[dict], load
         "generated_for": now.isoformat(timespec="minutes"),
         "calibration": {"source": calib["source"], "days": calib["days"], "typical_pv_kwh": typical},
         "tomorrow": day_card(tomorrow), "today": day_card(today),
-        "storm_ahead": storm, "backup": None, "tomorrow_battery": None, "advice": [],
+        "storm_ahead": storm, "storm_windows": storm_windows(weather, now) if storm else [], "backup": None, "tomorrow_battery": None, "advice": [],
     }
 
     # Battery: only with a battery, a state of charge and a usual-load profile.

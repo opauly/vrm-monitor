@@ -30,7 +30,7 @@ GENERATOR_RELIANCE_DAYS = 4  # generator days within the window that make it a p
 ATTENTION, GOOD, INFO = "attention", "good", "info"
 
 _ORDER = [
-    "offline", "offline_days", "alert_", "storm_ahead", "outage_deep", "tonight_short", "anomaly_", "battery_low", "generator_reliance", "at_reserve", "generator_used", "solar_below",
+    "offline", "offline_days", "alert_", "storm_ahead", "outage_deep", "tonight_short", "tomorrow_solar_storm_", "anomaly_", "battery_low", "generator_reliance", "at_reserve", "generator_used", "solar_below",
     "tomorrow_low_solar", "import_high", "outage_held", "load_above", "no_float", "export", "solar_above", "tomorrow_high_solar",
     "load_below", "self_sufficient",
 ]
@@ -195,7 +195,7 @@ def observations(facts: dict, *, system_type: str | None) -> list[dict]:
 
     ahead = facts.get("forecast") or {}
     if ahead.get("storm"):
-        add("storm_ahead", ATTENTION)
+        add("storm_ahead", ATTENTION, **({"windows": ahead["storm_windows"]} if ahead.get("storm_windows") else {}))
     if ahead.get("backup_reaches_sunrise") is False:
         add("tonight_short", ATTENTION, hours=ahead.get("backup_hours"))
     pct = ahead.get("tomorrow_vs_typical_pct")
@@ -205,6 +205,11 @@ def observations(facts: dict, *, system_type: str | None) -> list[dict]:
             add("tomorrow_low_solar", INFO, **params)
         elif pct >= 20 and ahead["tomorrow_pv_kwh"] >= ahead["typical_pv_kwh"] + 2:
             add("tomorrow_high_solar", GOOD, **params)
+        elif ahead.get("storm"):
+            # A storm next to a normal-looking solar figure reads as a contradiction unless it is said outright:
+            # the sunlight forecast already allows for the cloud, so a storm does not by itself mean a poor day.
+            direction = "above" if pct >= 5 else "below" if pct <= -5 else "near"
+            add(f"tomorrow_solar_storm_{direction}", INFO, **{**params, "change_pct": abs(pct)})
 
     day = facts.get("day")
     if not day:

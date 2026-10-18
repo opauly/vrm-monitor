@@ -175,3 +175,12 @@ def test_a_battery_that_normally_fills_or_has_no_grid_does_get_the_warning():
     assert run(dull, load=400.0, fills=True)["tomorrow_battery"]["show_peak"] is True
     assert run(dull, load=400.0, fills=False, system_type="off_grid")["tomorrow_battery"]["show_peak"] is True
     assert any(a["code"] == "battery_wont_fill" for a in run(dull, load=400.0, fills=False, system_type="off_grid")["advice"])
+
+
+def test_storm_hours_are_reported_as_windows_for_today_and_tomorrow():
+    base = datetime(2026, 10, 8, 10, 0)
+    rows = [{"time": f"2026-10-0{d}T{h:02d}:00", "code": 95} for d, hs in ((8, (15, 16, 17)), (9, (14,), ), (11, (15,))) for h in hs]
+    rows.append({"time": "2026-10-08T08:00", "code": 95})                      # this morning: already over
+    got = F.storm_windows({"hourly": rows}, base)
+    assert got == [{"day": "today", "from": "15:00", "to": "18:00"}, {"day": "tomorrow", "from": "14:00", "to": "15:00"}]
+    assert F.storm_windows({"hourly": []}, base) == []

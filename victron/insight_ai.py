@@ -31,8 +31,9 @@ logger = logging.getLogger("victron.insight_ai")
 # plain template, which is always right. No retries for the same reason.
 MODEL_TIMEOUT_S = 15.0
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
-MAX_POINTS = 3
-MAX_HEADLINE, MAX_POINT = 130, 170
+MAX_POINTS = 3            # the fleet card
+MAX_SITE_POINTS = 4       # a site card: one point per finding, so it can carry a little more
+MAX_HEADLINE, MAX_POINT = 130, 220
 
 # ── template text ────────────────────────────────────────────────────────────
 OBS = {
@@ -64,6 +65,10 @@ OBS = {
         "no_float": "The battery did not reach a full charge.",
         "self_sufficient": "{pct}% of the load was covered by solar and battery.",
         "storm_ahead": "A thunderstorm is forecast in the next day and a half.",
+        "storm_ahead_when": "Thunderstorms are possible {when}. A storm can cause a power cut, so it matters for backup time.",
+        "tomorrow_solar_storm_above": "Even with the storm, tomorrow's solar is still expected to reach about {pv} kWh, {change_pct}% above the typical {typical} kWh — the sunlight forecast already allows for the cloud.",
+        "tomorrow_solar_storm_near": "Even with the storm, tomorrow's solar is still expected to be about {pv} kWh, close to the typical {typical} kWh — the sunlight forecast already allows for the cloud.",
+        "tomorrow_solar_storm_below": "With the storm, tomorrow's solar is expected to be about {pv} kWh, {change_pct}% below the typical {typical} kWh.",
         "tonight_short": "At your usual evening use, the battery is expected to run out about {hours} hours from now, before sunrise.",
         "tomorrow_low_solar": "Tomorrow looks duller than usual: about {pv} kWh of solar expected, against a typical {typical} kWh.",
         "tomorrow_high_solar": "Tomorrow looks sunnier than usual: about {pv} kWh of solar expected, against a typical {typical} kWh.",
@@ -103,6 +108,10 @@ OBS = {
         "no_float": "La batería no llegó a la carga completa.",
         "self_sufficient": "{pct}% de la carga lo cubrieron la energía solar y la batería.",
         "storm_ahead": "Se pronostica una tormenta eléctrica en el próximo día y medio.",
+        "storm_ahead_when": "Se esperan tormentas eléctricas {when}. Una tormenta puede causar un corte de luz, así que importa para el tiempo de respaldo.",
+        "tomorrow_solar_storm_above": "Aun con la tormenta, mañana se espera que la energía solar llegue a unos {pv} kWh, {change_pct}% más de lo típico ({typical} kWh); el pronóstico de luz ya considera las nubes.",
+        "tomorrow_solar_storm_near": "Aun con la tormenta, mañana se espera que la energía solar sea de unos {pv} kWh, cerca de lo típico ({typical} kWh); el pronóstico de luz ya considera las nubes.",
+        "tomorrow_solar_storm_below": "Con la tormenta, mañana se espera que la energía solar sea de unos {pv} kWh, {change_pct}% menos de lo típico ({typical} kWh).",
         "tonight_short": "Con tu consumo habitual de la noche, se espera que la batería se agote en unas {hours} horas, antes del amanecer.",
         "tomorrow_low_solar": "Mañana se ve más opaco de lo normal: se esperan unos {pv} kWh de solar, frente a unos {typical} kWh típicos.",
         "tomorrow_high_solar": "Mañana se ve con más sol de lo normal: se esperan unos {pv} kWh de solar, frente a unos {typical} kWh típicos.",
@@ -119,7 +128,7 @@ SUGGEST = {
     "en": {
         "offline": "Check the site's internet connection and power.",
         "offline_days": "Check the site's internet connection and power, or contact your installer.",
-        "storm_ahead": "Keeping the battery topped up before a storm gives you more backup time.",
+        "storm_ahead": "Storms can cause power cuts, so a well-charged battery before then gives you the most backup time.",
         "tonight_short": "Keeping heavy loads off tonight will help the battery last until sunrise.",
         "tomorrow_low_solar": "With less sun than usual, go easy on heavy loads, especially tonight.",
         "tomorrow_high_solar": "Tomorrow is a good day to run heavy loads around midday.",
@@ -136,7 +145,7 @@ SUGGEST = {
     "es": {
         "offline": "Revisa la conexión a internet y la energía del sitio.",
         "offline_days": "Revisa la conexión a internet y la energía del sitio, o contacta a tu instalador.",
-        "storm_ahead": "Mantener la batería cargada antes de una tormenta te da más tiempo de respaldo.",
+        "storm_ahead": "Las tormentas pueden causar cortes de luz, así que una batería bien cargada antes te da el mayor tiempo de respaldo.",
         "tonight_short": "Evitar las cargas pesadas esta noche ayudará a que la batería dure hasta el amanecer.",
         "tomorrow_low_solar": "Con menos sol de lo normal, modera las cargas pesadas, sobre todo esta noche.",
         "tomorrow_high_solar": "Mañana es un buen día para usar las cargas pesadas alrededor del mediodía.",
@@ -187,8 +196,22 @@ def _fmt(value) -> str:
     return str(value)
 
 
+_WHEN = {
+    "en": {"today": "today", "tomorrow": "tomorrow", "between": "{day} between {a} and {b}", "and": ", and "},
+    "es": {"today": "hoy", "tomorrow": "mañana", "between": "{day} entre las {a} y las {b}", "and": ", y "},
+}
+
+
+def storm_when(windows: list[dict], lang: str) -> str:
+    """"today between 15:00 and 18:00, and tomorrow between 14:00 and 16:00"."""
+    w = _WHEN[lang if lang in _WHEN else "en"]
+    return w["and"].join(w["between"].format(day=w.get(x.get("day"), x.get("day")), a=x.get("from"), b=x.get("to")) for x in windows[:2])
+
+
 def _obs_text(obs_text: dict, o: dict, lang: str = "en") -> str | None:
     code = o["code"]
+    if code == "storm_ahead" and o["params"].get("windows"):
+        return _fill(obs_text["storm_ahead_when"], {"when": storm_when(o["params"]["windows"], lang)})
     if code == "alert_device_fault" and o["params"].get("equipment"):
         # Name the equipment ("Solar charger 2 made almost nothing ...") rather than a generic line.
         return devices.describe_devices(email_i18n.get(lang), o["params"]["equipment"])
@@ -228,7 +251,7 @@ def render_template(facts: dict, lang: str, scope: str, *, today: str | None = N
             reason = SHORT[lang].get(entry["reasons"][0], entry["reasons"][0])
             points.append(f"{entry['site']}: {reason}.")
     else:
-        points = [t for t in (_obs_text(obs_text, o, lang) for o in observations) if t][:MAX_POINTS]
+        points = [t for t in (_obs_text(obs_text, o, lang) for o in observations) if t][:MAX_SITE_POINTS]
 
     suggestion = None
     for o in observations:
@@ -297,12 +320,16 @@ def _system_prompt(lang: str, scope: str) -> str:
         "(overnight, morning, afternoon) or a cause that the facts do not give. "
         "If nothing notable happened, say it was a normal day. Suggestions must be low-risk and practical (check the panels, shift "
         "heavy loads to midday, keep the battery topped up, call the installer) — never electrical-safety, warranty or financial advice. "
+        "Each point states exactly ONE finding. Never join two findings in one point, and never tuck one inside another's sentence (for example a storm and a solar figure, "
+        "or the battery not filling and its lowest charge): give each its own point, in the DRAFT's order. Keep the DRAFT's explanation of what a finding means; do not shorten it into a fragment. "
+        "Use a figure from the forecast section only when an OBSERVATION states it. Write times as 24-hour clock times exactly as they appear in the facts, never as 3 pm. "
+        "A thunderstorm matters mainly as a risk of a power cut; do not say it lowers solar unless an OBSERVATION says the solar is lower. "
         "A DRAFT is provided; improve its wording and flow but keep its meaning and facts.\n\n"
-        'Reply with JSON only: {"headline": string (max 130 chars), "points": [up to 3 strings, max 170 chars each], "suggestion": string or null (max 170 chars)}'
+        f'Reply with JSON only: {{"headline": string (max {MAX_HEADLINE} chars), "points": [up to {MAX_POINTS if scope == "fleet" else MAX_SITE_POINTS} strings, max {MAX_POINT} chars each], "suggestion": string or null (max {MAX_POINT} chars)}}'
     )
 
 
-def _parse(text: str) -> dict | None:
+def _parse(text: str, max_points: int = MAX_SITE_POINTS) -> dict | None:
     text = text.strip()
     text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
     start, end = text.find("{"), text.rfind("}")
@@ -315,7 +342,7 @@ def _parse(text: str) -> dict | None:
     headline, points, suggestion = data.get("headline"), data.get("points"), data.get("suggestion")
     if not isinstance(headline, str) or not headline.strip() or len(headline) > MAX_HEADLINE:
         return None
-    if not isinstance(points, list) or len(points) > MAX_POINTS or not all(isinstance(p, str) and 0 < len(p) <= MAX_POINT for p in points):
+    if not isinstance(points, list) or len(points) > max_points or not all(isinstance(p, str) and 0 < len(p) <= MAX_POINT for p in points):
         return None
     if suggestion is not None and (not isinstance(suggestion, str) or len(suggestion) > MAX_POINT):
         return None
@@ -339,7 +366,7 @@ def generate(facts: dict, lang: str, scope: str, *, today: str | None = None, cl
             model=model, max_tokens=500, system=_system_prompt(lang, scope),
             messages=[{"role": "user", "content": "FACTS:\n" + json.dumps(facts, ensure_ascii=False, default=str) +
                        "\n\nDRAFT:\n" + json.dumps(draft, ensure_ascii=False)}])
-        parsed = _parse(message.content[0].text)
+        parsed = _parse(message.content[0].text, MAX_POINTS if scope == "fleet" else MAX_SITE_POINTS)
     except Exception:  # noqa: BLE001 — AI is an enhancement; the template always works
         logger.warning("insight_ai: model call failed — using the template", exc_info=True)
         return fallback

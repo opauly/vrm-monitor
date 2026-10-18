@@ -98,7 +98,7 @@ def test_spanish_is_requested_in_the_prompt():
     "I could not do that",                                                                     # not JSON
     json.dumps({"headline": "Yesterday: 9 kWh of solar", "points": [], "suggestion": None}),   # a number that is not a fact
     json.dumps({"headline": "x" * 200, "points": [], "suggestion": None}),                     # too long
-    json.dumps({"headline": "ok", "points": ["a", "b", "c", "d"], "suggestion": None}),        # too many points
+    json.dumps({"headline": "ok", "points": ["a", "b", "c", "d", "e"], "suggestion": None}),        # too many points
     json.dumps({"headline": "", "points": [], "suggestion": None}),                            # empty
 ])
 def test_a_bad_reply_falls_back_to_the_template(reply):
@@ -125,7 +125,7 @@ def test_forecast_findings_have_text_and_a_suggestion_in_both_languages():
     assert en["points"][:3] == ["A thunderstorm is forecast in the next day and a half.",
                                 "At your usual evening use, the battery is expected to run out about 5.3 hours from now, before sunrise.",
                                 "Tomorrow looks duller than usual: about 8 kWh of solar expected, against a typical 20 kWh."]
-    assert en["suggestion"] == "Keeping the battery topped up before a storm gives you more backup time."
+    assert en["suggestion"] == "Storms can cause power cuts, so a well-charged battery before then gives you the most backup time."
     es = AI.render_template(f, "es", "site")
     assert es["points"][0].startswith("Se pronostica una tormenta") and "8 kWh" in es["points"][2] and es["suggestion"]
     assert AI.numbers_ok(en["points"], f)
@@ -142,3 +142,25 @@ def test_rounding_a_fact_to_a_whole_number_is_allowed_but_inventing_one_is_not()
     assert AI.numbers_ok(["Around 15 kWh were used."], f) and AI.numbers_ok(["About 8 kWh of solar."], f)
     assert AI.unexplained_numbers(["Solar made 9 kWh, 12 more than usual."], f) == ["9", "12"]
     assert AI.unexplained_numbers(["Used 15.3 kWh."], f) == ["15.3"]
+
+
+def test_a_storm_says_when_and_its_solar_figure_is_a_separate_point_of_its_own():
+    f = facts()
+    f["forecast"] = {"storm": True, "storm_windows": [{"day": "tomorrow", "from": "15:00", "to": "18:00"}], "tomorrow_pv_kwh": 26.2,
+                     "typical_pv_kwh": 23.6, "tomorrow_vs_typical_pct": 11}
+    f["observations"] = F.observations(f, system_type="hybrid")
+    en = AI.render_template(f, "en", "site")
+    assert en["points"][0] == "Thunderstorms are possible tomorrow between 15:00 and 18:00. A storm can cause a power cut, so it matters for backup time."
+    assert en["points"][1].startswith("Even with the storm, tomorrow's solar is still expected to reach about 26.2 kWh, 11% above the typical 23.6 kWh")
+    es = AI.render_template(f, "es", "site")
+    assert "mañana entre las 15:00 y las 18:00" in es["points"][0] and "26.2" in es["points"][1] and "11%" in es["points"][1]
+    assert AI.numbers_ok(en["points"] + es["points"], f)
+
+
+def test_a_storm_next_to_a_poor_solar_forecast_does_not_claim_the_solar_holds():
+    f = facts()
+    f["forecast"] = {"storm": True, "storm_windows": [], "tomorrow_pv_kwh": 20.0, "typical_pv_kwh": 23.6, "tomorrow_vs_typical_pct": -15}
+    f["observations"] = F.observations(f, system_type="hybrid")
+    en = AI.render_template(f, "en", "site")
+    assert en["points"][0] == "A thunderstorm is forecast in the next day and a half."          # a cached forecast with no times yet
+    assert en["points"][1].startswith("With the storm, tomorrow's solar is expected to be about 20 kWh, 15% below")
