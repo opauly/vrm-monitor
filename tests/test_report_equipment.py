@@ -34,4 +34,4 @@ def test_repeated_warnings_get_a_quiet_row_each_and_reach_the_narrative():
     assert [(r["label"], r["value"]) for r in wr._equipment_rows({**data, "t": report_i18n.get("es")})[1:]][0] == ("Repetida: sobrecarga del inversor", "4× en 14 días")
     assert [r["label"] for r in wr._equipment_rows({**d([]), "alarmPatterns": patterns})] == ["Repeated: inverter overload", "Repeated: overheating"]
     lines = wr._pattern_findings(patterns)
-    assert "inverter overloads 4 times in the last 14 days" in lines[0] and "no alert was sent" in lines[0]
+    assert lines[0] == "inverter overloads: 4 times in the last 14 days"

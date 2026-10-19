@@ -94,3 +94,35 @@ def test_generator_running_time_is_the_share_of_buckets_the_ac_input_was_live():
     assert 86 < vrm_daily.ac_input_minutes(v) < 100            # ~6 full buckets (90 min) + 0.4 of one
     assert vrm_daily.ac_input_minutes(freq_series([0, 0, 0, 0])) == 0.0
     assert vrm_daily.ac_input_minutes(freq_series([5, 8, 0, 3])) == 0.0   # noise on a dead input is not a generator
+
+
+def _prompt(monkeypatch, **extra):
+    seen = {}
+
+    class Client:
+        def __init__(self, api_key): pass
+        class messages:
+            @staticmethod
+            def create(**kw):
+                seen["prompt"] = kw["messages"][0]["content"]
+                return types.SimpleNamespace(content=[types.SimpleNamespace(text="ok")])
+
+    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace(Anthropic=Client))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    wr.generate_narrative({**stats(), **extra}, "en")
+    return seen["prompt"]
+
+
+def test_alarm_episodes_are_framed_as_brief_events_not_faults(monkeypatch):
+    prompt = _prompt(monkeypatch, alarmEpisodes=3, alarmBreakdown="overload 3")
+    assert "Alarm episodes: 3 (overload 3)" in prompt
+    assert "not outages, shutdowns or equipment faults" in prompt and "never say they need attention or a technician" in prompt
+    assert "Alarm episodes: 0" in _prompt(monkeypatch, alarmEpisodes=0) and "equipment faults" not in _prompt(monkeypatch, alarmEpisodes=0)
+
+
+def test_repeated_warnings_are_a_quiet_watch_item_apart_from_equipment_findings(monkeypatch):
+    prompt = _prompt(monkeypatch, repeatedWarnings=["inverter overloads: 4 times in the last 14 days"])
+    assert "Repeated warnings (quiet watch-items" in prompt and "did not change the health score" in prompt
+    assert "inverter overloads: 4 times in the last 14 days" in prompt
+    assert "inverter overloads" not in prompt.split("Repeated warnings")[0]          # not filed under the findings that lowered the score
+    assert "Repeated warnings" not in _prompt(monkeypatch)

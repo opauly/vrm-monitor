@@ -313,7 +313,15 @@ def generate_narrative(stats: dict, lang: str) -> str:
             f"\n- Battery covered loads during outages: "
             f"{'yes' if stats['batteryProtectedDuringOutage'] else 'no — see outage detail'}"
         )
-    prompt += f"\n- Alarm episodes: {stats['alarmEpisodes']}"
+    if stats["alarmEpisodes"]:
+        breakdown = stats.get("alarmBreakdown")
+        prompt += (f"\n- Alarm episodes: {stats['alarmEpisodes']}" + (f" ({breakdown})" if breakdown else "") +
+                   ". These are brief threshold events the system logged and that cleared by themselves (for example an overload "
+                   "the inverter tolerated, or a short low-battery moment). They are not outages, shutdowns or equipment faults. "
+                   "Mention them in at most one short, calm clause; never say they need attention or a technician, and do not call "
+                   "them recurring unless a repeated-warning line below says so.")
+    else:
+        prompt += "\n- Alarm episodes: 0"
     if not is_daily:       # best / worst of one day is just the day
         prompt += (
             f"\n- Best production day: {stats['bestDay']} kWh"
@@ -354,6 +362,10 @@ def generate_narrative(stats: dict, lang: str) -> str:
     if stats.get("equipment"):
         prompt += ("\n- Equipment findings (these lowered the health score; say what was wrong and whether it is resolved, "
                    "using only these facts):\n  " + "\n  ".join(stats["equipment"]))
+    if stats.get("repeatedWarnings"):
+        prompt += ("\n- Repeated warnings (quiet watch-items: each one cleared by itself and no alert was sent, and they did not change "
+                   "the health score. Mention at most one, calmly, as something worth keeping an eye on or raising at the next "
+                   "maintenance visit. Not a fault, not an emergency):\n  " + "\n  ".join(stats["repeatedWarnings"]))
 
     try:
         import anthropic
@@ -449,6 +461,8 @@ def _equipment_findings(devices: list[dict], start: str | None, end: str | None)
     return out
 
 
+_ALARM_CATEGORY_NARRATIVE = {"Low Battery Alarm": "low battery", "Overload Alarm": "overload"}
+
 _PATTERN_NAMES = {
     "overload": "inverter overloads", "temperature": "overheating", "high_current": "high battery current",
     "low_battery": "the battery running low", "battery_voltage": "battery voltage out of range", "bms": "the battery losing contact with the system",
@@ -459,8 +473,8 @@ _PATTERN_NAMES = {
 
 def _pattern_findings(patterns: list[dict]) -> list[str]:
     """Alarms that cleared by themselves but keep coming back, for the AI paragraph. Said as a quiet watch-item, never an emergency."""
-    return [f"Repeated warning (no alert was sent, each cleared by itself): {_PATTERN_NAMES.get(p.get('category'), 'an alarm')} "
-            f"{p.get('count')} times in the last {p.get('window_days')} days" for p in patterns[:3]]
+    return [f"{_PATTERN_NAMES.get(p.get('category'), 'an alarm')}: {p.get('count')} times in the last {p.get('window_days')} days"
+            for p in patterns[:3]]
 
 
 def build_report_data(site_id: str, start: str | date, end: str | date, schema: str,
@@ -863,8 +877,10 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
             "briefDropoutMinutes": round(brief_dropout_minutes) if system_type != "off_grid" else 0,
             "generator": ({"days": totals["generatorDays"], "hours": round(totals["acInMinutes"] / 60, 1) if totals["acInMinutes"] >= 1 else None,
                            "kwh": round(totals["grid"], 1)} if system_type == "off_grid" and totals["generatorDays"] else None),
-            "equipment": _equipment_findings(window.get("devices") or [], window["period_start"], window["period_end"])
-                         + _pattern_findings(window.get("alarm_patterns") or []),
+            "equipment": _equipment_findings(window.get("devices") or [], window["period_start"], window["period_end"]),
+            "repeatedWarnings": _pattern_findings(window.get("alarm_patterns") or []),
+            "alarmBreakdown": ", ".join(f"{_ALARM_CATEGORY_NARRATIVE.get(label, label)} {n}"
+                                        for label, n in sorted(alarm_by_category.items(), key=lambda kv: -kv[1]) if n > 0),
             "isOverview": window["is_overview"],
             "bucketTrendLines": (_bucket_trend_lines(overview_buckets, overview_trend)
                                  if window["is_overview"] else ""),
