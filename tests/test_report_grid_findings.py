@@ -116,7 +116,7 @@ def _prompt(monkeypatch, **extra):
 def test_alarm_episodes_are_framed_as_brief_events_not_faults(monkeypatch):
     prompt = _prompt(monkeypatch, alarmEpisodes=3, alarmBreakdown="overload 3")
     assert "Alarm episodes: 3 (overload 3)" in prompt
-    assert "not outages, shutdowns or equipment faults" in prompt and "never say they need attention or a technician" in prompt
+    assert "not outages and not equipment faults" in prompt and "Never say they need a technician" in prompt
     assert "Alarm episodes: 0" in _prompt(monkeypatch, alarmEpisodes=0) and "equipment faults" not in _prompt(monkeypatch, alarmEpisodes=0)
 
 

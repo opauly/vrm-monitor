@@ -176,7 +176,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import numpy as np
 import pandas as pd
 
-from victron import vrm_daily
+from victron import alarm_log, vrm_daily
 
 # migration 012's default for every `vrm.sites.timezone` row, and this
 # module's own default `tz` — see the "Day-bucketing timezone" section of
@@ -549,31 +549,46 @@ def fetch_and_map(client, id_site, site_id: str, start, end, *,
             "outages cannot be detected on the API path for this installation"
         )
 
-    # ── Alarm episodes (§4.5: no derivable signal -> zero events + warning) ─
+    # ── Alarm episodes ───────────────────────────────────────────────────
+    # From Victron's own alarm log, so only a real "Alarm" counts. The 15-minute averages cannot tell a tolerated
+    # overload ("Warning", the inverter carrying on) from the alarm that shuts it down, and they miss alarms that last
+    # seconds. Brief warnings that never become an alarm are no longer scored; ones that become frequent do, as alarms.
+    # If the log cannot be read the series is used as a fallback, counting only the Alarm state (it can undercount).
     alarm_events: list[dict] = []
-    for source, (label, _codes) in ALARM_CATEGORIES.items():
-        codes = alarm_codes_present.get(source)
-        if not codes:
-            continue
-        parts = []
-        for code in codes:
-            s = series_by_code.get(code)
-            if s is None or s.empty:
+    labels = {source: label for source, (label, _codes) in ALARM_CATEGORIES.items()}
+    log_events = None
+    try:
+        log_events = alarm_log.parse(client.get_alarm_log(id_site, count=1000))
+    except Exception:  # noqa: BLE001 — the log is better, never required
+        warnings.append("the official alarm log could not be read — alarm episodes come from the 15-minute series and can read low")
+    if log_events is not None:
+        window_start = datetime.combine(start_date, datetime.min.time(), tzinfo=zone)
+        window_end = datetime.combine(end_date + timedelta(days=1), datetime.min.time(), tzinfo=zone)
+        alarm_events = alarm_log.scored_events(log_events, site_id=site_id, labels=labels, zone=zone, start=window_start, end=window_end)
+    else:
+        for source, (label, _codes) in ALARM_CATEGORIES.items():
+            codes = alarm_codes_present.get(source)
+            if not codes:
                 continue
-            parts.append((s.reindex(raw_index) != 0).fillna(False))
-        if not parts:
-            continue
-        active = parts[0]
-        for p in parts[1:]:
-            active = active | p
-        alarm_events.extend(vrm_daily.alarm_episode_events(
-            active, site_id=site_id, alarm=label, source=source))
-    alarm_events.sort(key=lambda e: e["timestamp"])
-    if not alarm_codes_present:
-        warnings.append(
-            "no alarm signal available on the API path for this installation "
-            "— alarm episodes will read as zero"
-        )
+            parts = []
+            for code in codes:
+                s = series_by_code.get(code)
+                if s is None or s.empty:
+                    continue
+                parts.append((s.reindex(raw_index) >= 2).fillna(False))
+            if not parts:
+                continue
+            active = parts[0]
+            for p in parts[1:]:
+                active = active | p
+            alarm_events.extend(vrm_daily.alarm_episode_events(
+                active, site_id=site_id, alarm=label, source=source))
+        alarm_events.sort(key=lambda e: e["timestamp"])
+        if not alarm_codes_present:
+            warnings.append(
+                "no alarm signal available on the API path for this installation "
+                "— alarm episodes will read as zero"
+            )
 
     # ── Critical alerts (PLAN_PHASE18.md §7 item 9) — same episode shape,
     # a SEPARATE list the caller inserts into vrm.critical_alerts, never

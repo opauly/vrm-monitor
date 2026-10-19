@@ -316,10 +316,11 @@ def generate_narrative(stats: dict, lang: str) -> str:
     if stats["alarmEpisodes"]:
         breakdown = stats.get("alarmBreakdown")
         prompt += (f"\n- Alarm episodes: {stats['alarmEpisodes']}" + (f" ({breakdown})" if breakdown else "") +
-                   ". These are brief threshold events the system logged and that cleared by themselves (for example an overload "
-                   "the inverter tolerated, or a short low-battery moment). They are not outages, shutdowns or equipment faults. "
-                   "Mention them in at most one short, calm clause; never say they need attention or a technician, and do not call "
-                   "them recurring unless a repeated-warning line below says so.")
+                   ". These are official alarms the system raised and that then cleared (for example an inverter overload, or the battery "
+                   "reaching its low-battery alarm), usually lasting seconds to minutes. They are not outages and not equipment faults. "
+                   "Mention them in at most one short, calm clause. Never say they need a technician; if there were three or more, you may "
+                   "say they happened more than once and are worth keeping an eye on. Do not call them recurring beyond that unless a "
+                   "repeated-warning line below says so.")
     else:
         prompt += "\n- Alarm episodes: 0"
     if not is_daily:       # best / worst of one day is just the day

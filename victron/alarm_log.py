@@ -174,3 +174,22 @@ def patterns(events: list[Event], now: datetime, *, off_grid: bool = False) -> l
         })
     out.sort(key=lambda p: (-p["count"], p["category"]))
     return out
+
+
+def scored_events(events: list[Event], *, site_id: str, labels: dict[str, str], zone, start: datetime, end: datetime) -> list[dict]:
+    """The log's real alarms of the scored kinds as `vrm.alarm_events` rows: a WARNING row where each episode starts and a
+    CLEARED row where it ends (none while it is still active). `labels` maps category -> the stored alarm label; `start`/`end`
+    are aware datetimes bounding the window; `zone` is the site's timezone for the stored timestamps. Alarms a few minutes
+    apart are one episode, the same grouping the repeated-warning counts use."""
+    out: list[dict] = []
+    for category, label in labels.items():
+        mine = [e for e in events if e.category == category and start <= e.started < end]
+        for episode in _episodes(mine):
+            out.append({"site_id": site_id, "alarm": label, "severity": "WARNING", "source": category,
+                        "timestamp": episode[0].started.astimezone(zone).isoformat()})
+            last = episode[-1]
+            if last.cleared and not any(e.active for e in episode):
+                out.append({"site_id": site_id, "alarm": label, "severity": "CLEARED", "source": category,
+                            "timestamp": last.cleared.astimezone(zone).isoformat()})
+    out.sort(key=lambda e: e["timestamp"])
+    return out

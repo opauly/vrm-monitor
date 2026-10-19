@@ -146,3 +146,31 @@ def test_a_missing_table_still_returns_the_events(monkeypatch):
         raise RuntimeError("relation does not exist")
     monkeypatch.setattr(svc, "_t", broken)
     assert len(svc.run_pass([{"site_id": "s1"}], {"s1": {"records": [rec("Overload L1")]}}, now=NOW)["s1"]) == 1
+
+
+# ── what the health score and the report count ──────────────────────────
+from zoneinfo import ZoneInfo
+
+ZONE = ZoneInfo("America/Guatemala")
+LABELS = {"low_battery": "Low Battery Alarm", "overload": "Overload Alarm"}
+
+
+def scored(records, start=datetime(2026, 10, 10, tzinfo=ZONE), end=datetime(2026, 10, 16, tzinfo=ZONE)):
+    return L.scored_events(L.parse({"records": records}), site_id="s1", labels=LABELS, zone=ZONE, start=start, end=end)
+
+
+def test_only_real_alarms_are_scored_and_a_trip_with_its_retry_is_one_episode():
+    got = scored([rec("Overload L1", ago_min=1440 * 3 + 4), rec("Overload L1", ago_min=1440 * 3),     # a trip and its retry
+                  rec("Overload L1", "Warning", ago_min=1440 * 2),                                    # the tolerated stage: not scored
+                  rec("Low battery", ago_min=1440, seconds=19),
+                  rec("Error code", "#26 - Charger terminal overheated", ago_min=1440 * 2)])           # a repeat-warning kind, never scored
+    assert [(e["alarm"], e["severity"]) for e in got] == [("Overload Alarm", "WARNING"), ("Overload Alarm", "CLEARED"),
+                                                          ("Low Battery Alarm", "WARNING"), ("Low Battery Alarm", "CLEARED")]
+    assert all(e["site_id"] == "s1" and e["source"] in ("overload", "low_battery") for e in got)
+    assert got[0]["timestamp"].endswith("-06:00")                                  # the site's own clock, as the series path stored it
+
+
+def test_alarms_outside_the_window_and_still_active_ones():
+    assert scored([days(30, description="Overload L1")]) == []
+    active = scored([rec("Low battery", ago_min=30, active=1)])
+    assert [e["severity"] for e in active] == ["WARNING"]                           # no CLEARED while it is still going
