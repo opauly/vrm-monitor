@@ -187,6 +187,8 @@ class VrmInstallationOut(BaseModel):
     id_site: int
     name: str | None = None
     identifier: str | None = None
+    # Another VRM Monitor account already has this installation: it would be a "shared" site here (kept out of the main fleet).
+    registered_elsewhere: bool = False
 
 
 class VrmLinkValidateOut(BaseModel):

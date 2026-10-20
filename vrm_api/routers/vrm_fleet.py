@@ -457,6 +457,18 @@ def _fetch_site_snapshot(site: dict, admin_token: str | None, diagnostics_out: d
     return ("ok", snapshot) if snapshot is not None else ("skipped", None)
 
 
+def _sweep_sites() -> list[dict]:
+    """The sites the live sweep covers: active VRM-API sites, EXCEPT shared ones. A shared site is an installation another account
+    registered first (`vrm.sites.is_shared`, vrm_shared_sites.sql): that account already gets its live data and its alerts, so
+    polling it again would only duplicate every notification. A database without the column yet has none."""
+    columns = "site_id, customer_id, vrm_installation_id, timezone, system_type, reserve_soc_pct"
+    try:
+        rows = _t("sites").select(columns + ", is_shared").eq("source", "vrm_api").eq("active", True).execute().data or []
+    except Exception:  # noqa: BLE001 — the column does not exist yet
+        rows = _t("sites").select(columns).eq("source", "vrm_api").eq("active", True).execute().data or []
+    return [r for r in rows if not r.get("is_shared")]
+
+
 @router.post("/refresh-snapshots", response_model=FleetSnapshotsRefreshOut)
 def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
     """Fleet Dashboard Phase 2's live-snapshot sweep (2026-08-30) — meant
@@ -500,8 +512,7 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
     not per-site, same "one query for the whole page, not N+1" discipline
     `_monitoring_suggestions_by_installation()` already uses above.
     """
-    sites = (_t("sites").select("site_id, customer_id, vrm_installation_id, timezone, system_type, reserve_soc_pct")
-            .eq("source", "vrm_api").eq("active", True).execute().data or [])
+    sites = _sweep_sites()
     admin_token = os.environ.get("VRM_ADMIN_TOKEN")
     site_ids = [s["site_id"] for s in sites]
 

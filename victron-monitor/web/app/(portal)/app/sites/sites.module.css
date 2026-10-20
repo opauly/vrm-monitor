@@ -50,6 +50,15 @@
   color: var(--mute);
   border: 1px solid var(--line);
 }
+.sharedBadge {
+  color: var(--signal);
+  border: 1px solid var(--signal);
+}
+.sharedNote {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--signal);
+}
 
 .actionsRow {
   display: flex;

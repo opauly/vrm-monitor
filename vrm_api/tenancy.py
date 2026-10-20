@@ -60,6 +60,16 @@ def get_customer(customer_id: str) -> dict:
     return rows[0]
 
 
+def installations_registered_elsewhere(customer_id: str, installation_ids: list[int]) -> set[int]:
+    """Which of these Victron installations another customer already has a site for. Victron cannot say who "owns" an installation
+    (everyone it is shared with is an admin of it), so what counts is who registered it here first."""
+    if not installation_ids:
+        return set()
+    rows = (_t("sites").select("vrm_installation_id").neq("customer_id", customer_id)
+            .in_("vrm_installation_id", list(installation_ids)).execute().data or [])
+    return {r["vrm_installation_id"] for r in rows}
+
+
 def find_customer_site(customer_id: str, site_id_or_name: str) -> dict | None:
     """Existing-site lookup, used by `routers/ingest.py` to tell "re-ingest
     an existing site" apart from "this is a new site's display name" — the

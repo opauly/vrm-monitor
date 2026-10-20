@@ -204,6 +204,8 @@ export type SiteRecord = {
   savings_currency: string | null;
   /** The property this site belongs to (`vrm.properties`), or `null`. Absent when the properties SQL has not been run yet. */
   property_id?: string | null;
+  /** An installation another account registered first: listed under Sites with a "Shared" badge, kept out of the main fleet. */
+  is_shared?: boolean;
   created_at: string;
   /** Stamped `now()` by `vrm_api/routers/vrm_sync.py:_do_sync()` after
    * every successful sync (any trigger) — the "Última sync VRM" column on

@@ -55,16 +55,17 @@ export async function getDashboardAccess(customer: CustomerRecord): Promise<bool
  * `sites.ts`'s tenant-scoped functions already use (the gate is the
  * caller's job, the query is this function's). */
 export async function getCustomerFleetOverview(customerId: string, opts: { propertyId?: string } = {}): Promise<FleetOverview> {
-  let query = getSupabaseAdmin()
-    .schema('vrm')
-    .from('sites')
-    .select(FLEET_SITE_SELECT_FIELDS)
-    .eq('source', 'vrm_api')
-    .eq('active', true)
-    .eq('customer_id', customerId);
-  // One property's sites only (the caller has already checked the property is this customer's).
-  if (opts.propertyId) query = query.eq('property_id', opts.propertyId);
-  const { data: sites, error } = await query.order('display_name');
+  // One property's sites only (the caller has already checked the property is this customer's). Installations that are only SHARED
+  // with this customer (another account registered them first) stay out of their main fleet; a database without the `is_shared`
+  // column yet simply has none.
+  const run = (excludeShared: boolean) => {
+    let query = getSupabaseAdmin().schema('vrm').from('sites').select(FLEET_SITE_SELECT_FIELDS).eq('source', 'vrm_api').eq('active', true).eq('customer_id', customerId);
+    if (excludeShared) query = query.eq('is_shared', false);
+    if (opts.propertyId) query = query.eq('property_id', opts.propertyId);
+    return query.order('display_name');
+  };
+  let { data: sites, error } = await run(true);
+  if (error && (error.code === '42703' || error.code === 'PGRST204')) ({ data: sites, error } = await run(false));
   if (error) throw error;
   return buildFleetOverview((sites ?? []) as unknown as FleetSiteInput[]);
 }

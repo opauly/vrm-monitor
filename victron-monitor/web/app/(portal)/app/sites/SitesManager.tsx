@@ -67,6 +67,11 @@ export function SitesManager({ sites, lang, canAdd, siteLimit, moduleSelectionAl
                   <span className={`${styles.sourceBadge} ${site.source === 'vrm_api' ? styles.sourceVrmApi : styles.sourceCsv}`}>
                     {t(lang, site.source === 'vrm_api' ? 'sites_source_vrm_api' : 'sites_source_csv')}
                   </span>
+                  {site.is_shared && (
+                    <span className={`${styles.sourceBadge} ${styles.sharedBadge}`} title={t(lang, 'sites_shared_hint')}>
+                      {t(lang, 'sites_shared_badge')}
+                    </span>
+                  )}
                 </td>
                 <td>{t(lang, SYSTEM_TYPE_KEY[site.system_type])}</td>
                 <td>{site.pv_kwp ?? '—'}</td>

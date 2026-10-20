@@ -138,12 +138,14 @@ def post_validate(body: VrmLinkValidateRequest) -> VrmLinkValidateOut:
     tenancy.get_customer(body.customer_id)
     vrm_user_id, account_email, installations = _whoami(body.token)
     records = installations.get("records") or []
+    elsewhere = tenancy.installations_registered_elsewhere(
+        body.customer_id, [r["idSite"] for r in records if isinstance(r, dict) and r.get("idSite") is not None])
     return VrmLinkValidateOut(
         vrm_user_id=vrm_user_id,
         vrm_account_email=account_email,
         installations=[
             VrmInstallationOut(id_site=r["idSite"], name=r.get("name"),
-                              identifier=r.get("identifier"))
+                              identifier=r.get("identifier"), registered_elsewhere=r["idSite"] in elsewhere)
             for r in records if isinstance(r, dict) and r.get("idSite") is not None
         ],
     )
@@ -193,6 +195,7 @@ def post_connect(body: VrmLinkConnectRequest) -> VrmLinkConnectOut:
         "vrm_account_email": account_email,
     }).eq("id", body.customer_id).execute())
 
+    shared_ids = tenancy.installations_registered_elsewhere(body.customer_id, [m.vrm_installation_id for m in body.mappings])
     results: list[VrmLinkSiteResult] = []
     for mapping in body.mappings:
         existing_site = tenancy.find_customer_site(body.customer_id, mapping.site_name_or_id)
@@ -220,7 +223,17 @@ def post_connect(body: VrmLinkConnectRequest) -> VrmLinkConnectOut:
         if existing_site is None:
             site_fields["report_schedule"] = customer.get("default_report_schedule", "off")
 
-        victron_ingest.upsert_site(body.customer_id, site_id, display_name, **site_fields)
+        # An installation another account already has is a SHARED one here: kept out of the main fleet (vrm_shared_sites.sql).
+        # Only ever turned on, never off, and left out entirely until that SQL has been run.
+        if mapping.vrm_installation_id in shared_ids:
+            site_fields["is_shared"] = True
+        try:
+            victron_ingest.upsert_site(body.customer_id, site_id, display_name, **site_fields)
+        except Exception:  # noqa: BLE001 — the column may not exist yet: save the site without the marker rather than fail the connect
+            if "is_shared" not in site_fields:
+                raise
+            site_fields.pop("is_shared")
+            victron_ingest.upsert_site(body.customer_id, site_id, display_name, **site_fields)
         results.append(VrmLinkSiteResult(
             vrm_installation_id=mapping.vrm_installation_id,
             site_id=site_id, site_is_existing=bool(existing_site),

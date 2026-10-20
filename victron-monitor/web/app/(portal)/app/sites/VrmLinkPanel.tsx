@@ -451,6 +451,7 @@ export function VrmLinkPanel({ status, sites, lang, canAdd, siteLimit }: VrmLink
                 {t(lang, 'vrm_link_mapping_installation_id_label').replace('{id}', String(inst.id_site))}
                 {inst.identifier ? ` · ${inst.identifier}` : ''}
               </div>
+              {inst.registered_elsewhere && <div className={styles.sharedNote}>{t(lang, 'vrm_link_mapping_shared_note')}</div>}
 
               <div className={styles.radioRow}>
                 <label className={styles.radioLabel}>

@@ -165,6 +165,7 @@ export function AdminSitesManager({
               <tr>
                 <td>
                   {s.display_name}
+                  {s.is_shared && <span className={styles.sharedBadge} title={t(lang, 'sites_shared_hint')}>{t(lang, 'sites_shared_badge')}</span>}
                   {s.vrm_installation_id !== null && (otherOwners.get(s.vrm_installation_id)?.size ?? 0) > 1 && (
                     <div className={styles.syncPaused}>
                       {t(lang, 'admin_sites_also_under').replace(

@@ -457,6 +457,8 @@ export type VrmInstallationOut = {
   id_site: number;
   name: string | null;
   identifier: string | null;
+  /** Another VRM Monitor account already has this installation: connecting it here makes a "shared" site, kept out of the main fleet. */
+  registered_elsewhere?: boolean;
 };
 
 /** `POST /v1/vrm-link/validate`'s response — writes NOTHING to Postgres or

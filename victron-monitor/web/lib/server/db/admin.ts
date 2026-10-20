@@ -335,16 +335,18 @@ export async function listAllSites(): Promise<SiteRecord[]> {
  * row shaped the same way, and mixing the two would make "average fleet
  * health" mean two different things silently. */
 export async function getFleetOverview(opts: { propertyId?: string; customerId?: string } = {}): Promise<FleetOverview> {
-  let query = getSupabaseAdmin()
-    .schema('vrm')
-    .from('sites')
-    .select(FLEET_SITE_SELECT_FIELDS)
-    .eq('source', 'vrm_api')
-    .eq('active', true);
-  // One customer's sites, and/or one property's: every roll-up below is then that selection's own.
-  if (opts.customerId) query = query.eq('customer_id', opts.customerId);
-  if (opts.propertyId) query = query.eq('property_id', opts.propertyId);
-  const { data: sites, error } = await query.order('display_name');
+  // One customer's sites, and/or one property's: every roll-up below is then that selection's own. Sites that are only SHARED with a
+  // customer (another account registered the installation first) are not part of the main fleet; a database without the
+  // `is_shared` column yet simply has none.
+  const run = (excludeShared: boolean) => {
+    let query = getSupabaseAdmin().schema('vrm').from('sites').select(FLEET_SITE_SELECT_FIELDS).eq('source', 'vrm_api').eq('active', true);
+    if (excludeShared) query = query.eq('is_shared', false);
+    if (opts.customerId) query = query.eq('customer_id', opts.customerId);
+    if (opts.propertyId) query = query.eq('property_id', opts.propertyId);
+    return query.order('display_name');
+  };
+  let { data: sites, error } = await run(true);
+  if (error && (error.code === '42703' || error.code === 'PGRST204')) ({ data: sites, error } = await run(false));
   if (error) throw error;
   return buildFleetOverview((sites ?? []) as unknown as FleetSiteInput[]);
 }
