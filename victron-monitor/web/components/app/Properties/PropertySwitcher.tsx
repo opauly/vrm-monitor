@@ -11,24 +11,31 @@ function href(basePath: string, params: Record<string, string>): string {
 
 // "All sites | El Encino | Vista Atenas": picks which property a fleet page shows, as plain links (`?property=<id>`), so a
 // view can be bookmarked and shared and nothing needs client state. Rendered only when the customer has at least one property.
+// Clicking the chip that is already on turns it off: back to "All sites".
+// Property chips are round green pills under a "Property" label; the admin's customer chips are square blue tags under a "Customer"
+// label, so the two rows read as different kinds of filter.
 export function PropertySwitcher({ lang, basePath, properties, selectedId, keep = {} }: { lang: Lang; basePath: string; properties: { id: string; name: string }[]; selectedId: string | null; keep?: Record<string, string> }) {
   if (properties.length === 0) return null;
   return (
-    <nav className={styles.switcher} aria-label={t(lang, 'properties_switcher_label')}>
-      <Link href={href(basePath, keep)} className={`${styles.chip} ${selectedId === null ? styles.chipActive : ''}`} aria-current={selectedId === null ? 'page' : undefined}>
-        {t(lang, 'properties_all_sites')}
-      </Link>
-      {properties.map((p) => (
-        <Link
-          key={p.id}
-          href={href(basePath, { ...keep, property: p.id })}
-          className={`${styles.chip} ${selectedId === p.id ? styles.chipActive : ''}`}
-          aria-current={selectedId === p.id ? 'page' : undefined}
-        >
-          {p.name}
+    <div className={styles.filterRow}>
+      <span className={styles.filterLabel}>{t(lang, 'properties_switcher_label')}</span>
+      <nav className={styles.switcher} aria-label={t(lang, 'properties_switcher_label')}>
+        <Link href={href(basePath, keep)} className={`${styles.chip} ${styles.chipProperty} ${selectedId === null ? styles.chipActive : ''}`} aria-current={selectedId === null ? 'page' : undefined}>
+          {t(lang, 'properties_all_sites')}
         </Link>
-      ))}
-    </nav>
+        {properties.map((p) => (
+          <Link
+            key={p.id}
+            href={selectedId === p.id ? href(basePath, keep) : href(basePath, { ...keep, property: p.id })}
+            className={`${styles.chip} ${styles.chipProperty} ${selectedId === p.id ? styles.chipActive : ''}`}
+            aria-current={selectedId === p.id ? 'page' : undefined}
+            title={selectedId === p.id ? t(lang, 'filter_click_to_clear') : undefined}
+          >
+            {p.name}
+          </Link>
+        ))}
+      </nav>
+    </div>
   );
 }
 
@@ -72,15 +79,25 @@ export function PropertyCards({ lang, basePath, summaries, keep = {} }: { lang: 
 export function CustomerSwitcher({ lang, basePath, customers, selectedId }: { lang: Lang; basePath: string; customers: { id: string; name: string; siteCount: number }[]; selectedId: string | null }) {
   if (customers.length < 2) return null;
   return (
-    <nav className={styles.switcher} aria-label={t(lang, 'fleet_customer_label')}>
-      {customers.map((c) => (
-        <Link key={c.id} href={href(basePath, { customer: c.id })} className={`${styles.chip} ${selectedId === c.id ? styles.chipActive : ''}`} aria-current={selectedId === c.id ? 'page' : undefined}>
-          {c.name} ({c.siteCount})
+    <div className={styles.filterRow}>
+      <span className={styles.filterLabel}>{t(lang, 'fleet_customer_label')}</span>
+      <nav className={styles.switcher} aria-label={t(lang, 'fleet_customer_label')}>
+        {customers.map((c) => (
+          <Link
+            key={c.id}
+            // Clicking the customer that is already on clears it: back to "All customers".
+            href={href(basePath, { customer: selectedId === c.id ? 'all' : c.id })}
+            className={`${styles.chip} ${styles.chipCustomer} ${selectedId === c.id ? styles.chipActive : ''}`}
+            aria-current={selectedId === c.id ? 'page' : undefined}
+            title={selectedId === c.id ? t(lang, 'filter_click_to_clear') : undefined}
+          >
+            {c.name} ({c.siteCount})
+          </Link>
+        ))}
+        <Link href={href(basePath, { customer: 'all' })} className={`${styles.chip} ${styles.chipCustomer} ${selectedId === null ? styles.chipActive : ''}`} aria-current={selectedId === null ? 'page' : undefined}>
+          {t(lang, 'fleet_all_customers')}
         </Link>
-      ))}
-      <Link href={href(basePath, { customer: 'all' })} className={`${styles.chip} ${selectedId === null ? styles.chipActive : ''}`} aria-current={selectedId === null ? 'page' : undefined}>
-        {t(lang, 'fleet_all_customers')}
-      </Link>
-    </nav>
+      </nav>
+    </div>
   );
 }

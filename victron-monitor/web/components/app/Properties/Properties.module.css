@@ -1,8 +1,23 @@
+.filterRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 0 0 12px;
+}
+.filterLabel {
+  min-width: 78px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
 .switcher {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 0 0 18px;
+  margin: 0;
 }
 .chip {
   font-family: var(--font-mono);
@@ -23,6 +38,24 @@
   color: var(--paper);
   background: color-mix(in srgb, var(--victron) 18%, transparent);
   border-color: var(--victron);
+}
+/* Customers: square-cornered blue tags. Properties: round green pills. Two kinds of filter, two looks. */
+.chipCustomer {
+  border-radius: var(--radius-sm);
+  border-color: color-mix(in srgb, var(--victron) 35%, var(--line));
+}
+.chipCustomer.chipActive {
+  background: color-mix(in srgb, var(--victron) 26%, transparent);
+  border-color: var(--victron);
+  color: var(--paper);
+}
+.chipProperty:hover {
+  border-color: var(--good);
+}
+.chipProperty.chipActive {
+  background: color-mix(in srgb, var(--good) 18%, transparent);
+  border-color: var(--good);
+  color: var(--paper);
 }
 .cards {
   display: grid;

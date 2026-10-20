@@ -30,8 +30,34 @@ export type AlertLinks = {
   vrmLink: string;
 };
 
+/** The page has two tabs: what has happened (the log) and how you hear about it (phone and email settings). */
+export type AlertsTab = 'log' | 'notifications';
+
+export function parseAlertsTab(value: string | undefined): AlertsTab {
+  return value === 'notifications' ? 'notifications' : 'log';
+}
+
+// Plain links (`?tab=notifications`), so a tab can be bookmarked and shared and no client state is needed.
+export function AlertsTabs({ lang, basePath, tab }: { lang: Lang; basePath: string; tab: AlertsTab }) {
+  const items: { id: AlertsTab; href: string; label: string }[] = [
+    { id: 'log', href: basePath, label: t(lang, 'alerts_tab_log') },
+    { id: 'notifications', href: `${basePath}?tab=notifications`, label: t(lang, 'alerts_tab_notifications') },
+  ];
+  return (
+    <nav className={styles.tabs} aria-label={t(lang, 'alerts_title')}>
+      {items.map((item) => (
+        <Link key={item.id} href={item.href} className={`${styles.tab} ${tab === item.id ? styles.tabActive : ''}`} aria-current={tab === item.id ? 'page' : undefined}>
+          {item.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 export type AlertsViewProps = {
   lang: Lang;
+  /** Which tab to show (`parseAlertsTab` of `?tab=`). */
+  tab: AlertsTab;
   customerId: string;
   /** Shown under the settings: where emailed alerts go. */
   email: string;
@@ -70,18 +96,100 @@ function AlertCard({ alert, lang, resolved, links }: { alert: AlertWithSite; lan
   );
 }
 
-export async function AlertsView({ lang, customerId, email, links, intro, pushIntro, saveAction, onSubscribe, onUnsubscribe, onTest }: AlertsViewProps) {
-  const [open, recent, prefs] = await Promise.all([
-    listOpenAlerts(customerId),
-    listRecentResolvedAlerts(customerId),
-    getAlertPreferences(customerId),
-  ]);
+type ResolvedGroup = { key: string; alert: AlertWithSite; items: AlertWithSite[] };
+
+// The same problem resolving again and again (an equipment fault that comes back every morning) is one line with a count, not a card
+// each time; the individual resolutions open from it. Newest first, as the list already is.
+function groupResolved(alerts: AlertWithSite[]): ResolvedGroup[] {
+  const groups = new Map<string, ResolvedGroup>();
+  for (const a of alerts) {
+    const key = `${a.kind}:${a.site_id ?? ''}`;
+    const group = groups.get(key);
+    if (group) group.items.push(a);
+    else groups.set(key, { key, alert: a, items: [a] });
+  }
+  return [...groups.values()];
+}
+
+function stampOf(a: AlertWithSite): string {
+  return a.resolved_at ? formatDateTimeInZone(a.resolved_at, a.site_timezone, 'en-US') : '—';
+}
+
+function ResolvedRow({ group, lang, links }: { group: ResolvedGroup; lang: Lang; links: AlertLinks }) {
+  const { title } = describeAlert(lang, group.alert);
+  const href = group.alert.kind === 'vrm_link_broken' ? links.vrmLink : group.alert.site_id ? links.site(group.alert.site_id) : null;
+  const many = group.items.length > 1;
+  const summary = (
+    <>
+      <span className={styles.resolvedTitle}>{title}</span>
+      <span className={styles.resolvedMeta}>
+        {many
+          ? `${t(lang, 'alerts_resolved_times').replace('{n}', String(group.items.length))} · ${t(lang, 'alerts_resolved_last').replace('{time}', stampOf(group.items[0]))}`
+          : t(lang, 'alerts_resolved_at').replace('{time}', stampOf(group.items[0]))}
+      </span>
+    </>
+  );
+  const link = href && (
+    <Link href={href} className={styles.cardLink}>
+      {t(lang, group.alert.kind === 'vrm_link_broken' ? 'alerts_reconnect' : 'alerts_view_site')} →
+    </Link>
+  );
+  if (!many) {
+    return (
+      <div className={styles.resolvedRow}>
+        <div className={styles.resolvedSummary}>{summary}{link}</div>
+      </div>
+    );
+  }
+  return (
+    <details className={styles.resolvedRow}>
+      <summary className={styles.resolvedSummary}>{summary}{link}</summary>
+      <ul className={styles.resolvedDates}>
+        {group.items.map((a) => (
+          <li key={a.id}>{t(lang, 'alerts_resolved_at').replace('{time}', stampOf(a))}</li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+export async function AlertsView({ lang, tab, customerId, email, links, intro, pushIntro, saveAction, onSubscribe, onUnsubscribe, onTest }: AlertsViewProps) {
+  if (tab === 'notifications') {
+    const prefs = await getAlertPreferences(customerId);
+    return (
+      <div>
+        <PushPanel
+          lang={lang}
+          vapidPublicKey={process.env.VAPID_PUBLIC_KEY?.trim() || null}
+          intro={pushIntro}
+          onSubscribe={onSubscribe}
+          onUnsubscribe={onUnsubscribe}
+          onTest={onTest}
+        />
+
+        <h2 id="settings" className={styles.sectionLabel}>{t(lang, 'alerts_settings_title')}</h2>
+        <Panel>
+          <p className={styles.settingsIntro}>{t(lang, 'alerts_settings_intro')}</p>
+          <AlertSettingsForm
+            lang={lang}
+            groups={[
+              { title: t(lang, 'alerts_group_alerts'), description: t(lang, 'alerts_group_alerts_desc'), kinds: ALERT_KINDS },
+              { title: t(lang, 'alerts_group_insights'), description: t(lang, 'alerts_group_insights_desc'), kinds: INSIGHT_KINDS },
+            ]}
+            initial={prefs}
+            email={email}
+            action={saveAction}
+          />
+        </Panel>
+      </div>
+    );
+  }
+
+  const [open, recent] = await Promise.all([listOpenAlerts(customerId), listRecentResolvedAlerts(customerId)]);
 
   return (
     <div>
-      <p className={styles.intro}>
-        {intro ?? t(lang, 'alerts_intro')} <a href="#settings" className={styles.cardLink}>{t(lang, 'alerts_jump_settings')} ↓</a>
-      </p>
+      <p className={styles.intro}>{intro ?? t(lang, 'alerts_intro')}</p>
 
       <h2 className={styles.sectionLabel}>{t(lang, 'alerts_active_title')}</h2>
       {open.length === 0 ? (
@@ -94,40 +202,25 @@ export async function AlertsView({ lang, customerId, email, links, intro, pushIn
         </div>
       )}
 
-      <h2 className={styles.sectionLabel}>{t(lang, 'alerts_recent_title')}</h2>
       {recent.length === 0 ? (
-        <p className={styles.empty}>{t(lang, 'alerts_recent_empty')}</p>
+        <>
+          <h2 className={styles.sectionLabel}>{t(lang, 'alerts_recent_title')}</h2>
+          <p className={styles.empty}>{t(lang, 'alerts_recent_empty')}</p>
+        </>
       ) : (
-        <div className={styles.cards}>
-          {recent.map((a) => (
-            <AlertCard key={a.id} alert={a} lang={lang} resolved links={links} />
-          ))}
-        </div>
+        // Closed until asked for: what is open now is what matters; the history is one click away.
+        <details className={styles.resolvedBlock}>
+          <summary className={styles.resolvedHead}>
+            <span className={styles.sectionLabelInline}>{t(lang, 'alerts_recent_title')}</span>
+            <span className={styles.resolvedCount}>{t(lang, 'alerts_recent_count').replace('{n}', String(recent.length))}</span>
+          </summary>
+          <div className={styles.resolvedList}>
+            {groupResolved(recent).map((g) => (
+              <ResolvedRow key={g.key} group={g} lang={lang} links={links} />
+            ))}
+          </div>
+        </details>
       )}
-
-      <PushPanel
-        lang={lang}
-        vapidPublicKey={process.env.VAPID_PUBLIC_KEY?.trim() || null}
-        intro={pushIntro}
-        onSubscribe={onSubscribe}
-        onUnsubscribe={onUnsubscribe}
-        onTest={onTest}
-      />
-
-      <h2 id="settings" className={styles.sectionLabel}>{t(lang, 'alerts_settings_title')}</h2>
-      <Panel>
-        <p className={styles.settingsIntro}>{t(lang, 'alerts_settings_intro')}</p>
-        <AlertSettingsForm
-          lang={lang}
-          groups={[
-            { title: t(lang, 'alerts_group_alerts'), description: t(lang, 'alerts_group_alerts_desc'), kinds: ALERT_KINDS },
-            { title: t(lang, 'alerts_group_insights'), description: t(lang, 'alerts_group_insights_desc'), kinds: INSIGHT_KINDS },
-          ]}
-          initial={prefs}
-          email={email}
-          action={saveAction}
-        />
-      </Panel>
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { getCustomer, getDashboardAccess } from '@/lib/server/db';
 import { Panel, Button } from '@/components/ui';
 import { PendingSubscriptionUpsell } from '@/components/app';
 import { t } from '@/lib/i18n/strings';
-import { AlertsView } from './AlertsView';
+import { AlertsTabs, AlertsView, parseAlertsTab } from './AlertsView';
 import { saveAlertSettingsAction } from './actions';
 import { sendTestPushAction, subscribePushAction, unsubscribePushAction } from './pushActions';
 import dashboardStyles from '../dashboard/dashboard.module.css';
@@ -17,8 +17,9 @@ export const metadata: Metadata = { title: 'Alerts' };
 // `/app/dashboard` does: `getDashboardAccess()` (plan allows it AND the
 // account is entitled), otherwise an upsell. The body is `AlertsView`, shared
 // with the admin's `/admin/fleet/alerts`.
-export default async function AlertsPage() {
+export default async function AlertsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const session = await requireCustomerAllowPending();
+  const tab = parseAlertsTab((await searchParams).tab);
   const lang = session.uiLanguage;
 
   if (session.provisioningState !== 'active') {
@@ -47,8 +48,10 @@ export default async function AlertsPage() {
   return (
     <div>
       <h1>{t(lang, 'alerts_title')}</h1>
+      <AlertsTabs lang={lang} basePath="/app/alerts" tab={tab} />
       <AlertsView
         lang={lang}
+        tab={tab}
         customerId={session.customerId}
         email={customer.contact_email || customer.auth_email || session.email}
         links={{ site: (id) => `/app/dashboard/${encodeURIComponent(id)}`, vrmLink: '/app/sites' }}

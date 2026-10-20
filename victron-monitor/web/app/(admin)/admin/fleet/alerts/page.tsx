@@ -6,7 +6,7 @@ import { getCustomer } from '@/lib/server/db';
 import { Panel } from '@/components/ui';
 import { t } from '@/lib/i18n/strings';
 import { AdminHealthSection } from './AdminHealthSection';
-import { AlertsView } from '@/app/(portal)/app/alerts/AlertsView';
+import { AlertsTabs, AlertsView, parseAlertsTab } from '@/app/(portal)/app/alerts/AlertsView';
 import { sendAdminTestPushAction, subscribeAdminPushAction, unsubscribeAdminPushAction } from '../pushActions';
 import { saveFleetAlertSettingsAction } from './actions';
 import styles from '../[site_id]/site.module.css';
@@ -18,8 +18,9 @@ export const metadata: Metadata = { title: 'Fleet alerts' };
 // fleet: the internal account named by ALERTS_FORCE_CUSTOMER_IDS. Same view,
 // same settings and phone panel (the device registered is the admin's own);
 // only the account, the links and the save action differ.
-export default async function AdminFleetAlertsPage() {
+export default async function AdminFleetAlertsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const admin = await requireAdmin();
+  const tab = parseAlertsTab((await searchParams).tab);
   const lang = admin.uiLanguage;
   const customerId = fleetAlertCustomerId();
 
@@ -31,8 +32,9 @@ export default async function AdminFleetAlertsPage() {
         <Link href="/admin/fleet">{t(lang, 'admin_fleet_title')}</Link> / <span>{t(lang, 'admin_fleet_alerts_title')}</span>
       </div>
       <h1>{t(lang, 'admin_fleet_alerts_title')}</h1>
-      <AdminHealthSection lang={lang} />
-      <h2 className={alertStyles.sectionLabel}>{t(lang, 'admin_alerts_sites_title')}</h2>
+      <AlertsTabs lang={lang} basePath="/admin/fleet/alerts" tab={tab} />
+      {tab === 'log' && <AdminHealthSection lang={lang} />}
+      {tab === 'log' && <h2 className={alertStyles.sectionLabel}>{t(lang, 'admin_alerts_sites_title')}</h2>}
       {!customerId || !customer ? (
         <Panel>
           <p>{t(lang, 'admin_fleet_alerts_not_configured')}</p>
@@ -40,6 +42,7 @@ export default async function AdminFleetAlertsPage() {
       ) : (
         <AlertsView
           lang={lang}
+          tab={tab}
           customerId={customerId}
           email={customer.contact_email || customer.auth_email || admin.email}
           intro={t(lang, 'admin_fleet_alerts_intro').replace('{name}', customer.name ?? '')}
