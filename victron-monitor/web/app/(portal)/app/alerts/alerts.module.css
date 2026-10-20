@@ -47,10 +47,38 @@
 .resolvedHead {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 4px 14px;
   cursor: pointer;
   margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  list-style: none;
+}
+.resolvedHead::-webkit-details-marker,
+summary.resolvedSummary::-webkit-details-marker {
+  display: none;
+}
+.resolvedHead:hover {
+  border-color: var(--victron);
+}
+/* A chevron that turns down when the list is open: says "there is more in here" without a word. */
+.resolvedHead::before,
+summary.resolvedSummary::before {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--victron-glow);
+  border-bottom: 2px solid var(--victron-glow);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+  margin: 0 4px 0 2px;
+}
+details[open] > .resolvedHead::before,
+details[open] > summary.resolvedSummary::before {
+  transform: rotate(45deg);
 }
 .sectionLabelInline {
   font-family: var(--font-mono);
@@ -85,6 +113,8 @@
 }
 summary.resolvedSummary {
   cursor: pointer;
+  align-items: center;
+  list-style: none;
 }
 .resolvedTitle {
   font-weight: 600;

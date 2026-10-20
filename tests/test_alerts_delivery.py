@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from victron import alerts as A
+from vrm_api import alert_routing as routing
 from vrm_api import alerts_delivery as ad
 from vrm_api import alerts_push as ap
 from vrm_api import alerts_service as svc
@@ -67,6 +68,7 @@ def env(monkeypatch):
     monkeypatch.setattr(ad, "_t", lambda name: Table(store, name))
     monkeypatch.setattr(svc, "_t", lambda name: Table(store, name))          # load_preferences() reads through the service module
     monkeypatch.setattr(ap, "_t", lambda name: Table(store, name))           # push destinations
+    monkeypatch.setattr(routing, "_t", lambda name: Table(store, name))      # routing by property
     monkeypatch.delenv("ALERTS_FORCE_CUSTOMER_IDS", raising=False)
     monkeypatch.setattr(ad, "mailer_send", lambda to, subject, html, **kw: sent.append({"to": to, "subject": subject, "html": html}))
     monkeypatch.setenv("ALERTS_EMAIL_TEST_TO", "")
@@ -266,7 +268,7 @@ def test_email_links_to_the_alert_settings(env):
     store, sent = env
     alert(store)
     run()
-    assert 'href="https://vrm.example.com/app/alerts"' in sent[0]["html"] and "Choose which alerts you get" in sent[0]["html"]
+    assert 'href="https://vrm.example.com/app/alerts?tab=notifications"' in sent[0]["html"] and "Choose which alerts you get" in sent[0]["html"]
 
 
 def test_a_long_silent_site_first_seen_just_now_is_not_news(env):
@@ -544,3 +546,96 @@ def test_an_overload_raised_from_the_official_log_says_when_and_for_how_long():
         assert expect in body and "32" in body and "2" in body and "{" not in body
     live = dict(alert, detail={"alarms": ["overload"]})
     assert ad.describe(live, resolved=False, site_name="U", tz_name=None, strings=email_i18n.get("en"), site_url="https://x")["body"] == "Active: overload."
+
+
+# ── routing by property ──────────────────────────────────────────────────
+def in_property(store, prop="p1", emails=(), site="s1"):
+    store["sites"] = [{**r, "property_id": prop} if r["site_id"] == site else r for r in store["sites"]]
+    store["property_recipients"] = [{"property_id": prop, "email": e} for e in emails]
+
+
+def test_a_propertys_owner_gets_the_email_even_when_the_account_switched_email_off(env):
+    store, sent = env
+    in_property(store, emails=["Owner@Villa.com"])
+    store["alert_preferences"] = [{"customer_id": "c1", "kind": "low_battery", "enabled": True, "email": False, "push": True}]
+    alert(store)
+    out = run()
+    assert [m["to"] for m in sent] == ["owner@villa.com"] and out["sent"] == 1
+
+
+def test_the_account_and_the_property_owner_each_get_one_email(env):
+    store, sent = env
+    in_property(store, emails=["owner@villa.com", "tech@villa.com"])
+    alert(store)
+    run()
+    assert sorted(m["to"] for m in sent) == ["owner@example.com", "owner@villa.com", "tech@villa.com"]
+
+
+def test_an_address_that_is_both_the_account_and_a_recipient_gets_the_alert_once(env):
+    store, sent = env
+    in_property(store, emails=["owner@example.com"])
+    alert(store)
+    run()
+    assert [m["to"] for m in sent] == ["owner@example.com"]
+
+
+def test_a_property_recipient_only_hears_about_that_propertys_sites(env):
+    store, sent = env
+    store["sites"].append({"site_id": "s2", "display_name": "Other", "timezone": "America/Costa_Rica"})
+    in_property(store, emails=["owner@villa.com"], site="s1")
+    alert(store, site="s2")
+    run()
+    assert [m["to"] for m in sent] == ["owner@example.com"]
+
+
+def test_a_property_recipient_in_test_mode_is_redirected_and_labelled(env, monkeypatch):
+    store, sent = env
+    monkeypatch.setenv("ALERTS_EMAIL_TEST_TO", "me@test.com")
+    in_property(store, emails=["owner@villa.com"])
+    alert(store)
+    run(mode="test")
+    assert sorted((m["to"], m["subject"].split("]")[0]) for m in sent) == [("me@test.com", "[TEST → owner@example.com"), ("me@test.com", "[TEST → owner@villa.com")]
+
+
+def test_a_phone_scoped_to_a_property_only_gets_that_propertys_alerts(env, pushes):
+    store, sent = env
+    in_property(store, prop="p1", site="s1")
+    device(store, id=1)                                                     # takes everything
+    device(store, id=2)
+    store["push_subscriptions"][1]["property_ids"] = ["p2"]                 # takes another property only
+    device(store, id=3)
+    store["push_subscriptions"][2]["property_ids"] = ["p1"]                 # takes this one
+    alert(store)
+    out = run_push()
+    assert out["pushed"] == 2 and len(pushes["payloads"]) == 2
+
+
+def test_a_scoped_phone_gets_nothing_from_a_site_in_no_property(env, pushes):
+    store, sent = env
+    device(store, id=1)
+    store["push_subscriptions"][0]["property_ids"] = ["p1"]
+    alert(store)
+    out = run_push()
+    assert out["pushed"] == 0 and not pushes["payloads"]
+
+
+def test_only_a_recipient_no_phone_or_account_email_is_enough_to_deliver(env):
+    store, sent = env
+    store["customers"][0]["contact_email"] = None
+    store["customers"][0]["auth_email"] = None
+    in_property(store, emails=["owner@villa.com"])
+    row = alert(store)
+    run()
+    assert [m["to"] for m in sent] == ["owner@villa.com"] and row["notified_at"]
+
+
+def test_a_property_recipient_is_told_why_they_get_it_and_has_no_settings_link(env):
+    store, sent = env
+    in_property(store, emails=["owner@villa.com"])
+    store["properties"] = [{"id": "p1", "name": "Villa Azul"}]
+    store["customers"][0]["name"] = "Pauly & Co"
+    alert(store)
+    run()
+    by = {m["to"]: m["html"] for m in sent}
+    assert "added your address as a recipient for Villa Azul" in by["owner@villa.com"] and "Pauly &amp; Co" in by["owner@villa.com"]
+    assert "/app/alerts" not in by["owner@villa.com"] and "/app/alerts?tab=notifications" in by["owner@example.com"]

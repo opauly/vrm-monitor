@@ -56,7 +56,7 @@ from victron import email_i18n
 from victron.mailer import MailerError
 from victron.mailer import send as mailer_send
 from victron.vrm_series import DEFAULT_TZ_NAME
-from vrm_api import alerts_push
+from vrm_api import alert_routing, alerts_push
 from vrm_api.alerts_service import forced_customer_ids, load_preferences
 
 logger = logging.getLogger("vrm_api.alerts_delivery")
@@ -260,9 +260,19 @@ def deliver_pending(*, now: datetime | None = None, mode: str | None = None, pus
     def pref(a: dict, channel: str) -> bool:
         return prefs.get((a["customer_id"], a["kind"]), {}).get(channel, True)
 
+    # By property: extra email recipients, and phones that only take some properties (vrm_property_routing.sql).
+    prop_of = alert_routing.site_properties(sorted({a["site_id"] for a in opens + resolves if a.get("site_id")}))
+    prop_emails = alert_routing.property_emails(sorted(set(prop_of.values()))) if email_active else {}
+
+    def prop(a: dict) -> str | None:
+        return prop_of.get(a.get("site_id") or "")
+
+    def extra(a: dict) -> list[str]:
+        return prop_emails.get(prop(a) or "", [])
+
     def wanted(a: dict) -> bool:
         """Does ANY active channel's setting want this alert?"""
-        return (email_active and pref(a, "email")) or (push_on and pref(a, "push"))
+        return (email_active and pref(a, "email")) or (push_on and pref(a, "push")) or bool(extra(a))
 
     keep_opens: list[dict] = []
     drop: list[dict] = []
@@ -294,7 +304,8 @@ def deliver_pending(*, now: datetime | None = None, mode: str | None = None, pus
 
     site_ids = sorted({a["site_id"] for g in by_customer.values() for a in g["new"] + g["resolved"] if a.get("site_id")})
     sites = {s["site_id"]: s for s in (_t("sites").select("site_id, display_name, timezone").in_("site_id", site_ids).execute().data or [])} if site_ids else {}
-    customers = {c["id"]: c for c in (_t("customers").select("id, contact_email, auth_email, ui_language")
+    prop_names = alert_routing.property_names(sorted(set(prop_of.values())))
+    customers = {c["id"]: c for c in (_t("customers").select("id, name, contact_email, auth_email, ui_language")
                                       .in_("id", list(by_customer)).execute().data or [])}
     forced = forced_customer_ids()
 
@@ -317,8 +328,11 @@ def deliver_pending(*, now: datetime | None = None, mode: str | None = None, pus
             except Exception:  # noqa: BLE001 — e.g. vrm.push_subscriptions not created yet
                 logger.warning("alerts_delivery: could not read push subscriptions for customer %s", customer_id)
 
+        def devices_for(a: dict) -> list[dict]:
+            return [d for d in devices if alert_routing.device_receives(d, prop(a))]
+
         def feasible(a: dict) -> bool:
-            return (email_to is not None and pref(a, "email")) or (bool(devices) and pref(a, "push"))
+            return (email_to is not None and pref(a, "email")) or bool(extra(a)) or (bool(devices_for(a)) and pref(a, "push"))
 
         new_rows = [a for a in groups["new"] if feasible(a)]
         res_rows = [a for a in groups["resolved"] if feasible(a)]
@@ -352,41 +366,70 @@ def deliver_pending(*, now: datetime | None = None, mode: str | None = None, pus
         res_cards = [(a, card(a, True, admin_view)) for a in resolved]
 
         # ── email ───────────────────────────────────────────────────────
+        # One email per address: the account's own (per its email choices for each kind) and each property's extra recipients
+        # (every alert about that property's sites). An address in both gets the union, once.
+        mailbox: dict[str, dict] = {}       # label (the real address) -> {"to", "new", "resolved"}
+
+        def deliver_to(label: str, to: str, bucket: str, a: dict, c: dict, via: str | None = None) -> None:
+            box = mailbox.setdefault(label, {"to": to, "new": {}, "resolved": {}, "via": set()})
+            box[bucket].setdefault(a["id"], c)
+            if via:
+                box["via"].add(via)
+
+        account_label = recipient if recipient_ok else "no email on file"
+        for bucket, cards in (("new", new_cards), ("resolved", res_cards)):
+            for a, c in cards:
+                if email_to is not None and pref(a, "email"):
+                    deliver_to(account_label, email_to, bucket, a, c)
+                for address in extra(a):
+                    deliver_to(address, test_to if mode == "test" else address, bucket, a, {**c, "url": None}, via=prop(a))  # no login: no "View site" link
+
         email_ok = False
-        email_new = [c for a, c in new_cards if pref(a, "email")]
-        email_res = [c for a, c in res_cards if pref(a, "email")]
-        if email_to is not None and (email_new or email_res):
+        for label, box in mailbox.items():
+            email_new, email_res = list(box["new"].values()), list(box["resolved"].values())
+            if not (email_new or email_res):
+                continue
             sections = [s for s in (
                 {"heading": strings["alert_section_new"], "cards": email_new} if email_new else None,
                 {"heading": strings["alert_section_resolved"], "cards": email_res} if email_res else None,
             ) if s]
             total = len(email_new) + len(email_res)
             subject = (email_new + email_res)[0]["title"] if total == 1 else _fill(strings["alert_multi_subject"], n=total)
-            to = email_to
             if mode == "test":
-                subject = f"[TEST → {recipient if recipient_ok else 'no email on file'}] {subject}"
+                subject = f"[TEST → {label}] {subject}"
+            # A property's recipient is not the account: they are told why they are getting this and have no settings page to point at.
+            is_recipient = label != account_label
+            footer = None
+            if is_recipient:
+                via = {prop_names.get(p) for p in box["via"]} - {None}
+                account = customer.get("name") or "VRM Monitor"
+                footer = (_fill(strings["alert_footer_recipient"], account=account, property=next(iter(via))) if len(via) == 1
+                          else _fill(strings["alert_footer_recipient_many"], account=account))
             try:
                 html = env.get_template("alert_email.html").render(
-                    lang=lang, t=strings, subject=subject, sections=sections,
-                    settings_url=f"{site_url.rstrip('/')}/app/alerts" if site_url else None)
-                mailer_send(to, subject, html)
+                    lang=lang, t={**strings, "alert_footer": footer} if footer else strings, subject=subject, sections=sections,
+                    settings_url=None if is_recipient else (f"{site_url.rstrip('/')}/app/alerts?tab=notifications" if site_url else None))
+                mailer_send(box["to"], subject, html)
                 email_ok = True
                 summary["sent"] += 1
             except Exception as exc:  # noqa: BLE001
                 logger.warning("alerts_delivery: could not email customer %s: %s", customer_id, exc if isinstance(exc, MailerError) else type(exc).__name__)
 
         # ── push ────────────────────────────────────────────────────────
-        # Devices registered by an admin open /admin pages; a customer's own
-        # devices open /app pages — so each group gets its own links.
+        # Each phone gets the alerts its account wants on push that its own property scope takes. Devices registered by an admin
+        # open /admin pages; a customer's own devices open /app pages — so each group gets its own links. Phones that end up with
+        # the same set of alerts are sent to together.
         push_ok = False
-        for group, to_admin in (([d for d in devices if d.get("admin_email")], True), ([d for d in devices if not d.get("admin_email")], False)):
-            if not group:
-                continue
-            group_new = [(a, card(a, False, to_admin)) for a, _ in new_cards if pref(a, "push")]
-            group_res = [(a, card(a, True, to_admin)) for a, _ in res_cards if pref(a, "push")]
+        by_set: dict[tuple, list[dict]] = {}
+        for d in devices:
+            ids = tuple(sorted(a["id"] for a, _ in new_cards + res_cards if pref(a, "push") and alert_routing.device_receives(d, prop(a))))
+            if ids:
+                by_set.setdefault((bool(d.get("admin_email")), ids), []).append(d)
+        for (to_admin, ids), group in by_set.items():
+            wanted_ids = set(ids)
+            group_new = [(a, card(a, False, to_admin)) for a, _ in new_cards if a["id"] in wanted_ids]
+            group_res = [(a, card(a, True, to_admin)) for a, _ in res_cards if a["id"] in wanted_ids]
             push_items = group_new + group_res
-            if not push_items:
-                continue
             try:
                 urgent = any(c["severity"] == "critical" for _, c in group_new)
                 result = alerts_push.deliver(group, _push_payloads(push_items, strings, admin=to_admin),

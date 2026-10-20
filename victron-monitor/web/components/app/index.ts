@@ -27,5 +27,7 @@ export { AiSummary } from './AiSummary/AiSummary';
 export { ForecastPanel } from './ForecastPanel/ForecastPanel';
 export { DevicesCard } from './DevicesCard/DevicesCard';
 export { PropertySwitcher, PropertyCards, CustomerSwitcher } from './Properties/PropertySwitcher';
+export { PropertyRouting } from './Properties/PropertyRouting';
+export type { RoutingActions } from './Properties/PropertyRouting';
 export { PropertiesManager } from './Properties/PropertiesManager';
 export type { PropertyActions, ManagerGroup, ActionResult } from './Properties/PropertiesManager';

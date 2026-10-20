@@ -64,6 +64,8 @@ export {
   listProperties, listAllProperties, assertOwnsProperty, createProperty, renameProperty, deleteProperty, setSiteProperty,
   adminSetSiteProperty, getSitePropertyMap, suggestPropertyGroups, applyPropertyGroups,
 } from './properties';
+export { listPropertyRecipients, addPropertyRecipient, removePropertyRecipient, listOwnerDevices, setDeviceProperties } from './routing';
+export type { PropertyRecipient, OwnerDevice } from './routing';
 export { getSiteAlarmPatterns, getSiteDevices } from './devices';
 
 export { savePushSubscription, deletePushSubscription } from './push';

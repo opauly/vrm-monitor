@@ -22,9 +22,28 @@
 .collapsibleSummary {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 4px 14px;
   cursor: pointer;
+  list-style: none;
+}
+.collapsibleSummary::-webkit-details-marker {
+  display: none;
+}
+/* The same turning chevron as the alerts' resolved list. */
+.collapsibleSummary::before {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--victron-glow);
+  border-bottom: 2px solid var(--victron-glow);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+  margin: 0 4px 0 2px;
+}
+.collapsible[open] > .collapsibleSummary::before {
+  transform: rotate(45deg);
 }
 .collapsible[open] > .collapsibleSummary {
   margin-bottom: 12px;

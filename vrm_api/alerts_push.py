@@ -134,13 +134,21 @@ def destinations(*, customer_id: str | None = None, admin_email: str | None = No
     `admin_email` — just that admin's devices (used by the test button).
     """
     columns = "id, endpoint, p256dh, auth, failure_count, admin_email"
+
+    def fetch(build) -> list[dict]:
+        # `property_ids` (which properties a phone takes; vrm_property_routing.sql) comes with the row when the column exists.
+        try:
+            return build(columns + ", property_ids").execute().data or []
+        except Exception:  # noqa: BLE001 — the column does not exist yet: every phone takes everything
+            return build(columns).execute().data or []
+
     rows: list[dict] = []
     if customer_id:
-        rows += _t("push_subscriptions").select(columns).eq("customer_id", customer_id).execute().data or []
+        rows += fetch(lambda cols: _t("push_subscriptions").select(cols).eq("customer_id", customer_id))
     if admin_email:
-        rows += _t("push_subscriptions").select(columns).eq("admin_email", admin_email).execute().data or []
+        rows += fetch(lambda cols: _t("push_subscriptions").select(cols).eq("admin_email", admin_email))
     if include_admin_devices:
-        rows += _t("push_subscriptions").select(columns).not_.is_("admin_email", "null").execute().data or []
+        rows += fetch(lambda cols: _t("push_subscriptions").select(cols).not_.is_("admin_email", "null"))
     seen: set = set()
     return [r for r in rows if not (r["id"] in seen or seen.add(r["id"]))]
 

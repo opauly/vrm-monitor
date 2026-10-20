@@ -27,7 +27,7 @@ from victron import insight_notices as rules
 from victron.mailer import MailerError
 from victron.mailer import send as mailer_send
 from victron.vrm_series import DEFAULT_TZ_NAME
-from vrm_api import alerts_push, forecast_service
+from vrm_api import alert_routing, alerts_push, forecast_service
 from vrm_api.alerts_delivery import _stamp, email_mode
 from vrm_api.alerts_service import eligible_customer_ids, forced_customer_ids, load_preferences
 
@@ -318,7 +318,18 @@ def deliver(*, now: datetime | None = None, mode: str | None = None, push: bool 
         p = prefs.get((n["customer_id"], n["kind"]), {})
         return bool(p.get("enabled", False)) and bool(p.get(channel, True))
 
-    stale = [n for n in pending if now - (_parse(n.get("created_at")) or now) > MAX_AGE or not (pref(n, "email") or pref(n, "push"))]
+    # By property: extra email recipients, and phones that only take some properties (vrm_property_routing.sql). A property's recipients
+    # hear about a kind its account has switched on, whatever the account's own channel choices are.
+    prop_of = alert_routing.site_properties(sorted({n["site_id"] for n in pending if n.get("site_id")}))
+    prop_emails = alert_routing.property_emails(sorted(set(prop_of.values()) | {(n.get("detail") or {}).get("property_id") for n in pending} - {None})) if email_active else {}
+
+    def prop(n: dict) -> str | None:
+        return (n.get("detail") or {}).get("property_id") or prop_of.get(n.get("site_id") or "")
+
+    def extra(n: dict) -> list[str]:
+        return prop_emails.get(prop(n) or "", []) if prefs.get((n["customer_id"], n["kind"]), {}).get("enabled", False) else []
+
+    stale = [n for n in pending if now - (_parse(n.get("created_at")) or now) > MAX_AGE or not (pref(n, "email") or pref(n, "push") or extra(n))]
     if stale:
         _stamp(table, [n["id"] for n in stale], notified_at=stamp)
         summary["dropped"] += len(stale)
@@ -331,7 +342,8 @@ def deliver(*, now: datetime | None = None, mode: str | None = None, push: bool 
         loader=FileSystemLoader(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "victron", "templates")),
         autoescape=select_autoescape(["html"]))
     sites = {s["site_id"]: s for s in (_t("sites").select("site_id, display_name").in_("site_id", sorted({n["site_id"] for n in live if n.get("site_id")})).execute().data or [])}
-    customers = {c["id"]: c for c in (_t("customers").select("id, contact_email, auth_email, ui_language")
+    prop_names = alert_routing.property_names(sorted({prop(n) for n in live} - {None}))
+    customers = {c["id"]: c for c in (_t("customers").select("id, name, contact_email, auth_email, ui_language")
                                       .in_("id", sorted({n["customer_id"] for n in live})).execute().data or [])}
     forced = forced_customer_ids()
 
@@ -350,7 +362,10 @@ def deliver(*, now: datetime | None = None, mode: str | None = None, push: bool 
                 devices = alerts_push.destinations(customer_id=customer_id, include_admin_devices=customer_id in forced)
             except Exception:  # noqa: BLE001
                 logger.warning("insight notices: could not read push subscriptions for customer %s", customer_id)
-        reachable = [n for n in notices if (email_to is not None and pref(n, "email")) or (devices and pref(n, "push"))]
+        def takes(n: dict) -> bool:
+            return pref(n, "push") and any(alert_routing.device_receives(d, prop(n)) for d in devices)
+
+        reachable = [n for n in notices if (email_to is not None and pref(n, "email")) or bool(extra(n)) or takes(n)]
         if not reachable:
             continue
         claimed = {r["id"] for r in _stamp(table, [n["id"] for n in reachable], notified_at=stamp)}
@@ -366,28 +381,52 @@ def deliver(*, now: datetime | None = None, mode: str | None = None, push: bool 
             name = (sites.get(n.get("site_id") or "") or {}).get("display_name") or n.get("site_id") or ""
             return describe(n, site_name=name, strings=strings, lang=lang, site_url=site_url, admin=admin)
 
+        # One email per address: the account's own (per its email choices) and each property's extra recipients.
+        mailbox: dict[str, dict] = {}
+        account_label = recipient if recipient_ok else "no email on file"
+        for n in mine:
+            c = card(n, admin_view)
+            if email_to is not None and pref(n, "email"):
+                mailbox.setdefault(account_label, {"to": email_to, "cards": {}, "via": set()})["cards"].setdefault(n["id"], c)
+            for address in extra(n):
+                box = mailbox.setdefault(address, {"to": test_to if mode == "test" else address, "cards": {}, "via": set()})
+                box["cards"].setdefault(n["id"], {**c, "url": None})   # no login: no "View site" link
+                box["via"].add(prop(n))
+
         email_ok = False
-        email_cards = [card(n, admin_view) for n in mine if pref(n, "email")]
-        if email_to is not None and email_cards:
+        for label, box in mailbox.items():
+            email_cards = list(box["cards"].values())
             subject = email_cards[0]["title"] if len(email_cards) == 1 else _fill(strings["insight_multi_subject"], n=len(email_cards))
             if mode == "test":
-                subject = f"[TEST → {recipient if recipient_ok else 'no email on file'}] {subject}"
+                subject = f"[TEST → {label}] {subject}"
+            # A property's recipient is not the account: they are told why they are getting this and have no settings page to point at.
+            is_recipient = label != account_label
+            footer = strings["insight_footer"]
+            if is_recipient:
+                via = {prop_names.get(p) for p in box["via"]} - {None}
+                account = customer.get("name") or "VRM Monitor"
+                footer = (_fill(strings["alert_footer_recipient"], account=account, property=next(iter(via))) if len(via) == 1
+                          else _fill(strings["alert_footer_recipient_many"], account=account))
             try:
                 html = env.get_template("alert_email.html").render(
-                    lang=lang, t={**strings, "alert_footer": strings["insight_footer"], "alert_manage": strings["insight_manage"]}, subject=subject,
+                    lang=lang, t={**strings, "alert_footer": footer, "alert_manage": strings["insight_manage"]}, subject=subject,
                     sections=[{"heading": strings["insight_section"], "cards": email_cards}],
-                    settings_url=f"{site_url.rstrip('/')}/app/alerts" if site_url else None)
-                mailer_send(email_to, subject, html)
+                    settings_url=None if is_recipient else (f"{site_url.rstrip('/')}/app/alerts?tab=notifications" if site_url else None))
+                mailer_send(box["to"], subject, html)
                 email_ok = True
                 summary["sent"] += 1
             except Exception as exc:  # noqa: BLE001
                 logger.warning("insight notices: could not email customer %s: %s", customer_id, exc if isinstance(exc, MailerError) else type(exc).__name__)
 
+        # Each phone gets what the account wants on push and its own property scope takes; phones with the same set are sent to together.
         push_ok = False
-        for group, to_admin in (([d for d in devices if d.get("admin_email")], True), ([d for d in devices if not d.get("admin_email")], False)):
-            items = [(n, card(n, to_admin)) for n in mine if pref(n, "push")]
-            if not group or not items:
-                continue
+        by_set: dict[tuple, list[dict]] = {}
+        for d in devices:
+            ids = tuple(sorted(n["id"] for n in mine if pref(n, "push") and alert_routing.device_receives(d, prop(n))))
+            if ids:
+                by_set.setdefault((bool(d.get("admin_email")), ids), []).append(d)
+        for (to_admin, ids), group in by_set.items():
+            items = [(n, card(n, to_admin)) for n in mine if n["id"] in set(ids)]
             try:
                 result = alerts_push.deliver(group, _push_payloads(items, strings, admin=to_admin), urgency="normal", now=now)
                 push_ok = push_ok or result["delivered"] > 0

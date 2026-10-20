@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/server/auth';
 import { fleetAlertCustomerId } from '@/lib/server/fleetAlertCustomer';
-import { getCustomer } from '@/lib/server/db';
+import { getCustomer, listOwnerDevices, listProperties, listPropertyRecipients } from '@/lib/server/db';
+import { PropertyRouting } from '@/components/app';
+import { addRecipientAction, removeRecipientAction, setDeviceScopeAction } from './routingActions';
 import { Panel } from '@/components/ui';
 import { t } from '@/lib/i18n/strings';
 import { AdminHealthSection } from './AdminHealthSection';
@@ -26,6 +28,23 @@ export default async function AdminFleetAlertsPage({ searchParams }: { searchPar
 
   const customer = customerId ? await getCustomer(customerId).catch(() => null) : null;
 
+  // "Who gets what, by property": the fleet account's properties, with the admin's own phones.
+  let routing = null;
+  if (tab === 'notifications' && customerId && customer) {
+    const [properties, recipients, devices] = await Promise.all([listProperties(customerId), listPropertyRecipients(customerId), listOwnerDevices({ adminEmail: admin.email })]);
+    if (properties.length > 0) {
+      routing = (
+        <PropertyRouting
+          lang={lang}
+          properties={properties.map((p) => ({ id: p.id, name: p.name }))}
+          recipients={recipients}
+          devices={devices}
+          actions={{ addRecipient: addRecipientAction, removeRecipient: removeRecipientAction, setDeviceScope: setDeviceScopeAction }}
+        />
+      );
+    }
+  }
+
   return (
     <div>
       <div className={styles.crumb}>
@@ -43,6 +62,7 @@ export default async function AdminFleetAlertsPage({ searchParams }: { searchPar
         <AlertsView
           lang={lang}
           tab={tab}
+          routing={routing}
           customerId={customerId}
           email={customer.contact_email || customer.auth_email || admin.email}
           intro={t(lang, 'admin_fleet_alerts_intro').replace('{name}', customer.name ?? '')}

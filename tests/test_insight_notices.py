@@ -148,6 +148,13 @@ class Table:
         t = Table(self.rows); t.op, t.payload, t.kw = op, payload, kw
         return t
 
+    @property
+    def not_(self):
+        outer = self
+        class Neg:
+            def is_(self, col, _val): outer._f(lambda r: r.get(col) is not None); return outer
+        return Neg()
+
     def select(self, *_): return self._copy("select")
     def update(self, values): return self._copy("update", values)
     def upsert(self, rows, on_conflict=None, ignore_duplicates=False): return self._copy("upsert", rows, on_conflict=on_conflict)
@@ -217,13 +224,14 @@ def test_a_customer_gets_at_most_three_non_outlook_notices_a_day(monkeypatch):
     assert [r["kind"] for r in rows[3:]] == ["daily_briefing"] and out["skipped_cap"] == 1       # the briefing is exempt, the fourth high-use notice is not
 
 
-def deliver(monkeypatch, notices, *, pushes=None, prefs=None, now=NOW):
-    db = DB(insight_notices=notices, sites=[{"site_id": "s1", "display_name": "Vista Atenas LP M2"}],
+def deliver(monkeypatch, notices, *, pushes=None, prefs=None, now=NOW, sites=None, recipients=None, devices=None):
+    db = DB(insight_notices=notices, sites=sites or [{"site_id": "s1", "display_name": "Vista Atenas LP M2"}], property_recipients=recipients or [],
             customers=[{"id": "c1", "contact_email": "a@b.co", "auth_email": None, "ui_language": "en"}])
     monkeypatch.setattr(svc, "_t", db)
+    monkeypatch.setattr(svc.alert_routing, "_t", db)
     monkeypatch.setattr(svc, "load_preferences", lambda ids: prefs if prefs is not None else {("c1", n["kind"]): {"enabled": True, "email": True, "push": True} for n in notices})
     monkeypatch.setattr(svc, "forced_customer_ids", lambda: set())
-    monkeypatch.setattr(svc.alerts_push, "destinations", lambda **kw: [{"id": 1, "endpoint": "e"}])
+    monkeypatch.setattr(svc.alerts_push, "destinations", lambda **kw: devices if devices is not None else [{"id": 1, "endpoint": "e"}])
     sent = {"mail": [], "push": []}
     monkeypatch.setattr(svc, "mailer_send", lambda to, subject, html: sent["mail"].append((to, subject, html)))
     monkeypatch.setattr(svc.alerts_push, "deliver", lambda devices, payloads, **kw: sent["push"].append(payloads) or {"delivered": 1})
@@ -341,3 +349,34 @@ def test_group_notices_read_naturally_and_link_to_the_property(monkeypatch):
     admin = svc.describe({"id": 1, "kind": R.SOLAR_DAY, "site_id": "casona", "severity": "ok", "detail": {"name": "El Encino", "sites": 2, "kwh": 1, "typical": 1, "pct": 1, "property_id": "p1"}},
                          site_name="Casona", strings=email_i18n.get("en"), lang="en", site_url="https://x", admin=True)
     assert admin["path"] == "/admin/fleet?property=p1" and admin["site"] == "El Encino"
+
+
+# ── by property ──────────────────────────────────────────────────────────
+PROP_SITE = [{"site_id": "s1", "display_name": "Vista Atenas LP M2", "property_id": "p1"}]
+
+
+def test_a_propertys_owner_gets_its_notices_by_email_even_when_the_account_has_email_off(monkeypatch):
+    prefs = {("c1", "solar_day"): {"enabled": True, "email": False, "push": True}}
+    out, sent, _ = deliver(monkeypatch, [notice()], prefs=prefs, sites=PROP_SITE, recipients=[{"property_id": "p1", "email": "Owner@Villa.com"}])
+    assert [m[0] for m in sent["mail"]] == ["owner@villa.com"] and len(sent["push"]) == 1
+
+
+def test_a_property_recipient_does_not_get_a_kind_the_account_has_switched_off(monkeypatch):
+    prefs = {("c1", "solar_day"): {"enabled": False, "email": True, "push": True}}
+    out, sent, _ = deliver(monkeypatch, [notice()], prefs=prefs, sites=PROP_SITE, recipients=[{"property_id": "p1", "email": "owner@villa.com"}])
+    assert sent["mail"] == [] and out["dropped"] == 1
+
+
+def test_a_phone_scoped_to_another_property_is_not_sent_this_notice(monkeypatch):
+    devices = [{"id": 1, "endpoint": "e1", "property_ids": ["p2"]}, {"id": 2, "endpoint": "e2", "property_ids": ["p1"]}, {"id": 3, "endpoint": "e3"}]
+    sent_to = []
+    monkeypatch.setattr(svc.alerts_push, "deliver", lambda ds, payloads, **kw: sent_to.append([d["id"] for d in ds]) or {"delivered": len(ds)})
+    db = DB(insight_notices=[notice()], sites=PROP_SITE, property_recipients=[], customers=[{"id": "c1", "contact_email": "a@b.co", "auth_email": None, "ui_language": "en"}])
+    monkeypatch.setattr(svc, "_t", db)
+    monkeypatch.setattr(svc.alert_routing, "_t", db)
+    monkeypatch.setattr(svc, "load_preferences", lambda ids: {("c1", "solar_day"): {"enabled": True, "email": True, "push": True}})
+    monkeypatch.setattr(svc, "forced_customer_ids", lambda: set())
+    monkeypatch.setattr(svc.alerts_push, "destinations", lambda **kw: devices)
+    monkeypatch.setattr(svc, "mailer_send", lambda *a, **k: None)
+    svc.deliver(now=NOW, mode="on", push=True, site_url="https://x")
+    assert sorted(sorted(g) for g in sent_to) == [[2, 3]]

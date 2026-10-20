@@ -58,6 +58,8 @@ export type AlertsViewProps = {
   lang: Lang;
   /** Which tab to show (`parseAlertsTab` of `?tab=`). */
   tab: AlertsTab;
+  /** "Who gets what, by property" (recipients and phone scope), built by the page that knows whose it is; shown on the Notifications tab. */
+  routing?: React.ReactNode;
   customerId: string;
   /** Shown under the settings: where emailed alerts go. */
   email: string;
@@ -153,7 +155,7 @@ function ResolvedRow({ group, lang, links }: { group: ResolvedGroup; lang: Lang;
   );
 }
 
-export async function AlertsView({ lang, tab, customerId, email, links, intro, pushIntro, saveAction, onSubscribe, onUnsubscribe, onTest }: AlertsViewProps) {
+export async function AlertsView({ lang, tab, routing, customerId, email, links, intro, pushIntro, saveAction, onSubscribe, onUnsubscribe, onTest }: AlertsViewProps) {
   if (tab === 'notifications') {
     const prefs = await getAlertPreferences(customerId);
     return (
@@ -181,6 +183,8 @@ export async function AlertsView({ lang, tab, customerId, email, links, intro, p
             action={saveAction}
           />
         </Panel>
+
+        {routing}
       </div>
     );
   }
