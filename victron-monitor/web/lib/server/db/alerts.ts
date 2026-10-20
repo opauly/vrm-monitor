@@ -10,12 +10,18 @@ import 'server-only';
 // every page that calls `countOpenAlerts()` (the nav badge, on every /app
 // page). A SAVE against a missing table still fails loudly.
 import { getSupabaseAdmin } from '@/lib/server/supabase';
-import type { AlertKind, AlertPreference, AlertRecord, AlertWithSite } from './types';
+import type { AlertKind, AlertPreference, AlertRecord, AlertWithSite, InsightKind, PreferenceKind } from './types';
 
 export const ALERT_KINDS: readonly AlertKind[] = ['site_offline', 'grid_outage', 'low_battery', 'system_alarm', 'vrm_link_broken', 'device_fault', 'generator_use'];
 
-/** Alert kinds that are off until the customer switches them on (matches `DEFAULT_OFF_KINDS` in victron/alerts.py). */
-const DEFAULT_OFF_KINDS: readonly AlertKind[] = ['generator_use'];
+/** Heads-ups and tips (`victron/insight_notices.py`): not problems, so they get their own group in the settings. */
+export const INSIGHT_KINDS: readonly InsightKind[] = ['daily_briefing', 'solar_day', 'storm_battery', 'high_usage', 'usage_day'];
+
+/** Everything the settings page saves. */
+export const PREFERENCE_KINDS: readonly PreferenceKind[] = [...ALERT_KINDS, ...INSIGHT_KINDS];
+
+/** Kinds that are off until the customer switches them on (matches `DEFAULT_OFF_KINDS` in victron/alerts.py; every insight is opt-in). */
+const DEFAULT_OFF_KINDS: readonly PreferenceKind[] = ['generator_use', ...INSIGHT_KINDS];
 
 const DEFAULT_PREFERENCE: AlertPreference = { enabled: true, email: true, push: true };
 
@@ -99,10 +105,10 @@ export async function countOpenAlerts(customerId: string): Promise<number> {
 }
 
 /** One entry per kind; kinds with no saved row get the defaults (everything on, except the kinds that start off). */
-export async function getAlertPreferences(customerId: string): Promise<Record<AlertKind, AlertPreference>> {
+export async function getAlertPreferences(customerId: string): Promise<Record<PreferenceKind, AlertPreference>> {
   const result = Object.fromEntries(
-    ALERT_KINDS.map((k) => [k, { ...DEFAULT_PREFERENCE, enabled: !DEFAULT_OFF_KINDS.includes(k) }]),
-  ) as Record<AlertKind, AlertPreference>;
+    PREFERENCE_KINDS.map((k) => [k, { ...DEFAULT_PREFERENCE, enabled: !DEFAULT_OFF_KINDS.includes(k) }]),
+  ) as Record<PreferenceKind, AlertPreference>;
   // `push` came with the phone-notification migration; if only the earlier one
   // has run, the column is missing and the read falls back to the columns that
   // exist — the saved enabled/email choices must still show.
@@ -121,33 +127,38 @@ export async function getAlertPreferences(customerId: string): Promise<Record<Al
     throw error;
   }
   for (const row of data ?? []) {
-    if ((ALERT_KINDS as readonly string[]).includes(row.kind)) {
-      result[row.kind as AlertKind] = { enabled: row.enabled, email: row.email, push: row.push ?? true };
+    if ((PREFERENCE_KINDS as readonly string[]).includes(row.kind)) {
+      result[row.kind as PreferenceKind] = { enabled: row.enabled, email: row.email, push: row.push ?? true };
     }
   }
   return result;
 }
 
-/** Saves every kind in one upsert (the form always submits all five). */
-export async function saveAlertPreferences(customerId: string, prefs: Record<AlertKind, AlertPreference>): Promise<void> {
+/** Saves every kind. The alert kinds go first and on their own, so a database that has not been given the newer insight kinds yet
+ * (their SQL not run) still keeps the alert choices, and only the insight part fails. */
+export async function saveAlertPreferences(customerId: string, prefs: Record<PreferenceKind, AlertPreference>): Promise<void> {
   const now = new Date().toISOString();
-  const rows = ALERT_KINDS.map((kind) => ({
-    customer_id: customerId,
-    kind,
-    enabled: prefs[kind].enabled,
-    email: prefs[kind].email,
-    push: prefs[kind].push,
-    updated_at: now,
-  }));
+  const toRows = (kinds: readonly PreferenceKind[]) =>
+    kinds.map((kind) => ({
+      customer_id: customerId,
+      kind,
+      enabled: prefs[kind].enabled,
+      email: prefs[kind].email,
+      push: prefs[kind].push,
+      updated_at: now,
+    }));
   const table = () => getSupabaseAdmin().schema('vrm').from('alert_preferences');
-  let { error } = await table().upsert(rows, { onConflict: 'customer_id,kind' });
-  if (error && !isMissingTable(error)) {
-    // The `push` column may not exist yet (migration not run): save the rest
-    // rather than failing the whole settings page.
-    ({ error } = await table().upsert(
-      rows.map((row) => ({ customer_id: row.customer_id, kind: row.kind, enabled: row.enabled, email: row.email, updated_at: row.updated_at })),
-      { onConflict: 'customer_id,kind' },
-    ));
+  for (const kinds of [ALERT_KINDS, INSIGHT_KINDS] as const) {
+    const rows = toRows(kinds);
+    let { error } = await table().upsert(rows, { onConflict: 'customer_id,kind' });
+    if (error && !isMissingTable(error) && error.code !== '23514') {
+      // The `push` column may not exist yet (migration not run): save the rest
+      // rather than failing the whole settings page.
+      ({ error } = await table().upsert(
+        rows.map((row) => ({ customer_id: row.customer_id, kind: row.kind, enabled: row.enabled, email: row.email, updated_at: row.updated_at })),
+        { onConflict: 'customer_id,kind' },
+      ));
+    }
+    if (error) throw error;
   }
-  if (error) throw error;
 }

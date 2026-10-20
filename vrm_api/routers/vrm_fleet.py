@@ -72,7 +72,7 @@ from pydantic import ValidationError
 from database.supabase_client import get_client
 
 from victron import ingest as victron_ingest
-from vrm_api import admin_alerts, alarm_log_service, alerts_delivery, alerts_push, alerts_service, devices_service
+from vrm_api import admin_alerts, alarm_log_service, alerts_delivery, alerts_push, alerts_service, devices_service, insight_notices_service
 from victron.anomaly_battery import check_incomplete_charging
 from victron.anomaly_drift import check_quiet_drift, check_underperformance
 from victron.anomaly_silence import check_unexpected_silence
@@ -513,7 +513,7 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
     # site's own upsert a few lines down).
     previous_snapshots_by_site: dict[str, dict] = {}
     if site_ids:
-        prev_rows = (_t("site_snapshots").select("site_id, captured_at, pv_power_w, soc_pct, raw")
+        prev_rows = (_t("site_snapshots").select("site_id, captured_at, pv_power_w, load_power_w, soc_pct, raw")
                     .in_("site_id", site_ids).execute().data or [])
         previous_snapshots_by_site = {r["site_id"]: r for r in prev_rows}
 
@@ -628,6 +628,17 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
                 logger.info("vrm-fleet refresh-snapshots: alert notifications %s", alerts_delivery.deliver_pending())
             except Exception:  # noqa: BLE001
                 logger.exception("vrm-fleet refresh-snapshots: alert notifications failed (snapshots are unaffected)")
+
+    # Insight notices (the day's outlook, a great solar day, a storm with a low battery, high use): not alerts, every
+    # kind is opt-in per customer. Walled off like the alerts: a failure is logged and never costs a sweep.
+    if insight_notices_service.notices_mode() == "on":
+        try:
+            logger.info("vrm-fleet refresh-snapshots: insight notices %s", insight_notices_service.run_pass(
+                sites=sites, fetched=fetched, previous_by_site=previous_snapshots_by_site))
+            if alerts_delivery.email_mode() != "off" or alerts_push.push_enabled():
+                logger.info("vrm-fleet refresh-snapshots: insight notifications %s", insight_notices_service.deliver())
+        except Exception:  # noqa: BLE001
+            logger.exception("vrm-fleet refresh-snapshots: insight notices failed (snapshots are unaffected)")
 
     # Admin fleet-health alerts (many sites silent, reads failing, sweep/history
     # stale). Off unless ALERTS_ADMIN is set; same rule as above: never costs a sweep.

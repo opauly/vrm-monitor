@@ -248,6 +248,9 @@ CRITICAL_ALARM_CATEGORIES = {
 # for the other tank fields but is unconfirmed against any real reading;
 # requesting an unpublished code from `get_stats()` just returns no data,
 # the same safe failure mode as every other absent signal in this module.
+# Battery power: positive while charging, negative while discharging (Victron's own sign convention). Integrated
+# separately for each direction it gives the day's real battery energy in and out.
+BATTERY_POWER_CODE = "bp"
 GENERATOR_CODE = "Gt"
 GRID_METER_CODES = {
     "v_l1": "g1v", "c_l1": "g1c", "p_l1": "g1p", "pf_l1": "g1pf",
@@ -428,6 +431,7 @@ def fetch_and_map(client, id_site, site_id: str, start, end, *,
     # the same batch as everything else below so no extra API round trip is
     # needed just because a site happens to have a generator/meter/tank.
     generator_code = GENERATOR_CODE if GENERATOR_CODE in available else None
+    battery_power_code = BATTERY_POWER_CODE if BATTERY_POWER_CODE in available else None
     grid_meter_codes_present = {k: c for k, c in GRID_METER_CODES.items() if c in available}
     tank_codes_present = {k: c for k, c in TANK_CODES.items() if c in available}
     if TANK_LEVEL_CODE in available:
@@ -439,6 +443,7 @@ def fetch_and_map(client, id_site, site_id: str, start, end, *,
         | {c for codes in alarm_codes_present.values() for c in codes}
         | {c for codes in critical_codes_present.values() for c in codes}
         | ({generator_code} if generator_code else set())
+        | ({battery_power_code} if battery_power_code else set())
         | set(grid_meter_codes_present.values())
         | set(tank_codes_present.values())
     )
@@ -476,6 +481,12 @@ def fetch_and_map(client, id_site, site_id: str, start, end, *,
     for column in ("pv_w", "load_w", "grid_import_w", "grid_export_w",
                    "batt_charge_w", "batt_discharge_w", "grid_w"):
         tidied[column] = np.nan
+    # The battery's own power reading, split by direction, is the real battery energy (it is what the CSV path
+    # integrates too). Without it the columns stay empty rather than a number nobody should trust.
+    if battery_power_code and not series_by_code[battery_power_code].empty:
+        bp = series_by_code[battery_power_code].reindex(raw_index)
+        tidied["batt_charge_w"] = bp.clip(lower=0)
+        tidied["batt_discharge_w"] = (-bp).clip(lower=0)
 
     # PLAN_PHASE18.md §7 items 4a-c — reindexed to raw_index exactly like
     # STATE_CODES above, so vrm_daily.to_energy_daily_rows()'s `.loc[idx]`
@@ -511,6 +522,7 @@ def fetch_and_map(client, id_site, site_id: str, start, end, *,
     def _e(code: str, day: date) -> float:
         return energy_by_code.get(code, {}).get(day, 0.0)
 
+    measured_battery = bool(battery_power_code) and not series_by_code[battery_power_code].empty
     for row in rows:
         day = date.fromisoformat(row["date"])
         pb, pc, pg = _e("Pb", day), _e("Pc", day), _e("Pg", day)
@@ -526,11 +538,12 @@ def fetch_and_map(client, id_site, site_id: str, start, end, *,
         # Step 3's fixture showed it disagrees with the CSV path's
         # battery-monitor-derived figure by up to 97%/58% on real days.
         # NULL-with-warning, not a number nobody should trust.
-        row["battery_charge_kwh"] = None
-        row["battery_discharge_kwh"] = None
+        if not measured_battery:
+            row["battery_charge_kwh"] = None
+            row["battery_discharge_kwh"] = None
 
     warnings: list[str] = []
-    if energy_codes_present:
+    if energy_codes_present and not measured_battery:
         warnings.append(
             "battery_charge_kwh/battery_discharge_kwh are not available on the API "
             "path (Victron's Pb+Gb/Bc+Bg flow-diagram totals are a derived complement "

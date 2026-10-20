@@ -126,3 +126,21 @@ def test_repeated_warnings_are_a_quiet_watch_item_apart_from_equipment_findings(
     assert "inverter overloads: 4 times in the last 14 days" in prompt
     assert "inverter overloads" not in prompt.split("Repeated warnings")[0]          # not filed under the findings that lowered the score
     assert "Repeated warnings" not in _prompt(monkeypatch)
+
+
+def test_the_energy_mix_counts_solar_stored_in_the_battery_once_and_draws_without_errors():
+    from victron import report_i18n, report_svg as S
+    t = report_i18n.get("en")
+    d = {"systemType": "hybrid", "totals": {"pv": 28.4, "grid": 1.7, "charge": 9.5, "discharge": 12.3, "batteryKwhAvailable": True}}
+    mix = S._energy_mix(d, t)
+    assert (mix["solar_pct"], mix["batt_pct"], mix["grid_pct"]) == (57, 38, 5)
+    assert [(label, round(kwh, 1)) for label, _c, _p, kwh in mix["legend"]] == [("Solar", 18.9), ("Battery", 12.3), ("Grid", 1.7)]
+    assert "counts as battery" in mix["sub"]
+    for draw in (lambda: S.row1_svg(d, t, []), lambda: S.energy_mix_full_svg_3way(d, t)):
+        svg = draw()
+        assert "57.4%" in svg and "18.9" in svg and "12.3" in svg
+    # No battery energy reported: solar is everything generated, the battery slice is left out.
+    d["totals"].update(batteryKwhAvailable=False, charge=0.0, discharge=0.0)
+    mix = S._energy_mix(d, t)
+    assert (mix["solar_pct"], mix["batt_pct"]) == (94, 0) and mix["legend"][1][2] is None and "counts as battery" not in mix["sub"]
+    assert "94.4%" in S.row1_svg(d, t, [])

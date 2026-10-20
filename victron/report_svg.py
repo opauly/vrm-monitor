@@ -608,33 +608,40 @@ def _grid_source_label(d: dict, t: dict) -> str:
     return t["labelGenerator"] if d.get("systemType") == "off_grid" else t["labelGrid"]
 
 
+def _energy_mix(d: dict, t: dict) -> dict:
+    """The "where your energy came from" figures: solar, battery, grid, as shares of the three together.
+
+    With the battery's own energy figures, solar that was stored and used later is counted once, as battery: solar here is
+    what was used straight away (generated minus what went into the battery). Without them (a site that does not report
+    battery energy) solar is everything generated and the battery slice is left out rather than guessed."""
+    tot = d["totals"]
+    # False only when battery_charge_kwh AND battery_discharge_kwh are NULL for every row in the window.
+    available = tot.get("batteryKwhAvailable", True)
+    solar = max(tot["pv"] - tot["charge"], 0.0) if available else tot["pv"]
+    total = solar + tot["grid"] + tot["discharge"]
+    solar_pct = round(solar / total * 100) if total else 0
+    grid_pct = round(tot["grid"] / total * 100) if total else 0
+    # Forced to 0, not the rounding-leftover share, when the data isn't available: a stray 1% leftover would otherwise draw a
+    # battery-coloured sliver next to a "—" legend entry.
+    batt_pct = max(0, 100 - solar_pct - grid_pct) if available else 0
+    share = lambda kwh: _f(kwh / total * 100) if total else "0.0"  # noqa: E731
+    return {
+        "solar_pct": solar_pct, "grid_pct": grid_pct, "batt_pct": batt_pct,
+        "legend": [(t["labelSolar"], GREEN, share(solar), solar),
+                   (t["labelBattery"], BLUE, share(tot["discharge"]) if available else None, tot["discharge"]),
+                   (_grid_source_label(d, t), MINT, share(tot["grid"]), tot["grid"])],
+        "sub": t["subEnergyMixBattery"] if available else t["subEnergyMix"],
+    }
+
+
 def row1_svg(d: dict, t: dict, batt_rows: list[dict],
              row_size: float = ROW_SIZE_MAX) -> str:
-    tot = d["totals"]
-    # See weekly_report.py's build_report_data — False only when
-    # battery_charge_kwh AND battery_discharge_kwh are NULL for every row in
-    # the window (the vrm_api ingestion path), not merely summing to zero.
-    batt_available = tot.get("batteryKwhAvailable", True)
-    total_energy = tot["pv"] + tot["grid"] + tot["discharge"]
-    solar_pct = round(tot["pv"] / total_energy * 100) if total_energy else 0
-    grid_pct = round(tot["grid"] / total_energy * 100) if total_energy else 0
-    # Forced to 0, not the rounding-leftover share, when the data isn't
-    # available — otherwise a stray 1% rounding leftover still draws a
-    # battery-coloured sliver on the ring next to a "—" legend entry.
-    batt_pct = max(0, 100 - solar_pct - grid_pct) if batt_available else 0
-    sd = _f(tot["pv"] / total_energy * 100) if total_energy else "0.0"
-    bd = ((_f(tot["discharge"] / total_energy * 100) if total_energy else "0.0")
-          if batt_available else None)
-    gd = _f(tot["grid"] / total_energy * 100) if total_energy else "0.0"
-
-    legend_rows = [
-        (t["labelSolar"], GREEN, sd, tot["pv"]),
-        (t["labelBattery"], BLUE, bd, tot["discharge"]),
-        (_grid_source_label(d, t), MINT, gd, tot["grid"]),
-    ]
+    mix = _energy_mix(d, t)
+    solar_pct, grid_pct, batt_pct, legend_rows = mix["solar_pct"], mix["grid_pct"], mix["batt_pct"], mix["legend"]
+    sd = legend_rows[0][2]            # the share shown in the middle of the ring
 
     batt_h = measure_info_block(batt_rows, t["subBattery"])
-    em_sub = wrap_svg_lines(t["subEnergyMix"], int((IW - 2 * IPAD) / 3.4))
+    em_sub = wrap_svg_lines(mix["sub"], int((IW - 2 * IPAD) / 3.4))
     em_head_h = 16 + len(em_sub) * 9 + 12
     row1_h = max(batt_h, em_head_h + 72 + 8)
     DX = _donut_dx(IW, legend_rows, t)
@@ -701,7 +708,7 @@ def energy_mix_full_svg(d: dict, t: dict) -> str:
         (_grid_source_label(d, t), MINT, gd, tot["grid"]),
     ]
 
-    em_sub = wrap_svg_lines(t["subEnergyMix"], int((PW - 2 * IPAD) / 3.4))
+    em_sub = wrap_svg_lines(mix["sub"], int((PW - 2 * IPAD) / 3.4))
     em_head_h = 16 + len(em_sub) * 9 + 12
     h = em_head_h + 72 + 8
     DX = _donut_dx(PW, legend_rows, t)
@@ -749,25 +756,9 @@ def energy_mix_full_svg_3way(d: dict, t: dict) -> str:
     hardware at all, and stays on `energy_mix_full_svg()`'s genuine 2-way
     split, unchanged.
     """
-    tot = d["totals"]
-    # Same battery_kwh_available guard row1_svg() uses — see
-    # weekly_report.py:build_report_data's own comment on why a fabricated
-    # 0.0 here would be worse than omitting the slice.
-    batt_available = tot.get("batteryKwhAvailable", True)
-    total_energy = tot["pv"] + tot["grid"] + tot["discharge"]
-    solar_pct = round(tot["pv"] / total_energy * 100) if total_energy else 0
-    grid_pct = round(tot["grid"] / total_energy * 100) if total_energy else 0
-    batt_pct = max(0, 100 - solar_pct - grid_pct) if batt_available else 0
-    sd = _f(tot["pv"] / total_energy * 100) if total_energy else "0.0"
-    bd = ((_f(tot["discharge"] / total_energy * 100) if total_energy else "0.0")
-          if batt_available else None)
-    gd = _f(tot["grid"] / total_energy * 100) if total_energy else "0.0"
-
-    legend_rows = [
-        (t["labelSolar"], GREEN, sd, tot["pv"]),
-        (t["labelBattery"], BLUE, bd, tot["discharge"]),
-        (_grid_source_label(d, t), MINT, gd, tot["grid"]),
-    ]
+    mix = _energy_mix(d, t)
+    solar_pct, grid_pct, batt_pct, legend_rows = mix["solar_pct"], mix["grid_pct"], mix["batt_pct"], mix["legend"]
+    sd = legend_rows[0][2]            # the share shown in the middle of the ring
 
     em_sub = wrap_svg_lines(t["subEnergyMix"], int((PW - 2 * IPAD) / 3.4))
     em_head_h = 16 + len(em_sub) * 9 + 12

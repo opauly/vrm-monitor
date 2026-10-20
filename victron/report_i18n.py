@@ -96,6 +96,9 @@ EN = {
                 "for each day this week.",
     "subEnergyMix": "Shows how much of your energy came from solar panels, "
                     "batteries, and the utility grid.",
+    "subEnergyMixBattery": "Shows how much of your energy came from solar panels, "
+                           "batteries, and the utility grid. Solar stored in the "
+                           "battery counts as battery.",
     "subBattery": "Tracks how well your batteries charged and discharged "
                   "throughout the week.",
     "subGrid": "Measures the quality and stability of the utility grid supply "
@@ -306,6 +309,9 @@ ES = dict(EN, **{
                 "propiedad para cada día de esta semana.",
     "subEnergyMix": "Muestra cuánta de su energía vino de los paneles solares, "
                     "las baterías y la red eléctrica.",
+    "subEnergyMixBattery": "Muestra cuánta de su energía vino de los paneles solares, "
+                           "las baterías y la red eléctrica. La energía solar "
+                           "guardada en la batería cuenta como batería.",
     "subBattery": "Indica qué tan bien cargaron y descargaron sus baterías "
                   "durante la semana.",
     "subGrid": "Mide la calidad y estabilidad del suministro de la red "

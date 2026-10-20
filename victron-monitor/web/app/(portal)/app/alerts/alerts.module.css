@@ -99,6 +99,25 @@
   display: flex;
   flex-direction: column;
 }
+.settingsGroup {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 22px;
+}
+.groupHead {
+  margin-bottom: 10px;
+}
+.groupTitle {
+  margin: 0 0 2px;
+  font-size: 16px;
+  color: var(--paper);
+}
+.groupDesc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--paper-dim);
+}
 .settingsHead,
 .settingsRow {
   display: grid;

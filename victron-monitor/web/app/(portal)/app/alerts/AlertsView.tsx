@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import {
   ALERT_KINDS,
+  INSIGHT_KINDS,
   getAlertPreferences,
   listOpenAlerts,
   listRecentResolvedAlerts,
@@ -78,7 +79,9 @@ export async function AlertsView({ lang, customerId, email, links, intro, pushIn
 
   return (
     <div>
-      <p className={styles.intro}>{intro ?? t(lang, 'alerts_intro')}</p>
+      <p className={styles.intro}>
+        {intro ?? t(lang, 'alerts_intro')} <a href="#settings" className={styles.cardLink}>{t(lang, 'alerts_jump_settings')} ↓</a>
+      </p>
 
       <h2 className={styles.sectionLabel}>{t(lang, 'alerts_active_title')}</h2>
       {open.length === 0 ? (
@@ -111,10 +114,19 @@ export async function AlertsView({ lang, customerId, email, links, intro, pushIn
         onTest={onTest}
       />
 
-      <h2 className={styles.sectionLabel}>{t(lang, 'alerts_settings_title')}</h2>
+      <h2 id="settings" className={styles.sectionLabel}>{t(lang, 'alerts_settings_title')}</h2>
       <Panel>
         <p className={styles.settingsIntro}>{t(lang, 'alerts_settings_intro')}</p>
-        <AlertSettingsForm lang={lang} kinds={ALERT_KINDS} initial={prefs} email={email} action={saveAction} />
+        <AlertSettingsForm
+          lang={lang}
+          groups={[
+            { title: t(lang, 'alerts_group_alerts'), description: t(lang, 'alerts_group_alerts_desc'), kinds: ALERT_KINDS },
+            { title: t(lang, 'alerts_group_insights'), description: t(lang, 'alerts_group_insights_desc'), kinds: INSIGHT_KINDS },
+          ]}
+          initial={prefs}
+          email={email}
+          action={saveAction}
+        />
       </Panel>
     </div>
   );

@@ -9,7 +9,7 @@ import 'server-only';
 // not the control.
 import { revalidatePath } from 'next/cache';
 import { requireCustomerAllowPending } from '@/lib/server/auth';
-import { ALERT_KINDS, getCustomer, getDashboardAccess, saveAlertPreferences, type AlertKind, type AlertPreference } from '@/lib/server/db';
+import { PREFERENCE_KINDS, getCustomer, getDashboardAccess, saveAlertPreferences, type PreferenceKind, type AlertPreference } from '@/lib/server/db';
 import { t } from '@/lib/i18n/strings';
 
 export type AlertSettingsState = { error?: string; success?: boolean };
@@ -27,11 +27,11 @@ export async function saveAlertSettingsAction(_prev: AlertSettingsState, formDat
   // 'on'" is the whole parse — there is nothing else a client could send that
   // means anything.
   const prefs = Object.fromEntries(
-    ALERT_KINDS.map((kind) => [
+    PREFERENCE_KINDS.map((kind) => [
       kind,
       { enabled: formData.get(`enabled_${kind}`) === 'on', email: formData.get(`email_${kind}`) === 'on', push: formData.get(`push_${kind}`) === 'on' },
     ]),
-  ) as Record<AlertKind, AlertPreference>;
+  ) as Record<PreferenceKind, AlertPreference>;
 
   try {
     await saveAlertPreferences(session.customerId, prefs);

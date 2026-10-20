@@ -3,7 +3,7 @@
 import { useActionState, useState } from 'react';
 import { Button } from '@/components/ui';
 import { t, type Lang } from '@/lib/i18n/strings';
-import type { AlertKind, AlertPreference } from '@/lib/server/db';
+import type { AlertPreference, PreferenceKind } from '@/lib/server/db';
 import type { AlertSettingsState } from './actions';
 import styles from './alerts.module.css';
 
@@ -11,8 +11,9 @@ const INITIAL_STATE: AlertSettingsState = {};
 
 type Props = {
   lang: Lang;
-  kinds: readonly AlertKind[];
-  initial: Record<AlertKind, AlertPreference>;
+  /** Alert kinds and insight kinds are shown as two groups, each with its own heading. */
+  groups: { title: string; description: string; kinds: readonly PreferenceKind[] }[];
+  initial: Record<PreferenceKind, AlertPreference>;
   email: string;
   /** Who the preferences are saved for is decided by this server action, from the session — never by the form. */
   action: (prev: AlertSettingsState, formData: FormData) => Promise<AlertSettingsState>;
@@ -21,12 +22,19 @@ type Props = {
 // One row per alert kind: "Show" (is it raised at all), "Email me" and
 // "Phone" (push). Email/Phone are moot when Show is off, so those boxes are disabled then — a disabled box is
 // not submitted, which the action reads as "off", the same outcome.
-export function AlertSettingsForm({ lang, kinds, initial, email, action }: Props) {
+export function AlertSettingsForm({ lang, groups, initial, email, action }: Props) {
+  const kinds = groups.flatMap((g) => g.kinds);
   const [state, formAction, pending] = useActionState(action, INITIAL_STATE);
   const [shown, setShown] = useState<Record<string, boolean>>(Object.fromEntries(kinds.map((k) => [k, initial[k].enabled])));
 
   return (
     <form action={formAction} className={styles.settingsForm}>
+      {groups.map((group) => (
+        <div key={group.title} className={styles.settingsGroup}>
+      <div className={styles.groupHead}>
+        <h3 className={styles.groupTitle}>{group.title}</h3>
+        <p className={styles.groupDesc}>{group.description}</p>
+      </div>
       <div className={styles.settingsHead} aria-hidden="true">
         <span>{t(lang, 'alerts_col_alert')}</span>
         <span>{t(lang, 'alerts_col_show')}</span>
@@ -34,7 +42,7 @@ export function AlertSettingsForm({ lang, kinds, initial, email, action }: Props
         <span>{t(lang, 'alerts_col_push')}</span>
       </div>
 
-      {kinds.map((kind) => (
+      {group.kinds.map((kind) => (
         <div key={kind} className={styles.settingsRow}>
           <div>
             <div className={styles.kindName}>{t(lang, `alerts_kind_${kind}`)}</div>
@@ -58,6 +66,8 @@ export function AlertSettingsForm({ lang, kinds, initial, email, action }: Props
             <input type="checkbox" name={`push_${kind}`} defaultChecked={initial[kind].push} disabled={pending || !shown[kind]} />
             <span className={styles.toggleLabel}>{t(lang, 'alerts_col_push')}</span>
           </label>
+        </div>
+      ))}
         </div>
       ))}
 

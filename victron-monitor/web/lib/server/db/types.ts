@@ -363,6 +363,10 @@ export type AppSettingRecord = {
 // (`vrm_api/alerts_service.py`), read here for `/app/alerts`.
 export type AlertKind = 'site_offline' | 'grid_outage' | 'low_battery' | 'system_alarm' | 'vrm_link_broken' | 'device_fault' | 'generator_use';
 export type AlertSeverity = 'warning' | 'critical';
+// Heads-ups that are not alerts (`vrm.insight_notices`, sent by the sweep): said once, every kind opt-in. They share the
+// alert settings table (`vrm.alert_preferences`), so one preferences record covers both.
+export type InsightKind = 'daily_briefing' | 'solar_day' | 'storm_battery' | 'high_usage' | 'usage_day';
+export type PreferenceKind = AlertKind | InsightKind;
 
 export type AlertRecord = {
   id: number;
