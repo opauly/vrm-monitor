@@ -75,6 +75,40 @@ def _enabled_kinds(prefs: dict, customer_id: str) -> set[str]:
 
 
 # ── generating ───────────────────────────────────────────────────────────
+def _site_details(site_ids: list[str]) -> dict[str, dict]:
+    """`{site_id: {display_name, latitude, longitude, property_id}}`. `property_id` is left out when the properties SQL has not been run."""
+    if not site_ids:
+        return {}
+    for columns in ("site_id, display_name, latitude, longitude, property_id", "site_id, display_name, latitude, longitude"):
+        try:
+            rows = _t("sites").select(columns).in_("site_id", site_ids).execute().data or []
+            return {r["site_id"]: r for r in rows}
+        except Exception:  # noqa: BLE001
+            continue
+    return {}
+
+
+def _property_names(property_ids: set) -> dict[str, str]:
+    if not property_ids:
+        return {}
+    try:
+        return {r["id"]: r["name"] for r in _t("properties").select("id, name").in_("id", sorted(property_ids)).execute().data or []}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _group_key(site: dict, info: dict | None) -> str:
+    """Which sites share weather: the property they are in, else the ~1 km square they sit in, else the site alone."""
+    info = info or {}
+    if info.get("property_id"):
+        return f"p:{info['property_id']}"
+    lat, lon = info.get("latitude"), info.get("longitude")
+    if isinstance(lat, (int, float)) and isinstance(lon, (int, float)):
+        return f"l:{round(lat, 2)},{round(lon, 2)}"
+    return f"s:{site['site_id']}"
+
+
+
 def run_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]], previous_by_site: dict[str, dict],
              now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
@@ -106,8 +140,13 @@ def run_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]], previ
         if r["kind"] != rules.DAILY_BRIEFING and made and now - made < timedelta(days=1):
             used_today[r["customer_id"]] = used_today.get(r["customer_id"], 0) + 1
 
+    details = _site_details(ids)
+    property_names = _property_names({d["property_id"] for d in details.values() if d.get("property_id")})
+
     builds = 0
     rows: list[dict] = []
+    forecast_of: dict[str, dict | None] = {}
+    profile_of: dict[str, list | None] = {}
     for site, snapshot in active:
         site_id, customer_id = site["site_id"], site["customer_id"]
         kinds = enabled[customer_id]
@@ -124,18 +163,43 @@ def run_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]], previ
                 row = (_t("site_forecasts").select("site_id, generated_at, result, load_profile").eq("site_id", site_id).execute().data or [row])[0]
             except Exception:  # noqa: BLE001 — a forecast that cannot be made just means no forecast-based notice this time
                 logger.warning("insight notices: could not build the forecast for %s", site_id)
-        profile = ((row or {}).get("load_profile") or {}).get("load_w")
-        try:
-            found = rules.evaluate(site=site, now_local=local, forecast=forecast, snapshot=snapshot, previous=previous_by_site.get(site_id),
-                                   load_profile_w=profile, energy_rows=energy.get(site_id), kinds=kinds)
-        except Exception:  # noqa: BLE001 — one odd site must not cost the others
-            logger.exception("insight notices: could not evaluate site %s", site_id)
-            continue
-        for notice in found:
-            if (customer_id, notice.key) in seen:
-                continue
+        forecast_of[site_id] = forecast
+        profile_of[site_id] = ((row or {}).get("load_profile") or {}).get("load_w")
+
+    def add(customer_id: str, site_id: str, notice: rules.Notice) -> None:
+        if (customer_id, notice.key) not in seen:
             rows.append({"customer_id": customer_id, "site_id": site_id, "kind": notice.kind, "dedupe_key": notice.key,
                          "severity": notice.severity, "detail": notice.detail})
+
+    # What is about one site's own load stays per site.
+    for site, snapshot in active:
+        site_id, customer_id = site["site_id"], site["customer_id"]
+        try:
+            for notice in rules.evaluate(site=site, now_local=_local(now, site.get("timezone")), snapshot=snapshot, previous=previous_by_site.get(site_id),
+                                         load_profile_w=profile_of.get(site_id), energy_rows=energy.get(site_id), kinds=enabled[customer_id]):
+                add(customer_id, site_id, notice)
+        except Exception:  # noqa: BLE001 — one odd site must not cost the others
+            logger.exception("insight notices: could not evaluate site %s", site_id)
+
+    # Weather is shared by everything in one place: said once per property, or per group of sites that share a location.
+    groups: dict[tuple[str, str], list[tuple[dict, dict | None]]] = {}
+    for site, snapshot in active:
+        groups.setdefault((site["customer_id"], _group_key(site, details.get(site["site_id"]))), []).append((site, snapshot))
+    for (customer_id, key), members in groups.items():
+        first = members[0][0]
+        info = details.get(first["site_id"]) or {}
+        names = [(details.get(m["site_id"]) or {}).get("display_name") or m["site_id"] for m, _ in members]
+        name = property_names.get(info.get("property_id")) or rules.group_name(names)
+        try:
+            found = rules.evaluate_group(
+                key=key, name=name, now_local=_local(now, first.get("timezone")), kinds=enabled[customer_id], property_id=info.get("property_id"),
+                members=[rules.Member(site={**m, "display_name": names[i]}, forecast=forecast_of.get(m["site_id"]), snapshot=snap)
+                         for i, (m, snap) in enumerate(members)])
+        except Exception:  # noqa: BLE001
+            logger.exception("insight notices: could not evaluate group %s", key)
+            continue
+        for notice in found:
+            add(customer_id, first["site_id"], notice)
 
     rows.sort(key=lambda r: _PRIORITY.index(r["kind"]))
     keep = []
@@ -169,8 +233,9 @@ def _briefing_body(d: dict, t: dict, lang: str) -> str:
             parts.append(_fill(t["insight_brief_solar_only"], kwh=d["kwh"]))
     if d.get("windows"):
         parts.append(_fill(t["insight_brief_storm"], when=insight_ai.storm_when(d["windows"], lang)))
-    if d.get("soc_pct") is not None:
-        parts.append(_fill(t["insight_brief_battery"], soc=d["soc_pct"]))
+    low, high = d.get("soc_min"), d.get("soc_max")
+    if low is not None:
+        parts.append(_fill(t["insight_brief_battery"], soc=low) if low == high else _fill(t["insight_brief_battery_range"], low=low, high=high))
     if d.get("charge_first"):
         parts.append(t["insight_brief_tip_storm"])
     elif d.get("direction") == "above":
@@ -178,20 +243,36 @@ def _briefing_body(d: dict, t: dict, lang: str) -> str:
     return " ".join(parts)
 
 
+def _low_list(low: list[dict], limit: int = 3) -> str:
+    shown = ", ".join(f"{x['name']} {x['soc']}%" for x in low[:limit])
+    return shown + (f" (+{len(low) - limit})" if len(low) > limit else "")
+
+
 def describe(notice: dict, *, site_name: str, strings: dict, lang: str, site_url: str | None, admin: bool = False) -> dict:
-    """One notice as a card for the email and the phone notification."""
+    """One notice as a card for the email and the phone notification. A weather notice about a group of sites is named for the
+    group (`detail.name`) and links to the property's fleet view when it has one."""
     kind, d = notice["kind"], notice.get("detail") or {}
-    path = f"/admin/fleet/{notice.get('site_id')}" if admin else f"/app/dashboard/{notice.get('site_id')}"
+    name = d.get("name") or site_name
+    if d.get("property_id"):
+        path = f"/admin/fleet?property={d['property_id']}" if admin else f"/app/dashboard?property={d['property_id']}"
+    else:
+        path = f"/admin/fleet/{notice.get('site_id')}" if admin else f"/app/dashboard/{notice.get('site_id')}"
     base = (site_url or "").rstrip("/")
-    values = {"site": site_name}
+    values = {"site": name}
+    many = (d.get("sites") or 1) > 1
     if kind == rules.DAILY_BRIEFING:
         body = _briefing_body(d, strings, lang)
-        title, push = _fill(strings["insight_briefing_title"], site=site_name), strings["insight_briefing_push"]
+        title, push = _fill(strings["insight_briefing_title"], site=name), strings["insight_briefing_push"]
     elif kind == rules.SOLAR_DAY:
-        body = _fill(strings["insight_solar_day_body"], kwh=d.get("kwh"), pct=d.get("pct"), typical=d.get("typical"))
+        key = "insight_solar_day_body_many" if many else "insight_solar_day_body"
+        body = _fill(strings[key], kwh=d.get("kwh"), pct=d.get("pct"), typical=d.get("typical"), n=d.get("sites"))
         title, push = _fill(strings["insight_solar_day_title"], **values), strings["insight_solar_day_push"]
     elif kind == rules.STORM_BATTERY:
-        body = _fill(strings["insight_storm_battery_body"], when=insight_ai.storm_when(d.get("windows") or [], lang), soc=d.get("soc_pct"))
+        when = insight_ai.storm_when(d.get("windows") or [], lang)
+        if many and d.get("low"):
+            body = _fill(strings["insight_storm_battery_body_many"], when=when, low=_low_list(d["low"]))
+        else:
+            body = _fill(strings["insight_storm_battery_body"], when=when, soc=d.get("soc_pct"))
         title, push = _fill(strings["insight_storm_battery_title"], **values), _fill(strings["insight_storm_battery_push"], soc=d.get("soc_pct"))
     elif kind == rules.HIGH_USAGE:
         body = _fill(strings["insight_high_usage_body"], kw=d.get("kw"), factor=d.get("factor"), usual_kw=d.get("usual_kw"))
@@ -201,7 +282,7 @@ def describe(notice: dict, *, site_name: str, strings: dict, lang: str, site_url
         title, push = _fill(strings["insight_usage_day_title"], **values), strings["insight_usage_day_push"]
     severity = notice.get("severity") if notice.get("severity") in ("ok", "warning") else "ok"
     return {"title": title, "body": body, "severity": severity, "severity_label": "", "url": f"{base}{path}" if base else None,
-            "path": path, "button_label": strings["alert_view_site"], "site": site_name, "push_title": push}
+            "path": path, "button_label": strings["alert_view_site"], "site": name, "push_title": push}
 
 
 def _push_payloads(items: list[tuple[dict, dict]], strings: dict, *, admin: bool) -> list[dict]:

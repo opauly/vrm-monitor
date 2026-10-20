@@ -10,9 +10,15 @@ table (`vrm.insight_notices`) and every kind is something the customer switches 
   * the service caps how many non-briefing notices one customer gets in a day.
 
 Kinds: daily_briefing, solar_day, storm_battery, high_usage, usage_day.
+
+Weather is shared by every site in one place, so the weather-driven kinds (daily_briefing, solar_day, storm_battery) are said ONCE
+per group of sites, not once per site: a property if the sites are in one, else the sites that share a location. The solar figures
+of a group are summed over its sites (one site crossing a threshold by a hair while its neighbours do not is not a different day),
+and the batteries are reported as a range or by name. high_usage and usage_day stay per site: they are about that site's own load.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -80,45 +86,110 @@ def _storm_in_reach(forecast: dict | None, now_local: datetime) -> dict | None:
     return None
 
 
-def evaluate(*, site: dict, now_local: datetime, forecast: dict | None, snapshot: dict | None, previous: dict | None,
+@dataclass(frozen=True)
+class Member:
+    """One site of a group, with what the rules need of it."""
+    site: dict
+    forecast: dict | None
+    snapshot: dict | None
+
+
+def group_name(names: list[str]) -> str:
+    """"Vista Atenas LP" from "Vista Atenas LP M1 (Houses)" and its siblings: the words their names share."""
+    def base(n: str) -> list[str]:
+        return re.sub(r"\s*\(.*?\)\s*", " ", n).split()
+    words = [base(n) for n in names if n]
+    if not words:
+        return ""
+    common: list[str] = []
+    for i, w in enumerate(words[0]):
+        if all(len(o) > i and o[i].lower() == w.lower() for o in words):
+            common.append(w)
+        else:
+            break
+    while len(common) > 1 and re.fullmatch(r"[A-Za-z]?\d+", common[-1]):
+        common.pop()
+    return " ".join(common) or " ".join(words[0])
+
+
+def _day_total(members: list[Member], day: str) -> tuple[float, float, int] | None:
+    """`(expected kWh, typical kWh, sites counted)` for `day` ("today" / "tomorrow") summed over the members that have both figures."""
+    kwh = typical = 0.0
+    n = 0
+    for m in members:
+        solar = _solar(((m.forecast or {}).get(day)))
+        t = _num(((m.forecast or {}).get("calibration") or {}).get("typical_pv_kwh"))
+        if solar and t:
+            kwh, typical, n = kwh + solar["kwh"], typical + t, n + 1
+    return (kwh, typical, n) if n else None
+
+
+def _windows(members: list[Member], day: str | None = None) -> list[dict]:
+    """The group's storm windows, the same one counted once however many sites report it."""
+    seen, out = set(), []
+    for m in members:
+        for w in (m.forecast or {}).get("storm_windows") or []:
+            key = (w.get("day"), w.get("from"), w.get("to"))
+            if key not in seen and (day is None or w.get("day") == day):
+                seen.add(key)
+                out.append(w)
+    return out
+
+
+def evaluate_group(*, key: str, name: str, members: list[Member], now_local: datetime, kinds: set[str] | None = None,
+                   property_id: str | None = None) -> list[Notice]:
+    """The weather-driven notices for one group of sites (a property, or the sites that share a place)."""
+    want = set(KINDS) if kinds is None else set(kinds)
+    hour, today = now_local.hour, now_local.date()
+    usable = [m for m in members if m.forecast and m.forecast.get("available", True)]
+    socs = [(m.site.get("display_name") or m.site.get("site_id"), _num((m.snapshot or {}).get("soc_pct")), m) for m in members]
+    socs = [(n, round(v), m) for n, v, m in socs if v is not None]
+    where = {"name": name, "group": key, "sites": len(members), **({"property_id": property_id} if property_id else {})}
+    out: list[Notice] = []
+
+    if DAILY_BRIEFING in want and _in(hour, BRIEFING_HOURS) and usable:
+        total = _day_total(usable, "today")
+        windows = [w for w in _windows(usable, "today") if int(str(w.get("from", "00"))[:2]) >= hour]
+        if total or windows:
+            detail: dict = {**where, "date": str(today), "sky": ((usable[0].forecast or {}).get("today") or {}).get("sky")}
+            if total:
+                kwh, typical, _ = total
+                pct = (kwh / typical - 1) * 100 if typical else 0.0
+                detail.update(kwh=round(kwh, 1), typical=round(typical, 1), pct=abs(round(pct)), direction=_direction(pct))
+            if windows:
+                detail["windows"] = windows
+            if socs:
+                detail.update(soc_min=min(v for _, v, _ in socs), soc_max=max(v for _, v, _ in socs))
+            detail["charge_first"] = bool(windows and socs and detail["soc_min"] < 80)
+            out.append(Notice(DAILY_BRIEFING, f"briefing:{key}:{today}", "ok", detail))
+
+    if SOLAR_DAY in want and SOLAR_DAY_HOURS[0] <= hour < SOLAR_DAY_HOURS[1] and usable:
+        total = _day_total(usable, "tomorrow")
+        if total:
+            kwh, typical, _ = total
+            if typical >= 2 and kwh >= SOLAR_DAY_MIN_RATIO * typical and kwh >= typical + SOLAR_DAY_MIN_EXTRA_KWH:
+                tomorrow = today + timedelta(days=1)
+                out.append(Notice(SOLAR_DAY, f"solar_day:{key}:{tomorrow}", "ok", {
+                    **where, "date": str(tomorrow), "kwh": round(kwh, 1), "typical": round(typical, 1), "pct": abs(round((kwh / typical - 1) * 100))}))
+
+    if STORM_BATTERY in want and _in(hour, AWAKE_HOURS) and usable and socs:
+        window = next((w for w in _windows(usable) if _storm_in_reach({"storm_windows": [w]}, now_local)), None)
+        if window:
+            low = [(n, v) for n, v, m in socs
+                   if v < (STORM_SOC_LOW_OFF_GRID_PCT if m.site.get("system_type") == "off_grid" else STORM_SOC_LOW_PCT)]
+            if low:
+                when = today + timedelta(days=1 if window.get("day") == "tomorrow" else 0)
+                out.append(Notice(STORM_BATTERY, f"storm:{key}:{when}:{window.get('from')}", "warning", {
+                    **where, "windows": [window], "soc_pct": min(v for _, v in low), "low": [{"name": n, "soc": v} for n, v in sorted(low, key=lambda x: x[1])]}))
+    return out
+
+
+def evaluate(*, site: dict, now_local: datetime, snapshot: dict | None, previous: dict | None,
              load_profile_w: list | None, energy_rows: list[dict] | None, kinds: set[str] | None = None) -> list[Notice]:
-    """Notices that hold for one site right now. `kinds` limits the work to kinds somebody has switched on."""
+    """The notices about ONE site's own load: unusually high use right now, and a high-use day yesterday."""
     want = set(KINDS) if kinds is None else set(kinds)
     hour, today = now_local.hour, now_local.date()
     out: list[Notice] = []
-    soc = _num((snapshot or {}).get("soc_pct"))
-    off_grid = site.get("system_type") == "off_grid"
-    available = bool(forecast and forecast.get("available", True))
-
-    if DAILY_BRIEFING in want and _in(hour, BRIEFING_HOURS) and available:
-        card = (forecast or {}).get("today") or {}
-        solar = _solar(card)
-        windows = [w for w in (forecast or {}).get("storm_windows") or [] if w.get("day") == "today" and int(str(w.get("from", "00"))[:2]) >= hour]
-        if solar or windows:
-            pct = _num(solar.get("vs_typical_pct")) if solar else None
-            out.append(Notice(DAILY_BRIEFING, f"briefing:{today}", "ok", {
-                "date": str(today), "sky": card.get("sky"),
-                **({"kwh": solar["kwh"], "typical": (forecast.get("calibration") or {}).get("typical_pv_kwh"),
-                    "pct": abs(round(pct)), "direction": _direction(pct)} if solar and pct is not None else
-                   {"kwh": solar["kwh"]} if solar else {}),
-                **({"windows": windows} if windows else {}), **({"soc_pct": round(soc)} if soc is not None else {}),
-                "charge_first": bool(windows and soc is not None and soc < 80)}))
-
-    if SOLAR_DAY_HOURS[0] <= hour < SOLAR_DAY_HOURS[1] and SOLAR_DAY in want and available:
-        solar = _solar((forecast or {}).get("tomorrow"))
-        typical = _num(((forecast or {}).get("calibration") or {}).get("typical_pv_kwh"))
-        if solar and typical and typical >= 2 and solar["kwh"] >= SOLAR_DAY_MIN_RATIO * typical and solar["kwh"] >= typical + SOLAR_DAY_MIN_EXTRA_KWH:
-            tomorrow = today + timedelta(days=1)
-            out.append(Notice(SOLAR_DAY, f"solar_day:{tomorrow}", "ok", {
-                "date": str(tomorrow), "kwh": solar["kwh"], "typical": typical, "pct": abs(round((solar["kwh"] / typical - 1) * 100))}))
-
-    if STORM_BATTERY in want and _in(hour, AWAKE_HOURS) and available and soc is not None:
-        window = _storm_in_reach(forecast, now_local)
-        limit = STORM_SOC_LOW_OFF_GRID_PCT if off_grid else STORM_SOC_LOW_PCT
-        if window and soc < limit:
-            when = today + timedelta(days=1 if window.get("day") == "tomorrow" else 0)
-            out.append(Notice(STORM_BATTERY, f"storm:{when}:{window.get('from')}", "warning", {
-                "windows": [window], "soc_pct": round(soc)}))
 
     if HIGH_USAGE in want and _in(hour, AWAKE_HOURS):
         usual = _num(load_profile_w[hour]) if load_profile_w and len(load_profile_w) == 24 else None
