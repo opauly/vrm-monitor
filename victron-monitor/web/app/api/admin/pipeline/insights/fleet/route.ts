@@ -12,9 +12,10 @@ export async function GET(request: Request) {
 
   try {
     // `?property=<id>`: one property's sites instead of every site.
-    const raw = new URL(request.url).searchParams.get('property');
-    const propertyId = raw && /^[0-9a-f-]{36}$/i.test(raw) ? raw : null;
-    return NextResponse.json(await getFleetInsight(null, session.uiLanguage === 'es' ? 'es' : 'en', propertyId));
+    const params = new URL(request.url).searchParams;
+    const uuid = (v: string | null) => (v && /^[0-9a-f-]{36}$/i.test(v) ? v : null);
+    // `?customer=<id>`: that customer's sites (the admin's own fleet account by default on the page); none = every site.
+    return NextResponse.json(await getFleetInsight(uuid(params.get('customer')), session.uiLanguage === 'es' ? 'es' : 'en', uuid(params.get('property'))));
   } catch (err) {
     const res = toErrorResponse(err);
     if (res) return res;

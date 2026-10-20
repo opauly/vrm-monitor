@@ -2,17 +2,17 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/server/auth';
 import { listOpenAdminAlerts, listOpenAlerts } from '@/lib/server/db';
-import { fleetAlertCustomerId } from '@/lib/server/fleetAlertCustomer';
 import { listAllProperties, getSitePropertyMap } from '@/lib/server/db';
+import { fleetAlertCustomerId } from '@/lib/server/fleetAlertCustomer';
 import { summariseProperties } from '@/lib/propertyOverview';
-import { getFleetOverview, type FleetConnectionStatus, type FleetOverviewRow } from '@/lib/server/db/admin';
+import { listFleetCustomers, getFleetOverview, type FleetConnectionStatus, type FleetOverviewRow } from '@/lib/server/db/admin';
 import { InfoTooltip } from '@/components/ui';
 import { formatDateTime, isWithinLastHours } from '@/lib/dates';
 import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
 import { t, type Lang } from '@/lib/i18n/strings';
 import { FleetFreshness } from './FleetFreshness';
 import { FleetSitesTable } from './FleetSitesTable';
-import { AiSummary, PropertyCards, PropertySwitcher } from '@/components/app';
+import { AiSummary, CustomerSwitcher, PropertyCards, PropertySwitcher } from '@/components/app';
 import { FleetLiveSection } from './FleetLiveSection';
 import { ShapeChart } from './ShapeChart';
 import styles from './fleet.module.css';
@@ -66,14 +66,29 @@ function sortedAlphabetically(sites: FleetOverviewRow[]): FleetOverviewRow[] {
   return [...sites].sort((a, b) => a.display_name.localeCompare(b.display_name));
 }
 
-export default async function AdminFleetPage({ searchParams }: { searchParams: Promise<{ property?: string }> }) {
+function adminInsightQuery(customerId: string | null, propertyId: string | null): string {
+  const qs = new URLSearchParams();
+  if (customerId) qs.set('customer', customerId);
+  if (propertyId) qs.set('property', propertyId);
+  return qs.size > 0 ? `?${qs.toString()}` : '';
+}
+
+export default async function AdminFleetPage({ searchParams }: { searchParams: Promise<{ property?: string; customer?: string }> }) {
   const session = await requireAdmin();
   const lang = session.uiLanguage;
+  const { property: requestedProperty, customer: requestedCustomer } = await searchParams;
+  // This is the admin's OWN fleet: by default only the account that holds it (ALERTS_FORCE_CUSTOMER_IDS), never every subscriber's
+  // sites. The chips switch to another customer's sites or to all of them. `?customer=all` is the explicit "everything".
+  const ownFleet = fleetAlertCustomerId();
+  const fleetCustomers = await listFleetCustomers(ownFleet).catch(() => []);
+  const customerId = requestedCustomer === 'all'
+    ? null
+    : fleetCustomers.find((c) => c.id === requestedCustomer)?.id ?? fleetCustomers.find((c) => c.id === ownFleet)?.id ?? null;
+  const keep: Record<string, string> = customerId ? { customer: customerId } : requestedCustomer === 'all' ? { customer: 'all' } : {};
   // `?property=<id>` narrows the whole page to one property's sites (every roll-up below is then that property's own).
-  const properties = await listAllProperties().catch(() => []);
-  const { property: requestedProperty } = await searchParams;
+  const properties = (await listAllProperties().catch(() => [])).filter((p) => !customerId || p.customer_id === customerId);
   const property = properties.find((p) => p.id === requestedProperty) ?? null;
-  const overview = await getFleetOverview({ propertyId: property?.id });
+  const overview = await getFleetOverview({ propertyId: property?.id, customerId: customerId ?? undefined });
   const propertySummaries = properties.length > 0 && !property
     ? summariseProperties(overview.sites, properties, await getSitePropertyMap(overview.sites.map((s) => s.site_id)))
     : [];
@@ -179,12 +194,13 @@ export default async function AdminFleetPage({ searchParams }: { searchParams: P
         {t(lang, 'admin_fleet_link_new')} →
       </Link>
 
-      <PropertySwitcher lang={lang} basePath="/admin/fleet" properties={properties} selectedId={property?.id ?? null} />
-      <PropertyCards lang={lang} basePath="/admin/fleet" summaries={propertySummaries} />
+      <CustomerSwitcher lang={lang} basePath="/admin/fleet" customers={fleetCustomers} selectedId={customerId} />
+      <PropertySwitcher lang={lang} basePath="/admin/fleet" properties={properties} selectedId={property?.id ?? null} keep={keep} />
+      <PropertyCards lang={lang} basePath="/admin/fleet" summaries={propertySummaries} keep={keep} />
 
       {sites.length > 0 && (
         <>
-          <AiSummary lang={lang} endpoint={`/api/admin/pipeline/insights/fleet${property ? `?property=${encodeURIComponent(property.id)}` : ''}`} />
+          <AiSummary lang={lang} endpoint={`/api/admin/pipeline/insights/fleet${adminInsightQuery(customerId, property?.id ?? null)}`} />
           <FleetLiveSection sites={sites} lang={lang} loadLabel={t(lang, 'admin_fleet_flow_load_label')} siteHrefBase="/admin/fleet/" />
         </>
       )}

@@ -334,20 +334,36 @@ export async function listAllSites(): Promise<SiteRecord[]> {
  * (Node-RED) sites are deliberately excluded: they have no `vrm.daily_health`
  * row shaped the same way, and mixing the two would make "average fleet
  * health" mean two different things silently. */
-export async function getFleetOverview(opts: { propertyId?: string } = {}): Promise<FleetOverview> {
+export async function getFleetOverview(opts: { propertyId?: string; customerId?: string } = {}): Promise<FleetOverview> {
   let query = getSupabaseAdmin()
     .schema('vrm')
     .from('sites')
     .select(FLEET_SITE_SELECT_FIELDS)
     .eq('source', 'vrm_api')
     .eq('active', true);
-  // One property's sites only: every roll-up below is then that property's own.
+  // One customer's sites, and/or one property's: every roll-up below is then that selection's own.
+  if (opts.customerId) query = query.eq('customer_id', opts.customerId);
   if (opts.propertyId) query = query.eq('property_id', opts.propertyId);
   const { data: sites, error } = await query.order('display_name');
   if (error) throw error;
   return buildFleetOverview((sites ?? []) as unknown as FleetSiteInput[]);
 }
 
+
+/** The customers that have live (VRM API) sites, for the fleet page's customer chips: `{id, name, siteCount}`, the admin's own
+ * fleet account (`preferredId`) first, then by name. */
+export async function listFleetCustomers(preferredId: string | null): Promise<{ id: string; name: string; siteCount: number }[]> {
+  const { data: sites, error } = await getSupabaseAdmin().schema('vrm').from('sites').select('customer_id').eq('source', 'vrm_api').eq('active', true);
+  if (error) throw error;
+  const counts = new Map<string, number>();
+  for (const s of sites ?? []) counts.set(s.customer_id as string, (counts.get(s.customer_id as string) ?? 0) + 1);
+  if (counts.size === 0) return [];
+  const { data: customers, error: customerError } = await getSupabaseAdmin().schema('vrm').from('customers').select('id, name').in('id', [...counts.keys()]);
+  if (customerError) throw customerError;
+  return (customers ?? [])
+    .map((c) => ({ id: c.id as string, name: c.name as string, siteCount: counts.get(c.id as string) ?? 0 }))
+    .sort((a, b) => Number(b.id === preferredId) - Number(a.id === preferredId) || a.name.localeCompare(b.name));
+}
 
 /** The single-site version of `getFleetOverview()`'s own row shape, for
  * `/admin/fleet/[site_id]`. Reuses that function outright rather than

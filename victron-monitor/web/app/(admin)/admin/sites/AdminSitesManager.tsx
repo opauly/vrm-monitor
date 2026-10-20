@@ -55,6 +55,24 @@ export function AdminSitesManager({
   const customerOriginById = new Map(customers.map((c) => [c.id, c.origin]));
 
   const [originFilter, setOriginFilter] = useState<OriginFilter>('all');
+  // One customer's sites at a time (the page lists every customer's: the admin's own portfolio, a beta tester's, subscribers').
+  const [customerFilter, setCustomerFilter] = useState<string>('all');
+  const customersWithSites = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const s of sites) counts.set(s.customer_id, (counts.get(s.customer_id) ?? 0) + 1);
+    return [...counts.entries()]
+      .map(([id, n]) => ({ id, n, name: customers.find((c) => c.id === id)?.name ?? id }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [sites, customers]);
+  // The same Victron installation under two customers (an installer who can see a client's system, say): a hint, not a merge.
+  const otherOwners = useMemo(() => {
+    const owners = new Map<number, Set<string>>();
+    for (const s of sites) {
+      if (s.vrm_installation_id === null) continue;
+      owners.set(s.vrm_installation_id, (owners.get(s.vrm_installation_id) ?? new Set()).add(s.customer_id));
+    }
+    return owners;
+  }, [sites]);
   // Live-filters as the admin types (2026-09-26, Oscar's own request) —
   // same plain client-side approach as the Origin select above. Matches
   // on the site's own name/id plus its customer's name, since "find this
@@ -66,6 +84,7 @@ export function AdminSitesManager({
     () =>
       sites.filter((s) => {
         if (originFilter !== 'all' && customerOriginById.get(s.customer_id) !== originFilter) return false;
+        if (customerFilter !== 'all' && s.customer_id !== customerFilter) return false;
         if (normalizedQuery) {
           const haystack = [s.display_name, s.site_id, customerNameById.get(s.customer_id)].filter(Boolean).join(' ').toLowerCase();
           if (!haystack.includes(normalizedQuery)) return false;
@@ -73,7 +92,7 @@ export function AdminSitesManager({
         return true;
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- customerOriginById/customerNameById are rebuilt fresh every render from `customers`, not stable across renders
-    [sites, originFilter, normalizedQuery, customers],
+    [sites, originFilter, customerFilter, normalizedQuery, customers],
   );
 
   function handleReassign(siteId: string) {
@@ -97,6 +116,17 @@ export function AdminSitesManager({
             <option value="all">{t(lang, 'admin_common_all')}</option>
             <option value="admin">{t(lang, 'admin_customers_origin_admin')}</option>
             <option value="self_serve">{t(lang, 'admin_customers_origin_self_serve')}</option>
+          </Select>
+        </label>
+        <label className={styles.filterLabel}>
+          {t(lang, 'admin_sites_col_customer')}
+          <Select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
+            <option value="all">{t(lang, 'admin_common_all')}</option>
+            {customersWithSites.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} ({c.n})
+              </option>
+            ))}
           </Select>
         </label>
         <Input
@@ -133,7 +163,17 @@ export function AdminSitesManager({
           {filteredSites.map((s) => (
             <Fragment key={s.site_id}>
               <tr>
-                <td>{s.display_name}</td>
+                <td>
+                  {s.display_name}
+                  {s.vrm_installation_id !== null && (otherOwners.get(s.vrm_installation_id)?.size ?? 0) > 1 && (
+                    <div className={styles.syncPaused}>
+                      {t(lang, 'admin_sites_also_under').replace(
+                        '{names}',
+                        [...(otherOwners.get(s.vrm_installation_id) ?? [])].filter((id) => id !== s.customer_id).map((id) => customerNameById.get(id) ?? id).join(', '),
+                      )}
+                    </div>
+                  )}
+                </td>
                 <td className="mono">{s.site_id}</td>
                 <td>{customerNameById.get(s.customer_id) ?? '—'}</td>
                 <td>{systemTypeLabel(s.system_type, lang)}</td>

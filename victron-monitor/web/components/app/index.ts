@@ -26,6 +26,6 @@ export { SiteHealthCard } from './SiteHealthCard/SiteHealthCard';
 export { AiSummary } from './AiSummary/AiSummary';
 export { ForecastPanel } from './ForecastPanel/ForecastPanel';
 export { DevicesCard } from './DevicesCard/DevicesCard';
-export { PropertySwitcher, PropertyCards } from './Properties/PropertySwitcher';
+export { PropertySwitcher, PropertyCards, CustomerSwitcher } from './Properties/PropertySwitcher';
 export { PropertiesManager } from './Properties/PropertiesManager';
 export type { PropertyActions, ManagerGroup, ActionResult } from './Properties/PropertiesManager';
