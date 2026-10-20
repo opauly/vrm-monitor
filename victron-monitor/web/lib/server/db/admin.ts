@@ -334,14 +334,16 @@ export async function listAllSites(): Promise<SiteRecord[]> {
  * (Node-RED) sites are deliberately excluded: they have no `vrm.daily_health`
  * row shaped the same way, and mixing the two would make "average fleet
  * health" mean two different things silently. */
-export async function getFleetOverview(): Promise<FleetOverview> {
-  const { data: sites, error } = await getSupabaseAdmin()
+export async function getFleetOverview(opts: { propertyId?: string } = {}): Promise<FleetOverview> {
+  let query = getSupabaseAdmin()
     .schema('vrm')
     .from('sites')
     .select(FLEET_SITE_SELECT_FIELDS)
     .eq('source', 'vrm_api')
-    .eq('active', true)
-    .order('display_name');
+    .eq('active', true);
+  // One property's sites only: every roll-up below is then that property's own.
+  if (opts.propertyId) query = query.eq('property_id', opts.propertyId);
+  const { data: sites, error } = await query.order('display_name');
   if (error) throw error;
   return buildFleetOverview((sites ?? []) as unknown as FleetSiteInput[]);
 }

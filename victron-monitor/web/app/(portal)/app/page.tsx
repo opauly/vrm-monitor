@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { requireCustomerAllowPending } from '@/lib/server/auth';
-import { getBillingStatus, getVrmLinkStatus, listReportRuns, listSites } from '@/lib/server/db';
+import { getBillingStatus, getVrmLinkStatus, listProperties, listReportRuns, listSites } from '@/lib/server/db';
 import { t } from '@/lib/i18n/strings';
 import { BillingBanners, PendingSubscriptionUpsell, VrmConnectionBanner } from '@/components/app';
 import { ReportHistory } from './ReportHistory';
@@ -46,11 +46,12 @@ export default async function ReportsPage() {
   // above (not `requireCustomer()`'s own redirect anymore) is what still
   // guarantees every read below this point is for an already-`active`
   // customer — a pending signup never reaches here.
-  const [sites, vrmStatus, billingStatus, reportRuns] = await Promise.all([
+  const [sites, vrmStatus, billingStatus, reportRuns, properties] = await Promise.all([
     listSites(session.customerId),
     getVrmLinkStatus(session.customerId),
     getBillingStatus(session.customerId),
     listReportRuns(session.customerId),
+    listProperties(session.customerId),
   ]);
 
   return (
@@ -59,7 +60,11 @@ export default async function ReportsPage() {
       <p>{t(session.uiLanguage, 'reports_intro')}</p>
       <VrmConnectionBanner status={vrmStatus} lang={session.uiLanguage} />
       <BillingBanners status={billingStatus} lang={session.uiLanguage} />
-      <ReportManager sites={sites} lang={session.uiLanguage} />
+      <ReportManager
+        sites={sites}
+        properties={properties.map((p) => ({ id: p.id, name: p.name, siteIds: sites.filter((s) => s.property_id === p.id).map((s) => s.site_id) })).filter((p) => p.siteIds.length > 0)}
+        lang={session.uiLanguage}
+      />
       <ReportHistory runs={reportRuns} sites={sites} lang={session.uiLanguage} />
     </div>
   );

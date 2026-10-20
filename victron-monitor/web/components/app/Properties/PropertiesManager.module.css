@@ -1,0 +1,125 @@
+.panel {
+  margin-top: 28px;
+}
+.title {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+.intro {
+  margin: 0 0 16px;
+  color: var(--paper-dim);
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 70ch;
+}
+.group + .group {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.customerName {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+.empty,
+.hint {
+  margin: 0 0 12px;
+  color: var(--paper-dim);
+  font-size: 14px;
+}
+.propertyList {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.propertyRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.propertyName {
+  font-weight: 600;
+}
+.count {
+  color: var(--paper-dim);
+  font-size: 13px;
+}
+.rowActions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.renameForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+.addRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0;
+}
+.addRow input {
+  min-width: 220px;
+}
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-lg);
+}
+.suggestion {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+.members {
+  display: block;
+  color: var(--paper-dim);
+  font-size: 13px;
+}
+.suggestActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.siteTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  margin-top: 10px;
+}
+.siteTable th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mute);
+  padding: 4px 12px 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.siteTable td {
+  padding: 7px 12px 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+.siteTable select {
+  min-width: 200px;
+  max-width: 100%;
+}
+.error {
+  margin: 10px 0 0;
+  color: var(--low);
+  font-size: 14px;
+}

@@ -54,15 +54,17 @@ export async function getDashboardAccess(customer: CustomerRecord): Promise<bool
  * this function itself does not re-check entitlement — same split
  * `sites.ts`'s tenant-scoped functions already use (the gate is the
  * caller's job, the query is this function's). */
-export async function getCustomerFleetOverview(customerId: string): Promise<FleetOverview> {
-  const { data: sites, error } = await getSupabaseAdmin()
+export async function getCustomerFleetOverview(customerId: string, opts: { propertyId?: string } = {}): Promise<FleetOverview> {
+  let query = getSupabaseAdmin()
     .schema('vrm')
     .from('sites')
     .select(FLEET_SITE_SELECT_FIELDS)
     .eq('source', 'vrm_api')
     .eq('active', true)
-    .eq('customer_id', customerId)
-    .order('display_name');
+    .eq('customer_id', customerId);
+  // One property's sites only (the caller has already checked the property is this customer's).
+  if (opts.propertyId) query = query.eq('property_id', opts.propertyId);
+  const { data: sites, error } = await query.order('display_name');
   if (error) throw error;
   return buildFleetOverview((sites ?? []) as unknown as FleetSiteInput[]);
 }

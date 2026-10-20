@@ -124,7 +124,7 @@ def _report_summary(data: dict) -> dict:
 
 
 def _do_report(site_id: str, start: str, end: str, schema_: str, customer_id: str,
-               *, include_pdf_bytes: bool = False, site: dict | None = None) -> dict:
+               *, include_pdf_bytes: bool = False, site: dict | None = None, property_id: str | None = None) -> dict:
     # PLAN_PHASE17.md §4.2/§8 Step 4 — resolved ONCE, here, at the top of
     # every report path, regardless of who asked for it (`actor='customer'`
     # or `'admin'` both get the customer's real branding, since this is the
@@ -150,9 +150,15 @@ def _do_report(site_id: str, start: str, end: str, schema_: str, customer_id: st
     customer = tenancy.get_customer(customer_id) if schema_ == "vrm" else None
     branding = resolve_branding(customer) if customer else None
     selected = resolve_report_modules(customer, site) if (customer and site) else None
-    data = weekly_report.build_report_data(site_id, start, end, schema_, branding=branding)
+    if property_id:
+        # One report for all of a property's sites, merged (victron/property_report.py).
+        data = weekly_report.build_property_report_data(property_id, start, end, branding=branding)
+        storage_id = f"property-{property_id}"
+    else:
+        data = weekly_report.build_report_data(site_id, start, end, schema_, branding=branding)
+        storage_id = site_id
     pdf_bytes = weekly_report.render_pdf(data, selected)
-    storage_path = storage.upload_report_pdf(site_id, start, end, pdf_bytes)
+    storage_path = storage.upload_report_pdf(storage_id, start, end, pdf_bytes)
     result = {
         "storage_path": storage_path,
         "is_overview": bool(data.get("isOverview")),
@@ -197,7 +203,13 @@ def post_report(body: ReportRequest, background_tasks: BackgroundTasks) -> JobCr
     # docstring ("Returns the site row on success so callers that need it
     # (report generation, ...) don't pay for a second query").
     site_row: dict | None = None
-    if body.schema_ == "vrm":
+    if body.property_id:
+        if body.schema_ != "vrm":
+            raise HTTPException(status_code=422, detail="properties exist only in the vrm schema")
+        tenancy.assert_owns_property(body.customer_id, body.property_id)
+        # No single site row here: the customer's own module selection applies, and the property counts as active.
+        site_row = {"active": True, "report_modules": None}
+    elif body.schema_ == "vrm":
         # The real tenancy re-check (PLAN_PHASE14.md §1.3): customer_id must
         # own site_id in vrm.sites, independently of whatever Next.js
         # already checked. `monitoring` sites have no vrm.customers owner —
@@ -239,11 +251,12 @@ def post_report(body: ReportRequest, background_tasks: BackgroundTasks) -> JobCr
         # so this branch only ever fires for a real vrm-schema customer.
         check_manual_cap(body.customer_id, customer.get("plan"))
 
-    job = jobs.create_job("report", customer_id=body.customer_id, site_id=body.site_id,
+    job = jobs.create_job("report", customer_id=body.customer_id, site_id=body.site_id or None,
                           params=body.model_dump(by_alias=True))
     background_tasks.add_task(
         jobs.run_job, job["id"],
-        lambda: _do_report(body.site_id, body.start, body.end, body.schema_, body.customer_id, site=site_row),
+        lambda: _do_report(body.site_id, body.start, body.end, body.schema_, body.customer_id, site=site_row,
+                           property_id=body.property_id),
     )
     return JobCreated(job_id=job["id"])
 

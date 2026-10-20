@@ -202,6 +202,8 @@ export type SiteRecord = {
   exports_to_grid: boolean;
   savings_rate: number | null;
   savings_currency: string | null;
+  /** The property this site belongs to (`vrm.properties`), or `null`. Absent when the properties SQL has not been run yet. */
+  property_id?: string | null;
   created_at: string;
   /** Stamped `now()` by `vrm_api/routers/vrm_sync.py:_do_sync()` after
    * every successful sync (any trigger) — the "Última sync VRM" column on
@@ -430,4 +432,13 @@ export type SiteDevice = {
     units?: number;
   };
   last_seen: string;
+};
+
+
+// vrm.properties (victron-monitor/sql/vrm_properties.sql): a customer's way to group sites that belong together.
+export type PropertyRecord = {
+  id: string;
+  customer_id: string;
+  name: string;
+  created_at: string;
 };

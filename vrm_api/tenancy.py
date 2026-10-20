@@ -84,6 +84,15 @@ def assert_owns_site(customer_id: str, site_id: str) -> dict:
     return rows[0]
 
 
+def assert_owns_property(customer_id: str, property_id: str) -> dict:
+    """Throws `NotAuthorized` unless `property_id` is one of `customer_id`'s properties. Returns the property row."""
+    rows = (_t("properties").select("id, customer_id, name").eq("customer_id", customer_id)
+            .eq("id", property_id).limit(1).execute().data)
+    if not rows:
+        raise NotAuthorized(f"Customer {customer_id!r} does not own property {property_id!r}.")
+    return rows[0]
+
+
 def find_customer_by_vrm_user_id(vrm_user_id: str) -> dict | None:
     """The `vrm.customers` row (if any) already connected to this Victron
     VRM account — used by `routers/vrm_link.py`'s connect flow's §1.5

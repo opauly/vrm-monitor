@@ -8,7 +8,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireCustomerForRoute } from '@/lib/server/auth';
-import { assertOwnsSite, getCustomer, getManualReportLimits, NotAuthorized } from '@/lib/server/db';
+import { assertOwnsProperty, assertOwnsSite, getCustomer, getManualReportLimits, NotAuthorized } from '@/lib/server/db';
 import { createReport, getLimits, toErrorResponse } from '@/lib/server/pipeline';
 import { checkRateLimit } from '@/lib/server/ratelimit';
 
@@ -20,11 +20,15 @@ function daysBetween(start: string, end: string): number {
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
 
-const bodySchema = z.object({
-  siteId: z.string().trim().min(1),
-  start: isoDate,
-  end: isoDate,
-});
+// One site, or one of the customer's properties (a report across all of its sites).
+const bodySchema = z
+  .object({
+    siteId: z.string().trim().min(1).optional(),
+    propertyId: z.string().trim().min(1).optional(),
+    start: isoDate,
+    end: isoDate,
+  })
+  .refine((b) => Boolean(b.siteId) !== Boolean(b.propertyId));
 
 export async function POST(request: Request) {
   const session = await requireCustomerForRoute();
@@ -38,7 +42,8 @@ export async function POST(request: Request) {
     // `routers/reports.py` re-derives the same ownership fact from
     // `vrm.sites` before it schedules any work, regardless of what this
     // call already confirmed.
-    await assertOwnsSite(session.customerId, parsed.data.siteId);
+    if (parsed.data.propertyId) await assertOwnsProperty(session.customerId, parsed.data.propertyId);
+    else await assertOwnsSite(session.customerId, parsed.data.siteId as string);
 
     // Cap A's lower, Next.js-side ceiling (PLAN_PHASE17.md §2.2 point 1) —
     // checked BEFORE vrm_api is ever called, so a customer who's already
@@ -78,7 +83,8 @@ export async function POST(request: Request) {
 
     const result = await createReport({
       customer_id: session.customerId,
-      site_id: parsed.data.siteId,
+      site_id: parsed.data.siteId ?? '',
+      property_id: parsed.data.propertyId ?? null,
       start: parsed.data.start,
       end: parsed.data.end,
       schema: 'vrm',

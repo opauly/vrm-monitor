@@ -33,7 +33,7 @@ from datetime import date
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from database import vrm_report_db as db
-from victron import report_i18n, report_svg as S, savings as savings_mod
+from victron import property_report, report_i18n, report_svg as S, savings as savings_mod
 from victron.vrm_shared.assets import get_logo_b64
 
 # The 9 optional report modules render_html() knows how to build
@@ -360,6 +360,16 @@ def generate_narrative(stats: dict, lang: str) -> str:
         prompt += (f"\n- Generator: this off-grid site charged its batteries from a generator on {g['days']} day(s) of this period"
                    + (f", about {g['hours']} hours" if g.get("hours") else "") + f", {g['kwh']} kWh in total. Say so plainly (it is the only thing "
                    "ever connected to the AC input here) and do not call it grid power.")
+    if stats.get("propertySites"):
+        lines = []
+        for r in stats["propertySites"]:
+            lines.append(f"{r['name']}: solar {r['pv']} kWh, use {r['load']} kWh, " + ("generator " if r.get("off_grid") else "grid ") + f"{r['grid']} kWh"
+                         + (f", system score {r['health']}" if r.get("health") is not None else "")
+                         + (f", {r['devices_bad']} device(s) flagged" if r.get("devices_bad") else ""))
+        prompt += ("\n- This report covers ONE PROPERTY made of " + str(len(lines)) + " sites; every total above is the sum across all of them and the "
+                   "scores are their average. Write about the property as a whole. Name a single site only when the per-site figures below make it "
+                   "clearly stand out (for example one site holding back the property's score), and never state anything about a site that is not "
+                   "in these lines:\n  " + "\n  ".join(lines))
     if stats.get("equipment"):
         prompt += ("\n- Equipment findings (these lowered the health score; say what was wrong and whether it is resolved, "
                    "using only these facts):\n  " + "\n  ".join(stats["equipment"]))
@@ -462,6 +472,17 @@ def _equipment_findings(devices: list[dict], start: str | None, end: str | None)
     return out
 
 
+def build_property_report_data(property_id: str, start: str | date, end: str | date, *, branding: dict | None = None,
+                               with_narrative: bool = True, with_weather: bool = True) -> dict:
+    """The same report, for a whole property: its sites' windows merged into one (`victron/property_report.py`), plus a
+    "sites in this property" table. See `property_report.merge_windows()` for how each figure combines."""
+    merged, windows = db.fetch_property_window(property_id, start, end)
+    return build_report_data(merged["site"]["site_id"], start, end, "vrm", with_narrative=with_narrative, with_weather=with_weather,
+                             branding=branding, window=merged, property_sites=property_report.site_summary_rows(windows))
+
+
+_PROPERTY_ROWS_ON_PAGE_1 = 3
+
 _ALARM_CATEGORY_NARRATIVE = {"Low Battery Alarm": "low battery", "Overload Alarm": "overload"}
 
 _PATTERN_NAMES = {
@@ -481,7 +502,9 @@ def _pattern_findings(patterns: list[dict]) -> list[str]:
 def build_report_data(site_id: str, start: str | date, end: str | date, schema: str,
                       with_narrative: bool = True,
                       with_weather: bool = True,
-                      branding: dict | None = None) -> dict:
+                      branding: dict | None = None,
+                      window: dict | None = None,
+                      property_sites: list[dict] | None = None) -> dict:
     """Everything the template needs. Port of `weeklyReport()`'s computation.
 
     `(start, end)` is an inclusive window of any length up to
@@ -499,8 +522,12 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
     through to `render_html()` via the returned dict's own `"branding"` key,
     the same way every other computed value here flows through one `d`
     dict rather than as a second parallel argument list.
+
+    `window` / `property_sites`: a property report passes its already-merged window (`database/vrm_report_db.
+    fetch_property_window()`) and the one-line-per-site summaries (`victron/property_report.site_summary_rows()`);
+    everything below then treats the property as one big system. Both are `None` for an ordinary site report.
     """
-    window = db.fetch_report_window(site_id, start, end, schema)
+    window = window if window is not None else db.fetch_report_window(site_id, start, end, schema)
     site = window["site"]
     days = window["days"]
     if not days:
@@ -880,6 +907,7 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
                            "kwh": round(totals["grid"], 1)} if system_type == "off_grid" and totals["generatorDays"] else None),
             "equipment": _equipment_findings(window.get("devices") or [], window["period_start"], window["period_end"]),
             "repeatedWarnings": _pattern_findings(window.get("alarm_patterns") or []),
+            "propertySites": property_sites,
             "alarmBreakdown": ", ".join(f"{_ALARM_CATEGORY_NARRATIVE.get(label, label)} {n}"
                                         for label, n in sorted(alarm_by_category.items(), key=lambda kv: -kv[1]) if n > 0),
             "isOverview": window["is_overview"],
@@ -945,6 +973,7 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
         # Equipment block: vrm.site_devices rows (vrm schema only) and the window they are read against.
         "devices": window.get("devices") or [],
         "alarmPatterns": window.get("alarm_patterns") or [],
+        "propertySites": property_sites,
         "isDaily": len(days) == 1 and not window["is_overview"],
         "briefDropoutMinutes": brief_dropout_minutes,
         "periodStartIso": str(window["period_start"]),
@@ -1420,6 +1449,7 @@ def render_html(d: dict, selected: set[str] | None = None) -> str:
     else:
         row1_svg = ""
 
+    property_svg = S.property_sites_svg(d.get("propertySites") or [], t) if d.get("propertySites") else ""
     env = Environment(loader=FileSystemLoader(_TEMPLATE_DIR),
                       autoescape=select_autoescape(["html"]))
     tpl = env.get_template("weekly_report.html")
@@ -1459,6 +1489,9 @@ def render_html(d: dict, selected: set[str] | None = None) -> str:
         soc_svg=(_safe(S.soc_chart_svg(d, t)) if (has_batt and "soc_chart" in selected and not d.get("isDaily")) else ""),
         trend_svg=(_safe(S.four_week_trend_svg(d["trend"], t)) if "trend" in selected else ""),
         savings_svg=_safe(savings_svg) if savings_svg else "",
+        # Up to three sites fit in the free space at the foot of page 1; a bigger property's table opens page 2.
+        property_svg_p1=_safe(property_svg) if property_svg and len(d["propertySites"]) <= _PROPERTY_ROWS_ON_PAGE_1 else "",
+        property_svg=_safe(property_svg) if property_svg and len(d["propertySites"]) > _PROPERTY_ROWS_ON_PAGE_1 else "",
         # PLAN_PHASE18.md §7, 2026-08-29 live-test feedback — replaces the
         # old fixed row3/row4/row5 slots with a dynamically-sized, packed
         # list (see `packed_svgs`'s own construction above).

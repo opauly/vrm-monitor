@@ -3,7 +3,7 @@ from __future__ import annotations
 The daily AI summaries (`vrm_api/insights_service.py`).
 
   GET  /v1/insights/site?site_id=&lang=      one site's summary (cached; made on demand when stale)
-  GET  /v1/insights/fleet?lang=[&customer_id=]  a customer's fleet, or every site when no customer_id
+  GET  /v1/insights/fleet?lang=[&customer_id=][&property_id=]  a customer's fleet (or one of its properties), or every site when no customer_id
   POST /v1/insights/generate-daily           refresh everything in the background (for the scheduler)
 
 Authorization follows the rest of this service: the web app has already checked
@@ -47,8 +47,9 @@ def get_site_summary(site_id: str = Query(...), lang: Literal["en", "es"] = Quer
 
 
 @router.get("/fleet", response_model=SummaryOut)
-def get_fleet_summary(lang: Literal["en", "es"] = Query("en"), customer_id: str | None = Query(None)) -> SummaryOut:
-    return SummaryOut(**insights_service.fleet_summary(customer_id, lang))
+def get_fleet_summary(lang: Literal["en", "es"] = Query("en"), customer_id: str | None = Query(None),
+                      property_id: str | None = Query(None)) -> SummaryOut:
+    return SummaryOut(**insights_service.fleet_summary(customer_id, lang, property_id=property_id))
 
 
 @router.post("/generate-daily", response_model=DailyOut)

@@ -77,7 +77,9 @@ class ReportRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     customer_id: str
-    site_id: str
+    # A report is for one site, or — `property_id` set, `site_id` left empty — for every site of one of the customer's properties.
+    site_id: str = ""
+    property_id: str | None = None
     start: str
     end: str
     schema_: Literal["vrm", "monitoring"] = Field(alias="schema")

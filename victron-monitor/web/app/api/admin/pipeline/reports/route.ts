@@ -7,7 +7,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdminForRoute } from '@/lib/server/auth';
-import { assertOwnsSite, NotAuthorized } from '@/lib/server/db';
+import { assertOwnsProperty, assertOwnsSite, NotAuthorized } from '@/lib/server/db';
 import { createReport, getLimits, toErrorResponse } from '@/lib/server/pipeline';
 
 function daysBetween(start: string, end: string): number {
@@ -18,13 +18,17 @@ function daysBetween(start: string, end: string): number {
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
 
-const bodySchema = z.object({
-  customerId: z.string().trim().min(1),
-  siteId: z.string().trim().min(1),
-  start: isoDate,
-  end: isoDate,
-  schema: z.enum(['vrm', 'monitoring']),
-});
+const bodySchema = z
+  .object({
+    customerId: z.string().trim().min(1),
+    siteId: z.string().trim().min(1).optional(),
+    // A report across all sites of one of the customer's properties (`vrm` only).
+    propertyId: z.string().trim().min(1).optional(),
+    start: isoDate,
+    end: isoDate,
+    schema: z.enum(['vrm', 'monitoring']),
+  })
+  .refine((b) => Boolean(b.siteId) !== Boolean(b.propertyId) && (!b.propertyId || b.schema === 'vrm'));
 
 export async function POST(request: Request) {
   const session = await requireAdminForRoute();
@@ -39,8 +43,10 @@ export async function POST(request: Request) {
     // own reasoning, restated for meta.py's `available-dates` extension).
     // `vrm_api/routers/reports.py` re-derives the same distinction
     // independently regardless of what this check already confirmed.
-    if (parsed.data.schema === 'vrm') {
-      await assertOwnsSite(parsed.data.customerId, parsed.data.siteId);
+    if (parsed.data.propertyId) {
+      await assertOwnsProperty(parsed.data.customerId, parsed.data.propertyId);
+    } else if (parsed.data.schema === 'vrm') {
+      await assertOwnsSite(parsed.data.customerId, parsed.data.siteId as string);
     }
 
     const numDays = daysBetween(parsed.data.start, parsed.data.end);
@@ -53,7 +59,8 @@ export async function POST(request: Request) {
 
     const result = await createReport({
       customer_id: parsed.data.customerId,
-      site_id: parsed.data.siteId,
+      site_id: parsed.data.siteId ?? '',
+      property_id: parsed.data.propertyId ?? null,
       start: parsed.data.start,
       end: parsed.data.end,
       schema: parsed.data.schema,

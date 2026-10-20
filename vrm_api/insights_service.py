@@ -49,13 +49,15 @@ def _parse(value) -> datetime | None:
 
 # ── loading ──────────────────────────────────────────────────────────────────
 
-def _active_sites(*, site_id: str | None = None, customer_id: str | None = None) -> list[dict]:
+def _active_sites(*, site_id: str | None = None, customer_id: str | None = None, property_id: str | None = None) -> list[dict]:
     query = (_t("sites").select("site_id, display_name, system_type, pv_kwp, battery_usable_kwh, customer_id, timezone, latitude, longitude, reserve_soc_pct")
              .eq("source", "vrm_api").eq("active", True))
     if site_id:
         query = query.eq("site_id", site_id)
     if customer_id:
         query = query.eq("customer_id", customer_id)
+    if property_id:
+        query = query.eq("property_id", property_id)
     return query.execute().data or []
 
 
@@ -269,22 +271,27 @@ def site_summary(site_id: str, lang: str, *, now: datetime | None = None, force:
 
 
 def fleet_summary(customer_id: str | None, lang: str, *, now: datetime | None = None, force: bool = False, mode: str | None = None,
-                  prefetched: dict | None = None) -> dict:
-    """A fleet's summary: that customer's sites, or every site when `customer_id` is None."""
+                  prefetched: dict | None = None, property_id: str | None = None) -> dict:
+    """A fleet's summary: that customer's sites, or every site when `customer_id` is None. With `property_id`, only that
+    property's sites (kept under its own cache key, `property:<id>`, so it never overwrites the whole-fleet summary)."""
     mode = mode or insights_mode()
     if mode == "off":
         return {"enabled": False}
     lang = lang if lang in LANGS else "en"
     now = now or datetime.now(timezone.utc)
-    sites = _active_sites(customer_id=customer_id)
-    if not force and _is_current(_cached("fleet", None, customer_id, lang), sites, now, fleet=True):
-        return _present(_cached("fleet", None, customer_id, lang))
+    sites = _active_sites(customer_id=customer_id, property_id=property_id)
+    key_site = f"property:{property_id}" if property_id else None
+    if not force and _is_current(_cached("fleet", key_site, customer_id, lang), sites, now, fleet=True):
+        return _present(_cached("fleet", key_site, customer_id, lang))
     by_site = prefetched if prefetched is not None else site_facts_for(sites, now, build_forecasts=False)
     members = [by_site[s["site_id"]] for s in sites if s["site_id"] in by_site]
     name = "All sites" if customer_id is None else "Your sites"
+    if property_id:
+        found = _t("properties").select("name").eq("id", property_id).limit(1).execute().data
+        name = found[0]["name"] if found else name
     facts = insight_facts.build_fleet_facts(site_facts=members, name=name, now=now)
     facts["live_signature"] = {m["site"]["id"]: signature_from_facts(m) for m in members}
-    return _present(_store("fleet", None, customer_id, lang, facts, _write(facts, lang, "fleet", now, mode), now))
+    return _present(_store("fleet", key_site, customer_id, lang, facts, _write(facts, lang, "fleet", now, mode), now))
 
 
 def generate_daily(*, now: datetime | None = None, mode: str | None = None) -> dict:

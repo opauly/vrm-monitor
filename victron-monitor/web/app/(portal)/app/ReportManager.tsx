@@ -18,8 +18,12 @@ import styles from './reports.module.css';
 
 export type ReportManagerProps = {
   sites: SiteRecord[];
+  /** The customer's properties, each with the ids of its sites: choosing one makes ONE report across all of them. */
+  properties?: { id: string; name: string; siteIds: string[] }[];
   lang: Lang;
 };
+
+const PROPERTY_PREFIX = 'property:';
 
 type ReportSummary = {
   siteName: string;
@@ -71,7 +75,7 @@ function daysBetween(start: string, end: string): number {
   return Math.round((b - a) / 86_400_000) + 1;
 }
 
-export function ReportManager({ sites, lang }: ReportManagerProps) {
+export function ReportManager({ sites, properties = [], lang }: ReportManagerProps) {
   const [siteId, setSiteId] = useState<string>(sites[0]?.site_id ?? '');
   const [limits, setLimits] = useState<Limits | null>(null);
   const [dates, setDates] = useState<string[] | null>(null);
@@ -118,8 +122,10 @@ export function ReportManager({ sites, lang }: ReportManagerProps) {
   useEffect(() => {
     if (!siteId) return;
     let cancelled = false;
-    fetch(`/api/pipeline/sites/${encodeURIComponent(siteId)}/available-dates`)
-      .then((res) => (res.ok ? res.json() : { dates: [] }))
+    // A property has data on every day any of its sites does.
+    const ids = siteId.startsWith(PROPERTY_PREFIX) ? (properties.find((p) => `${PROPERTY_PREFIX}${p.id}` === siteId)?.siteIds ?? []) : [siteId];
+    Promise.all(ids.map((id) => fetch(`/api/pipeline/sites/${encodeURIComponent(id)}/available-dates`).then((res) => (res.ok ? res.json() : { dates: [] })) as Promise<{ dates: string[] }>))
+      .then((all) => ({ dates: [...new Set(all.flatMap((d) => d.dates))].sort() }))
       .then((data: { dates: string[] }) => {
         if (cancelled) return;
         setDates(data.dates);
@@ -134,6 +140,7 @@ export function ReportManager({ sites, lang }: ReportManagerProps) {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `properties` is a prop that does not change while the page is open
   }, [siteId]);
 
   if (sites.length === 0) {
@@ -158,7 +165,7 @@ export function ReportManager({ sites, lang }: ReportManagerProps) {
       const res = await fetch('/api/pipeline/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ siteId, start, end }),
+        body: JSON.stringify(siteId.startsWith(PROPERTY_PREFIX) ? { propertyId: siteId.slice(PROPERTY_PREFIX.length), start, end } : { siteId, start, end }),
       });
       if (!res.ok) {
         // `range_too_long` is the server-side twin of this component's own
@@ -242,6 +249,15 @@ export function ReportManager({ sites, lang }: ReportManagerProps) {
                 {s.display_name}
               </option>
             ))}
+            {properties.length > 0 && (
+              <optgroup label={t(lang, 'reports_property_group')}>
+                {properties.map((p) => (
+                  <option key={p.id} value={`${PROPERTY_PREFIX}${p.id}`}>
+                    {t(lang, 'reports_property_option').replace('{name}', p.name).replace('{n}', String(p.siteIds.length))}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </Select>
         </label>
       </div>

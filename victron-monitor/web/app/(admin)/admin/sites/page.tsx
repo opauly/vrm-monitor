@@ -1,8 +1,13 @@
 import type { Metadata } from 'next';
 import { requireAdmin } from '@/lib/server/auth';
 import { listAllSites, listCustomers } from '@/lib/server/db/admin';
+import { listAllProperties } from '@/lib/server/db';
+import { PropertiesManager } from '@/components/app';
 import { t } from '@/lib/i18n/strings';
 import { AdminSitesManager } from './AdminSitesManager';
+import {
+  applyPropertyGroupsAction, assignSitePropertyAction, createPropertyAction, deletePropertyAction, renamePropertyAction, suggestPropertyGroupsAction,
+} from './propertyActions';
 
 export const metadata: Metadata = {
   title: 'Sites — Admin',
@@ -16,7 +21,16 @@ export const metadata: Metadata = {
 export default async function AdminSitesPage() {
   const session = await requireAdmin();
   const lang = session.uiLanguage;
-  const [sites, customers] = await Promise.all([listAllSites(), listCustomers()]);
+  const [sites, customers, properties] = await Promise.all([listAllSites(), listCustomers(), listAllProperties().catch(() => [])]);
+  // One block per customer with two or more active sites: properties group a customer's own sites.
+  const groups = customers
+    .map((c) => ({
+      customerId: c.id,
+      customerName: c.name,
+      properties: properties.filter((p) => p.customer_id === c.id).map((p) => ({ id: p.id, name: p.name })),
+      sites: sites.filter((s) => s.customer_id === c.id && s.active).map((s) => ({ site_id: s.site_id, display_name: s.display_name, property_id: s.property_id ?? null })),
+    }))
+    .filter((g) => g.sites.length >= 2);
 
   return (
     <div>
@@ -25,6 +39,14 @@ export default async function AdminSitesPage() {
         {t(lang, 'admin_sites_desc_1')} <code>vrm</code> {t(lang, 'admin_sites_desc_2')}
       </p>
       <AdminSitesManager sites={sites} customers={customers} lang={lang} />
+      <PropertiesManager
+        lang={lang}
+        groups={groups}
+        actions={{
+          create: createPropertyAction, rename: renamePropertyAction, remove: deletePropertyAction,
+          assign: assignSitePropertyAction, suggest: suggestPropertyGroupsAction, apply: applyPropertyGroupsAction,
+        }}
+      />
     </div>
   );
 }

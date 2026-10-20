@@ -67,13 +67,18 @@ function daysBetween(start: string, end: string): number {
   return Math.round((b - a) / 86_400_000) + 1;
 }
 
+const PROPERTY_PREFIX = 'property:';
+
 export function AdminReportsManager({
   vrmSites,
   customers,
+  properties = [],
   lang,
 }: {
   vrmSites: SiteRecord[];
   customers: AdminCustomerRow[];
+  /** Every customer's properties; choosing one makes ONE report across all of its sites (`vrm` only). */
+  properties?: { id: string; customer_id: string; name: string }[];
   lang: Lang;
 }) {
   const [schema, setSchema] = useState<Schema>('vrm');
@@ -118,6 +123,13 @@ export function AdminReportsManager({
           .filter((s) => s.customer_id === customerId)
           .map((s) => ({ site_id: s.site_id, display_name: s.display_name, owner: null }))
       : (monitoringSites ?? []);
+
+  const propertyOptions = schema === 'vrm'
+    ? properties
+        .filter((p) => p.customer_id === customerId)
+        .map((p) => ({ ...p, siteIds: vrmSites.filter((s) => s.customer_id === customerId && s.property_id === p.id).map((s) => s.site_id) }))
+        .filter((p) => p.siteIds.length > 0)
+    : [];
 
   const [siteId, setSiteId] = useState<string>('');
   const [limits, setLimits] = useState<{ max_custom_range_days: number; max_overview_range_days: number } | null>(null);
@@ -164,7 +176,9 @@ export function AdminReportsManager({
     if (!siteId || !customerId) return;
     let cancelled = false;
     startTransition(async () => {
-      const d = await getAvailableDatesForAdminAction(siteId, customerId, schema);
+      // A property has data on every day any of its sites does.
+      const ids = siteId.startsWith(PROPERTY_PREFIX) ? (propertyOptions.find((p) => `${PROPERTY_PREFIX}${p.id}` === siteId)?.siteIds ?? []) : [siteId];
+      const d = [...new Set((await Promise.all(ids.map((id) => getAvailableDatesForAdminAction(id, customerId, schema)))).flat())].sort();
       if (cancelled) return;
       setDates(d);
       if (d.length > 0) {
@@ -175,6 +189,7 @@ export function AdminReportsManager({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `propertyOptions` follows `customerId`/`schema`, already listed
   }, [siteId, customerId, schema]);
 
   const numDays = start && end ? daysBetween(start, end) : 0;
@@ -190,7 +205,7 @@ export function AdminReportsManager({
       const res = await fetch('/api/admin/pipeline/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId, siteId, start, end, schema }),
+        body: JSON.stringify(siteId.startsWith(PROPERTY_PREFIX) ? { customerId, propertyId: siteId.slice(PROPERTY_PREFIX.length), start, end, schema } : { customerId, siteId, start, end, schema }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string; maxDays?: number } | null;
@@ -288,6 +303,15 @@ export function AdminReportsManager({
                 {s.display_name}
               </option>
             ))}
+            {propertyOptions.length > 0 && (
+              <optgroup label={t(lang, 'reports_property_group')}>
+                {propertyOptions.map((p) => (
+                  <option key={p.id} value={`${PROPERTY_PREFIX}${p.id}`}>
+                    {t(lang, 'reports_property_option').replace('{name}', p.name).replace('{n}', String(p.siteIds.length))}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </Select>
         </label>
       </div>

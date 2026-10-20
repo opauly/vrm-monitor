@@ -1,0 +1,72 @@
+.switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 18px;
+}
+.chip {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  color: var(--paper-dim);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 14px;
+  text-decoration: none;
+  background: transparent;
+}
+.chip:hover {
+  color: var(--paper);
+  border-color: var(--mute);
+}
+.chipActive {
+  color: var(--paper);
+  background: color-mix(in srgb, var(--victron) 18%, transparent);
+  border-color: var(--victron);
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+  margin: 0 0 22px;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  text-decoration: none;
+  color: var(--paper);
+}
+a.card:hover {
+  border-color: var(--victron);
+}
+.cardMuted {
+  border-style: dashed;
+  background: transparent;
+}
+.cardName {
+  font-weight: 600;
+  font-size: 15px;
+}
+.cardMeta {
+  font-size: 12.5px;
+  color: var(--paper-dim);
+}
+.cardStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 13px;
+  color: var(--paper-dim);
+}
+.statOk {
+  color: var(--good);
+}
+.statWarn {
+  color: var(--low);
+  font-weight: 600;
+}

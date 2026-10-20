@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requireCustomerAllowPending } from '@/lib/server/auth';
-import { getCustomer, getDashboardAccess, getCustomerFleetOverview, type FleetConnectionStatus, type FleetOverviewRow } from '@/lib/server/db';
+import { listProperties, getSitePropertyMap, getCustomer, getDashboardAccess, getCustomerFleetOverview, type FleetConnectionStatus, type FleetOverviewRow } from '@/lib/server/db';
 import { Table, Panel, Button, InfoTooltip } from '@/components/ui';
-import { AiSummary, PendingSubscriptionUpsell } from '@/components/app';
+import { AiSummary, PendingSubscriptionUpsell, PropertyCards, PropertySwitcher } from '@/components/app';
+import { summariseProperties } from '@/lib/propertyOverview';
 import { formatDateTime, formatDateTimeInZone, isWithinLastHours } from '@/lib/dates';
 import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
 import { t, type Lang } from '@/lib/i18n/strings';
@@ -74,7 +75,7 @@ function sortedAlphabetically(sites: FleetOverviewRow[]): FleetOverviewRow[] {
   return [...sites].sort((a, b) => a.display_name.localeCompare(b.display_name));
 }
 
-export default async function CustomerDashboardPage() {
+export default async function CustomerDashboardPage({ searchParams }: { searchParams: Promise<{ property?: string }> }) {
   const session = await requireCustomerAllowPending();
   const lang = session.uiLanguage;
   // `…AllowPending`, not plain `requireCustomer()` (2026-09-21) — see
@@ -106,7 +107,14 @@ export default async function CustomerDashboardPage() {
     );
   }
 
-  const overview = await getCustomerFleetOverview(session.customerId);
+  // `?property=<id>` narrows the whole page to one of this customer's properties; an id that is not theirs is ignored.
+  const properties = await listProperties(session.customerId).catch(() => []);
+  const { property: requestedProperty } = await searchParams;
+  const property = properties.find((p) => p.id === requestedProperty) ?? null;
+  const overview = await getCustomerFleetOverview(session.customerId, { propertyId: property?.id });
+  const propertySummaries = properties.length > 0 && !property
+    ? summariseProperties(overview.sites, properties, await getSitePropertyMap(overview.sites.map((s) => s.site_id)))
+    : [];
   const sites = overview.sites;
 
   const row = (site: FleetOverviewRow) => (
@@ -222,9 +230,12 @@ export default async function CustomerDashboardPage() {
       </div>
       <p className={`mono ${styles.pageDesc}`}>{t(lang, 'dashboard_intro')}</p>
 
+      <PropertySwitcher lang={lang} basePath="/app/dashboard" properties={properties} selectedId={property?.id ?? null} />
+      <PropertyCards lang={lang} basePath="/app/dashboard" summaries={propertySummaries} />
+
       {sites.length > 0 && (
         <>
-          <AiSummary lang={lang} endpoint="/api/pipeline/insights/fleet" />
+          <AiSummary lang={lang} endpoint={`/api/pipeline/insights/fleet${property ? `?property=${encodeURIComponent(property.id)}` : ''}`} />
           <FleetLiveSection sites={sites} lang={lang} loadLabel={t(lang, 'dashboard_flow_load_label')} siteHrefBase="/app/dashboard/" />
         </>
       )}

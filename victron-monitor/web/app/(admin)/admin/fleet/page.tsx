@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { requireAdmin } from '@/lib/server/auth';
 import { listOpenAdminAlerts, listOpenAlerts } from '@/lib/server/db';
 import { fleetAlertCustomerId } from '@/lib/server/fleetAlertCustomer';
+import { listAllProperties, getSitePropertyMap } from '@/lib/server/db';
+import { summariseProperties } from '@/lib/propertyOverview';
 import { getFleetOverview, type FleetConnectionStatus, type FleetOverviewRow } from '@/lib/server/db/admin';
 import { InfoTooltip } from '@/components/ui';
 import { formatDateTime, isWithinLastHours } from '@/lib/dates';
@@ -10,7 +12,7 @@ import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
 import { t, type Lang } from '@/lib/i18n/strings';
 import { FleetFreshness } from './FleetFreshness';
 import { FleetSitesTable } from './FleetSitesTable';
-import { AiSummary } from '@/components/app';
+import { AiSummary, PropertyCards, PropertySwitcher } from '@/components/app';
 import { FleetLiveSection } from './FleetLiveSection';
 import { ShapeChart } from './ShapeChart';
 import styles from './fleet.module.css';
@@ -64,10 +66,17 @@ function sortedAlphabetically(sites: FleetOverviewRow[]): FleetOverviewRow[] {
   return [...sites].sort((a, b) => a.display_name.localeCompare(b.display_name));
 }
 
-export default async function AdminFleetPage() {
+export default async function AdminFleetPage({ searchParams }: { searchParams: Promise<{ property?: string }> }) {
   const session = await requireAdmin();
   const lang = session.uiLanguage;
-  const overview = await getFleetOverview();
+  // `?property=<id>` narrows the whole page to one property's sites (every roll-up below is then that property's own).
+  const properties = await listAllProperties().catch(() => []);
+  const { property: requestedProperty } = await searchParams;
+  const property = properties.find((p) => p.id === requestedProperty) ?? null;
+  const overview = await getFleetOverview({ propertyId: property?.id });
+  const propertySummaries = properties.length > 0 && !property
+    ? summariseProperties(overview.sites, properties, await getSitePropertyMap(overview.sites.map((s) => s.site_id)))
+    : [];
   // Open alerts on the admin's own fleet, for the button's badge. A failure here
   // must not take the dashboard down; the button just shows without a count.
   const fleetAlertsOwner = fleetAlertCustomerId();
@@ -170,9 +179,12 @@ export default async function AdminFleetPage() {
         {t(lang, 'admin_fleet_link_new')} →
       </Link>
 
+      <PropertySwitcher lang={lang} basePath="/admin/fleet" properties={properties} selectedId={property?.id ?? null} />
+      <PropertyCards lang={lang} basePath="/admin/fleet" summaries={propertySummaries} />
+
       {sites.length > 0 && (
         <>
-          <AiSummary lang={lang} endpoint="/api/admin/pipeline/insights/fleet" />
+          <AiSummary lang={lang} endpoint={`/api/admin/pipeline/insights/fleet${property ? `?property=${encodeURIComponent(property.id)}` : ''}`} />
           <FleetLiveSection sites={sites} lang={lang} loadLabel={t(lang, 'admin_fleet_flow_load_label')} siteHrefBase="/admin/fleet/" />
         </>
       )}

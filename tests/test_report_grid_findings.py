@@ -144,3 +144,12 @@ def test_the_energy_mix_counts_solar_stored_in_the_battery_once_and_draws_withou
     mix = S._energy_mix(d, t)
     assert (mix["solar_pct"], mix["batt_pct"]) == (94, 0) and mix["legend"][1][2] is None and "counts as battery" not in mix["sub"]
     assert "94.4%" in S.row1_svg(d, t, [])
+
+
+def test_a_property_report_tells_the_ai_it_is_one_property_with_per_site_lines(monkeypatch):
+    rows = [{"name": "Casona", "pv": 80.0, "load": 60.0, "grid": 5.0, "health": 95, "devices_bad": 0, "off_grid": False},
+            {"name": "Casita", "pv": 50.0, "load": 70.0, "grid": 30.0, "health": 70, "devices_bad": 1, "off_grid": False}]
+    prompt = _prompt(monkeypatch, propertySites=rows)
+    assert "ONE PROPERTY made of 2 sites" in prompt and "Casona: solar 80.0 kWh, use 60.0 kWh, grid 5.0 kWh, system score 95" in prompt
+    assert "Casita: solar 50.0 kWh, use 70.0 kWh, grid 30.0 kWh, system score 70, 1 device(s) flagged" in prompt
+    assert "ONE PROPERTY" not in _prompt(monkeypatch)

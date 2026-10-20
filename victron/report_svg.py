@@ -866,6 +866,51 @@ def _outage_duration_fmt(minutes: float, t: dict) -> str:
 _SOURCE_DOT = {"pv": "#D4860F", "battery": "#4A9FD4"}
 
 
+def property_sites_svg(rows: list[dict], t: dict) -> str:
+    """"Sites in this property": one row per site with its solar, use, grid (or generator) energy and System score, so a property
+    report can say which site is behind a combined figure. Empty for a report that is not for a property."""
+    if not rows:
+        return ""
+    first = info_block_first_row_y(t["subProperty"])
+    h = first + len(rows) * ROW_H + 16
+    avail = PW - 2 * IPAD
+    # Right-aligned numeric columns, the name takes what is left.
+    col_right = {"solar": avail - 150, "load": avail - 100, "grid": avail - 50, "score": avail}
+    r = (f"<rect x='0' y='0' width='{PW}' height='{h}' rx='8' fill='{BG_GREY}'/>"
+         f"<text x='{IPAD}' y='14' font-size='8' font-weight='700' fill='#777'>{esc(t['sectionProperty'].upper())}</text>")
+    for li, line in enumerate(wrap_svg_lines(t["subProperty"], int((PW - 2 * IPAD) / 3.1))):
+        r += f"<text x='{IPAD}' y='{14 + (li + 1) * 9}' font-size='6.5' fill='#bbb'>{esc(line)}</text>"
+    head_y = first
+    r += f"<line x1='{IPAD}' y1='{head_y - 12}' x2='{PW - IPAD}' y2='{head_y - 12}' stroke='{LINE}' stroke-width='0.5'/>"
+    r += f"<text x='{IPAD}' y='{head_y}' font-size='8' font-weight='700' fill='#999'>{esc(t['propertyColSite'].upper())}</text>"
+    for key, label in (("solar", t["labelSolar"]), ("load", t["propertyColUsed"]), ("grid", t["labelGrid"]), ("score", t["propertyColScore"])):
+        r += (f"<text x='{IPAD + col_right[key]:g}' y='{head_y}' font-size='8' font-weight='700' fill='#999' text-anchor='end'>"
+              f"{esc(label.upper())}</text>")
+    r += f"<line x1='{IPAD}' y1='{head_y + 5}' x2='{PW - IPAD}' y2='{head_y + 5}' stroke='{LINE}' stroke-width='0.5'/>"
+    name_room = col_right["solar"] - 70
+    for i, row in enumerate(rows):
+        ry = first + (i + 1) * ROW_H
+        name = str(row["name"])
+        while len(name) > 4 and text_width(name, 9.5) > name_room:
+            name = name[:-2].rstrip() + "…"
+        score = row.get("health")
+        score_color = "#222" if score is None else (GREEN if score >= 85 else AMBER if score >= 65 else RED)
+        grid_txt = f"{row['grid']:.1f}" if row.get("days") else "—"
+        cells = {"solar": f"{row['pv']:.1f}" if row.get("days") else "—", "load": f"{row['load']:.1f}" if row.get("days") else "—",
+                 "grid": grid_txt, "score": "—" if score is None else f"{score:.0f}"}
+        r += f"<text x='{IPAD}' y='{ry}' font-size='9.5' fill='#222'>{esc(name)}</text>"
+        for key, text in cells.items():
+            fill = score_color if key == "score" else "#222"
+            weight = "700" if key == "score" else "400"
+            r += (f"<text x='{IPAD + col_right[key]:g}' y='{ry}' font-size='9.5' font-weight='{weight}' fill='{fill}' "
+                  f"text-anchor='end'>{esc(text)}</text>")
+        if row.get("devices_bad"):
+            r += f"<circle cx='{IPAD - 4}' cy='{ry - 3}' r='2.5' fill='{RED}'/>"
+        if i < len(rows) - 1:
+            r += f"<line x1='{IPAD}' y1='{ry + 5}' x2='{PW - IPAD}' y2='{ry + 5}' stroke='{LINE}' stroke-width='0.5'/>"
+    return _svg(r, PW, h)
+
+
 def outage_table_svg(events: list[dict], longest_minutes: float, t: dict) -> str:
     """One row per grid-outage event this period (2026-09-27) — what the
     Events section's single rolled-up "N (X min)" figure used to hide.

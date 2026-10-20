@@ -1,0 +1,63 @@
+import Link from 'next/link';
+import { t, type Lang } from '@/lib/i18n/strings';
+import { formatWattsShort, type PropertySummary } from './format';
+import styles from './Properties.module.css';
+
+// "All sites | El Encino | Vista Atenas": picks which property a fleet page shows, as plain links (`?property=<id>`), so a
+// view can be bookmarked and shared and nothing needs client state. Rendered only when the customer has at least one property.
+export function PropertySwitcher({ lang, basePath, properties, selectedId }: { lang: Lang; basePath: string; properties: { id: string; name: string }[]; selectedId: string | null }) {
+  if (properties.length === 0) return null;
+  return (
+    <nav className={styles.switcher} aria-label={t(lang, 'properties_switcher_label')}>
+      <Link href={basePath} className={`${styles.chip} ${selectedId === null ? styles.chipActive : ''}`} aria-current={selectedId === null ? 'page' : undefined}>
+        {t(lang, 'properties_all_sites')}
+      </Link>
+      {properties.map((p) => (
+        <Link
+          key={p.id}
+          href={`${basePath}?property=${encodeURIComponent(p.id)}`}
+          className={`${styles.chip} ${selectedId === p.id ? styles.chipActive : ''}`}
+          aria-current={selectedId === p.id ? 'page' : undefined}
+        >
+          {p.name}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+// The all-sites view's way into each property: one small card per property (and one for sites not in any), each linking to
+// that property's own fleet view.
+export function PropertyCards({ lang, basePath, summaries }: { lang: Lang; basePath: string; summaries: PropertySummary[] }) {
+  if (summaries.length === 0) return null;
+  return (
+    <section className={styles.cards} aria-label={t(lang, 'properties_cards_label')}>
+      {summaries.map((s) => {
+        const body = (
+          <>
+            <div className={styles.cardName}>{s.id === null ? t(lang, 'properties_ungrouped') : s.name}</div>
+            <div className={styles.cardMeta}>
+              {t(lang, s.siteCount === 1 ? 'properties_sites_one' : 'properties_sites_many').replace('{n}', String(s.siteCount))} ·{' '}
+              {t(lang, 'properties_online').replace('{online}', String(s.online)).replace('{total}', String(s.siteCount))}
+            </div>
+            <div className={styles.cardStats}>
+              <span>{t(lang, 'properties_solar_now')} {formatWattsShort(s.pvNowW)}</span>
+              {s.avgSoc !== null && <span>{t(lang, 'properties_battery')} {s.avgSoc}%</span>}
+              <span className={s.attention > 0 ? styles.statWarn : styles.statOk}>
+                {s.attention > 0 ? t(lang, 'properties_attention').replace('{n}', String(s.attention)) : t(lang, 'properties_all_fine')}
+              </span>
+              {s.lowestScore !== null && <span title={t(lang, 'properties_lowest_score')}>{t(lang, 'properties_score').replace('{n}', String(s.lowestScore))}</span>}
+            </div>
+          </>
+        );
+        return s.id === null ? (
+          <div key="ungrouped" className={`${styles.card} ${styles.cardMuted}`}>{body}</div>
+        ) : (
+          <Link key={s.id} href={`${basePath}?property=${encodeURIComponent(s.id)}`} className={styles.card}>
+            {body}
+          </Link>
+        );
+      })}
+    </section>
+  );
+}

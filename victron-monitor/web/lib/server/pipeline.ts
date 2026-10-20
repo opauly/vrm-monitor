@@ -193,6 +193,8 @@ export async function ingestCommit(jobId: string): Promise<{ job_id: string }> {
 export async function createReport(body: {
   customer_id: string;
   site_id: string;
+  /** A report for every site of this property (then `site_id` is ''). */
+  property_id?: string | null;
   start: string;
   end: string;
   schema: 'vrm' | 'monitoring';
@@ -401,9 +403,10 @@ export async function getSiteInsight(siteId: string, lang: 'en' | 'es'): Promise
 }
 
 /** A customer's fleet summary, or every site's when `customerId` is omitted (admin). */
-export async function getFleetInsight(customerId: string | null, lang: 'en' | 'es'): Promise<InsightOut> {
+export async function getFleetInsight(customerId: string | null, lang: 'en' | 'es', propertyId: string | null = null): Promise<InsightOut> {
   const qs = new URLSearchParams({ lang });
   if (customerId) qs.set('customer_id', customerId);
+  if (propertyId) qs.set('property_id', propertyId);
   return pipelineJson(`/v1/insights/fleet?${qs.toString()}`, { method: 'GET' });
 }
 

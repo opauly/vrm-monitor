@@ -384,6 +384,18 @@ def get_critical_alert_counts_by_category(site_id: str, start: str | date, end: 
     return counts
 
 
+def get_property(property_id: str) -> dict | None:
+    """One property (`vrm.properties`: id, customer_id, name), or None."""
+    rows = _table(VRM, "properties").select("id, customer_id, name").eq("id", property_id).limit(1).execute().data
+    return rows[0] if rows else None
+
+
+def list_property_sites(property_id: str) -> list[dict]:
+    """The property's active VRM-API sites, in name order."""
+    return (_table(VRM, "sites").select("site_id, display_name").eq("property_id", property_id)
+            .eq("source", "vrm_api").eq("active", True).order("display_name").execute().data or [])
+
+
 def get_site_devices(site_id: str, schema: str) -> list[dict]:
     """The site's batteries / inverters / solar chargers as last checked (`vrm.site_devices`,
     written by the 15-minute sweep) — the report's "Equipment" block. `vrm` schema only; `[]`
@@ -649,3 +661,20 @@ def fetch_report_window(site_id: str, start: str | date, end: str | date,
         "expected_days": num_days,
         "missing_days": num_days - len(current),
     }
+
+
+def fetch_property_window(property_id: str, start: str | date, end: str | date) -> tuple[dict, list[dict]]:
+    """`(merged_window, per_site_windows)` for a property: every one of its sites' report windows, and the single window they
+    merge into (`victron/property_report.py`), in the exact shape `fetch_report_window()` returns for one site.
+
+    Raises `ValueError` for an unknown property, a property with no sites, or no data at all in the period."""
+    from victron import property_report
+
+    prop = get_property(property_id)
+    if prop is None:
+        raise ValueError(f"No property {property_id!r}")
+    sites = list_property_sites(property_id)
+    if not sites:
+        raise ValueError(f"Property {prop['name']!r} has no sites yet")
+    windows = [fetch_report_window(s["site_id"], start, end, VRM) for s in sites]
+    return property_report.merge_windows(prop, windows), windows

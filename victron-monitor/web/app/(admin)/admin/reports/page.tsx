@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { requireAdmin } from '@/lib/server/auth';
 import { listAllSites, listCustomers } from '@/lib/server/db/admin';
+import { listAllProperties } from '@/lib/server/db';
 import { t } from '@/lib/i18n/strings';
 import { AdminReportsManager } from './AdminReportsManager';
 
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
 export default async function AdminReportsPage() {
   const session = await requireAdmin();
   const lang = session.uiLanguage;
-  const [vrmSites, allCustomers] = await Promise.all([listAllSites(), listCustomers()]);
+  const [vrmSites, allCustomers, properties] = await Promise.all([listAllSites(), listCustomers(), listAllProperties().catch(() => [])]);
   // Same active-only filter as `/admin/upload` — see that page's own
   // comment. The admin-vs-self-serve split is a togglable filter inside
   // AdminReportsManager, not a hard exclusion, so a report can still be
@@ -33,7 +34,7 @@ export default async function AdminReportsPage() {
         {t(lang, 'admin_reports_desc_1')} <code>vrm</code> {t(lang, 'admin_reports_desc_2')} <code>monitoring</code>{' '}
         {t(lang, 'admin_reports_desc_3')}
       </p>
-      <AdminReportsManager vrmSites={vrmSites} customers={customers} lang={lang} />
+      <AdminReportsManager vrmSites={vrmSites} customers={customers} properties={properties} lang={lang} />
     </div>
   );
 }

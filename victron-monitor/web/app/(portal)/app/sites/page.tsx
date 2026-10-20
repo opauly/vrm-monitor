@@ -1,10 +1,13 @@
 import type { Metadata } from 'next';
 import { requireCustomerAllowPending } from '@/lib/server/auth';
-import { canAddSite, getCustomer, getReportModulesAccess, getVrmLinkStatus, listSites } from '@/lib/server/db';
+import { canAddSite, getCustomer, getReportModulesAccess, getVrmLinkStatus, listProperties, listSites } from '@/lib/server/db';
 import { t } from '@/lib/i18n/strings';
-import { PendingSubscriptionUpsell, VrmConnectionBanner } from '@/components/app';
+import { PendingSubscriptionUpsell, PropertiesManager, VrmConnectionBanner } from '@/components/app';
 import { SitesManager } from './SitesManager';
 import { VrmLinkPanel } from './VrmLinkPanel';
+import {
+  applyPropertyGroupsAction, assignSitePropertyAction, createPropertyAction, deletePropertyAction, renamePropertyAction, suggestPropertyGroupsAction,
+} from './propertyActions';
 import styles from './sites.module.css';
 
 export const metadata: Metadata = {
@@ -35,11 +38,12 @@ export default async function SitesPage() {
   // in this page that came from a query param or a form; every site (and
   // every fact about the VRM connection) this page can possibly show is
   // already scoped before it reaches the client.
-  const [sites, canAdd, customer, vrmStatus] = await Promise.all([
+  const [sites, canAdd, customer, vrmStatus, properties] = await Promise.all([
     listSites(session.customerId),
     canAddSite(session.customerId),
     getCustomer(session.customerId),
     getVrmLinkStatus(session.customerId),
+    listProperties(session.customerId),
   ]);
   // PLAN_PHASE18.md §5 — resolved once, here, same "Server Component
   // decides, client just renders what it's told" shape `canAdd`/`siteLimit`
@@ -60,6 +64,21 @@ export default async function SitesPage() {
         siteLimit={customer.site_limit}
         moduleSelectionAllowed={moduleSelectionAllowed}
       />
+      {sites.length >= 2 && (
+        <PropertiesManager
+          lang={session.uiLanguage}
+          groups={[{
+            customerId: session.customerId,
+            customerName: null,
+            properties: properties.map((p) => ({ id: p.id, name: p.name })),
+            sites: sites.filter((s) => s.active).map((s) => ({ site_id: s.site_id, display_name: s.display_name, property_id: s.property_id ?? null })),
+          }]}
+          actions={{
+            create: createPropertyAction, rename: renamePropertyAction, remove: deletePropertyAction,
+            assign: assignSitePropertyAction, suggest: suggestPropertyGroupsAction, apply: applyPropertyGroupsAction,
+          }}
+        />
+      )}
     </div>
   );
 }
