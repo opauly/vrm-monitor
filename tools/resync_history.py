@@ -49,7 +49,7 @@ def main() -> None:
         print(f"{site['display_name']:36} {len(rows):3} days, battery energy measured on {len(measured):3}, "
               f"alarm episodes {sum(1 for e in parsed['alarm_events'] if e['severity'] == 'WARNING')}")
         if args.apply:
-            summary = victron_ingest.ingest_parsed(parsed, site["site_id"], source="vrm_api", triggered_by="resync_tool")
+            summary = victron_ingest.ingest_parsed(parsed, site["site_id"], source="vrm_api", triggered_by="admin")
             print(f"{'':36} wrote {summary.get('rows_written')} day(s)")
 
     if not args.apply:
