@@ -50,7 +50,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     { href: '/admin/activity', label: t(lang, 'admin_nav_activity') },
     { href: '/admin/analytics', label: t(lang, 'admin_nav_analytics') },
     { href: '/admin/fleet', label: t(lang, 'admin_nav_fleet'), personal: true },
-    { href: '/admin/fleet/alerts', label: t(lang, 'admin_nav_alerts'), personal: true },
+    { href: '/admin/fleet/alerts', label: t(lang, 'admin_nav_alerts'), personal: true, child: true },
     { href: '/admin/help', label: t(lang, 'admin_nav_help') },
   ];
 

@@ -27,6 +27,9 @@ export type AppNavItem = {
    * any subscriber until he explicitly links it to one. Optional and
    * unused by `/app`'s customer nav — no behavior change there. */
   personal?: boolean;
+  /** A sub-page of the item just before it: drawn as a small text link tucked against its parent with a "↳" connector, not as a
+   * second button. The parent stays highlighted while a child page is open (NavLink matches by prefix). */
+  child?: boolean;
   /** A small count pill after the label (e.g. open alerts); omitted or 0 shows nothing. */
   count?: number;
 };
@@ -99,11 +102,18 @@ export function AppShell({ role, email, navItems, lang, badge, feedbackSites, ch
           {personalItems.length > 0 && (
             <nav className={styles.navPersonal}>
               <span className={styles.divider} aria-hidden="true" />
-              {personalItems.map((item) => (
-                <NavLink key={item.href} href={item.href} className={styles.navLinkPersonal} activeClassName={styles.navLinkPersonalActive}>
-                  {item.label}
-                </NavLink>
-              ))}
+              {personalItems.map((item) =>
+                item.child ? (
+                  <NavLink key={item.href} href={item.href} className={styles.navLinkChild} activeClassName={styles.navLinkChildActive}>
+                    <span className={styles.childArrow} aria-hidden="true">↳</span>
+                    {item.label}
+                  </NavLink>
+                ) : (
+                  <NavLink key={item.href} href={item.href} className={styles.navLinkPersonal} activeClassName={styles.navLinkPersonalActive}>
+                    {item.label}
+                  </NavLink>
+                ),
+              )}
             </nav>
           )}
           <div className={styles.account}>
