@@ -64,14 +64,14 @@ export default async function SitesPage() {
         siteLimit={customer.site_limit}
         moduleSelectionAllowed={moduleSelectionAllowed}
       />
-      {sites.length >= 2 && (
+      {sites.filter((s) => s.active && s.source === 'vrm_api' && !s.is_shared).length >= 2 && (
         <PropertiesManager
           lang={session.uiLanguage}
           groups={[{
             customerId: session.customerId,
             customerName: null,
             properties: properties.map((p) => ({ id: p.id, name: p.name })),
-            sites: sites.filter((s) => s.active).map((s) => ({ site_id: s.site_id, display_name: s.display_name, property_id: s.property_id ?? null })),
+            sites: sites.filter((s) => s.active && s.source === 'vrm_api' && !s.is_shared).map((s) => ({ site_id: s.site_id, display_name: s.display_name, property_id: s.property_id ?? null })),
           }]}
           actions={{
             create: createPropertyAction, rename: renamePropertyAction, remove: deletePropertyAction,

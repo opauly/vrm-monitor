@@ -12,6 +12,26 @@
   line-height: 1.5;
   max-width: 70ch;
 }
+.collapsible {
+  border-top: 1px solid var(--line);
+  padding: 10px 0;
+}
+.collapsible:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.collapsibleSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  cursor: pointer;
+}
+.collapsible[open] > .collapsibleSummary {
+  margin-bottom: 12px;
+}
+.collapsible .customerName {
+  margin: 0;
+}
 .group + .group {
   margin-top: 26px;
   padding-top: 18px;

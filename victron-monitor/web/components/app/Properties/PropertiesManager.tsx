@@ -190,9 +190,23 @@ export function PropertiesManager({ lang, groups, actions }: { lang: Lang; group
     <Panel className={styles.panel}>
       <h2 className={styles.title}>{t(lang, 'properties_title')}</h2>
       <p className={styles.intro}>{t(lang, 'properties_intro')}</p>
-      {groups.map((g) => (
-        <GroupBlock key={g.customerId} lang={lang} group={g} actions={actions} showName={groups.length > 1 || g.customerName !== null} />
-      ))}
+      {groups.map((g) =>
+        // Several customers at once: each is a collapsed block (name, how many properties and sites) so it is not a wall of sites;
+        // with one customer showing, it is simply open.
+        groups.length > 1 ? (
+          <details key={g.customerId} className={styles.collapsible}>
+            <summary className={styles.collapsibleSummary}>
+              <span className={styles.customerName}>{g.customerName}</span>
+              <span className={styles.count}>
+                {t(lang, 'properties_summary').replace('{p}', String(g.properties.length)).replace('{s}', String(g.sites.length))}
+              </span>
+            </summary>
+            <GroupBlock lang={lang} group={g} actions={actions} showName={false} />
+          </details>
+        ) : (
+          <GroupBlock key={g.customerId} lang={lang} group={g} actions={actions} showName={g.customerName !== null} />
+        ),
+      )}
     </Panel>
   );
 }

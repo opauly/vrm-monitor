@@ -106,12 +106,16 @@ export async function getSitePropertyMap(siteIds: string[]): Promise<Record<stri
 
 /** First-guess groups among a customer's sites that are not in a property yet (see `lib/propertyGroups.ts`). */
 export async function suggestPropertyGroups(customerId: string): Promise<SuggestedGroup[]> {
-  const { data, error } = await db().from('sites').select('site_id, display_name, latitude, longitude, property_id').eq('customer_id', customerId).eq('active', true);
+  // Only live (VRM) sites that are the customer's own: those are what fleet views and reports cover. A database without `is_shared` has none shared.
+  const select = (columns: string) => db().from('sites').select(columns).eq('customer_id', customerId).eq('active', true).eq('source', 'vrm_api');
+  type Row = Pick<SiteRecord, 'site_id' | 'display_name' | 'latitude' | 'longitude' | 'property_id' | 'is_shared'>;
+  let { data, error } = await select('site_id, display_name, latitude, longitude, property_id, is_shared');
+  if (error && isMissing(error)) ({ data, error } = await select('site_id, display_name, latitude, longitude, property_id'));
   if (error) {
     if (isMissing(error)) return [];
     throw error;
   }
-  return suggestGroups((data ?? []) as Pick<SiteRecord, 'site_id' | 'display_name' | 'latitude' | 'longitude' | 'property_id'>[]);
+  return suggestGroups(((data ?? []) as unknown as Row[]).filter((s) => !s.is_shared));
 }
 
 /** Creates the suggested groups the customer accepted (re-validated here: only their own, not-yet-grouped sites). */

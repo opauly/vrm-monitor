@@ -41,10 +41,15 @@ export function AdminSitesManager({
   sites,
   customers,
   lang,
+  customerFilter,
+  onCustomerFilterChange,
 }: {
   sites: SiteRecord[];
   customers: AdminCustomerRow[];
   lang: Lang;
+  /** Which customer's sites to show ('all' = every customer). Owned by the parent so the Properties panel below can follow it. */
+  customerFilter: string;
+  onCustomerFilterChange: (customerId: string) => void;
 }) {
   const [editingSiteId, setEditingSiteId] = useState<string | null>(null);
   const [reassignTarget, setReassignTarget] = useState<Record<string, string>>({});
@@ -56,7 +61,6 @@ export function AdminSitesManager({
 
   const [originFilter, setOriginFilter] = useState<OriginFilter>('all');
   // One customer's sites at a time (the page lists every customer's: the admin's own portfolio, a beta tester's, subscribers').
-  const [customerFilter, setCustomerFilter] = useState<string>('all');
   const customersWithSites = useMemo(() => {
     const counts = new Map<string, number>();
     for (const s of sites) counts.set(s.customer_id, (counts.get(s.customer_id) ?? 0) + 1);
@@ -120,7 +124,7 @@ export function AdminSitesManager({
         </label>
         <label className={styles.filterLabel}>
           {t(lang, 'admin_sites_col_customer')}
-          <Select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
+          <Select value={customerFilter} onChange={(e) => onCustomerFilterChange(e.target.value)}>
             <option value="all">{t(lang, 'admin_common_all')}</option>
             {customersWithSites.map((c) => (
               <option key={c.id} value={c.id}>

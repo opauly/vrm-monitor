@@ -2,9 +2,8 @@ import type { Metadata } from 'next';
 import { requireAdmin } from '@/lib/server/auth';
 import { listAllSites, listCustomers } from '@/lib/server/db/admin';
 import { listAllProperties } from '@/lib/server/db';
-import { PropertiesManager } from '@/components/app';
+import { AdminSitesWorkspace } from './AdminSitesWorkspace';
 import { t } from '@/lib/i18n/strings';
-import { AdminSitesManager } from './AdminSitesManager';
 import {
   applyPropertyGroupsAction, assignSitePropertyAction, createPropertyAction, deletePropertyAction, renamePropertyAction, suggestPropertyGroupsAction,
 } from './propertyActions';
@@ -28,7 +27,8 @@ export default async function AdminSitesPage() {
       customerId: c.id,
       customerName: c.name,
       properties: properties.filter((p) => p.customer_id === c.id).map((p) => ({ id: p.id, name: p.name })),
-      sites: sites.filter((s) => s.customer_id === c.id && s.active).map((s) => ({ site_id: s.site_id, display_name: s.display_name, property_id: s.property_id ?? null })),
+      // Only live (VRM) sites that are the customer's own can be grouped: those are what the fleet views and reports cover.
+      sites: sites.filter((s) => s.customer_id === c.id && s.active && s.source === 'vrm_api' && !s.is_shared).map((s) => ({ site_id: s.site_id, display_name: s.display_name, property_id: s.property_id ?? null })),
     }))
     .filter((g) => g.sites.length >= 2);
 
@@ -38,10 +38,11 @@ export default async function AdminSitesPage() {
       <p className="mono page-desc">
         {t(lang, 'admin_sites_desc_1')} <code>vrm</code> {t(lang, 'admin_sites_desc_2')}
       </p>
-      <AdminSitesManager sites={sites} customers={customers} lang={lang} />
-      <PropertiesManager
-        lang={lang}
+      <AdminSitesWorkspace
+        sites={sites}
+        customers={customers}
         groups={groups}
+        lang={lang}
         actions={{
           create: createPropertyAction, rename: renamePropertyAction, remove: deletePropertyAction,
           assign: assignSitePropertyAction, suggest: suggestPropertyGroupsAction, apply: applyPropertyGroupsAction,
