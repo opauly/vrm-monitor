@@ -73,7 +73,7 @@ export default async function AlertsPage({ searchParams }: { searchParams: Promi
         routing={routing}
         customerId={session.customerId}
         email={customer.contact_email || customer.auth_email || session.email}
-        links={{ site: (id) => `/app/dashboard/${encodeURIComponent(id)}`, vrmLink: '/app/sites' }}
+        links={{ site: (id) => `/app/dashboard/${encodeURIComponent(id)}`, vrmLink: '/app/sites', property: (id) => `/app/dashboard?property=${encodeURIComponent(id)}` }}
         saveAction={saveAlertSettingsAction}
         onSubscribe={subscribePushAction}
         onUnsubscribe={unsubscribePushAction}

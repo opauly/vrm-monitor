@@ -67,7 +67,7 @@ export default async function AdminFleetAlertsPage({ searchParams }: { searchPar
           email={customer.contact_email || customer.auth_email || admin.email}
           intro={t(lang, 'admin_fleet_alerts_intro').replace('{name}', customer.name ?? '')}
           pushIntro={t(lang, 'push_intro_admin')}
-          links={{ site: (id) => `/admin/fleet/${encodeURIComponent(id)}`, vrmLink: '/admin/vrm-fleet' }}
+          links={{ site: (id) => `/admin/fleet/${encodeURIComponent(id)}`, vrmLink: '/admin/vrm-fleet', property: (id) => `/admin/fleet?property=${encodeURIComponent(id)}` }}
           saveAction={saveFleetAlertSettingsAction}
           onSubscribe={subscribeAdminPushAction}
           onUnsubscribe={unsubscribeAdminPushAction}

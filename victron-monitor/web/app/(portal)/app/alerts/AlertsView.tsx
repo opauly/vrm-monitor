@@ -4,14 +4,16 @@ import {
   INSIGHT_KINDS,
   getAlertPreferences,
   listOpenAlerts,
+  listRecentInsightNotices,
   listRecentResolvedAlerts,
+  type InsightNoticeRecord,
   type AlertWithSite,
 } from '@/lib/server/db';
 import { Panel } from '@/components/ui';
 import { PushPanel } from '@/components/app';
 import { formatDateTimeInZone } from '@/lib/dates';
 import { describeAlert } from '@/lib/alertText';
-import { t, type Lang } from '@/lib/i18n/strings';
+import { t, type Lang, type StringKey } from '@/lib/i18n/strings';
 import type { PushActionResult, PushSubscriptionInput, PushTestResult } from '@/lib/push';
 import { AlertSettingsForm } from './AlertSettingsForm';
 import type { AlertSettingsState } from './actions';
@@ -28,19 +30,22 @@ export type AlertLinks = {
   site: (siteId: string) => string;
   /** Where "Reconnect" goes for a broken VRM link. */
   vrmLink: string;
+  /** Where a property's fleet view is, for an insight about a whole property. */
+  property?: (propertyId: string) => string;
 };
 
-/** The page has two tabs: what has happened (the log) and how you hear about it (phone and email settings). */
-export type AlertsTab = 'log' | 'notifications';
+/** The page has three tabs: what has happened (the log), the heads-ups and tips that were sent (insights), and how you hear about it (phone and email settings). */
+export type AlertsTab = 'log' | 'insights' | 'notifications';
 
 export function parseAlertsTab(value: string | undefined): AlertsTab {
-  return value === 'notifications' ? 'notifications' : 'log';
+  return value === 'notifications' || value === 'insights' ? value : 'log';
 }
 
 // Plain links (`?tab=notifications`), so a tab can be bookmarked and shared and no client state is needed.
 export function AlertsTabs({ lang, basePath, tab }: { lang: Lang; basePath: string; tab: AlertsTab }) {
   const items: { id: AlertsTab; href: string; label: string }[] = [
     { id: 'log', href: basePath, label: t(lang, 'alerts_tab_log') },
+    { id: 'insights', href: `${basePath}?tab=insights`, label: t(lang, 'alerts_tab_insights') },
     { id: 'notifications', href: `${basePath}?tab=notifications`, label: t(lang, 'alerts_tab_notifications') },
   ];
   return (
@@ -155,7 +160,51 @@ function ResolvedRow({ group, lang, links }: { group: ResolvedGroup; lang: Lang;
   );
 }
 
+// What a push or an email about an insight said: the wording stored with it (in the viewer's language), else just its kind and site.
+function InsightCard({ notice, lang, links }: { notice: InsightNoticeRecord; lang: Lang; links: AlertLinks }) {
+  const stored = notice.text?.[lang] ?? notice.text?.en;
+  const kind = t(lang, `alerts_kind_${notice.kind}` as StringKey);
+  const title = stored?.title ?? (notice.site_name ? `${kind} — ${notice.site_name}` : kind);
+  const propertyId = typeof notice.detail.property_id === 'string' ? notice.detail.property_id : null;
+  const href = propertyId && links.property ? links.property(propertyId) : notice.site_id ? links.site(notice.site_id) : null;
+  return (
+    <article className={`${styles.card} ${notice.severity === 'warning' ? styles.cardWarning : styles.cardResolved}`}>
+      <h3 className={styles.cardTitle}>{title}</h3>
+      {stored?.body && <p className={styles.cardBody}>{stored.body}</p>}
+      <div className={styles.meta}>
+        <span>{formatDateTimeInZone(notice.created_at, notice.site_timezone, 'en-US')}</span>
+        {href && (
+          <Link href={href} className={styles.cardLink}>
+            {t(lang, propertyId ? 'insights_view_property' : 'alerts_view_site')} →
+          </Link>
+        )}
+      </div>
+    </article>
+  );
+}
+
 export async function AlertsView({ lang, tab, routing, customerId, email, links, intro, pushIntro, saveAction, onSubscribe, onUnsubscribe, onTest }: AlertsViewProps) {
+  if (tab === 'insights') {
+    const notices = await listRecentInsightNotices(customerId);
+    return (
+      <div>
+        <p className={styles.intro}>{t(lang, 'insights_intro')}</p>
+        {notices.length === 0 ? (
+          <p className={styles.empty}>
+            {t(lang, 'insights_empty')}{' '}
+            <Link href={`?tab=notifications`} className={styles.cardLink}>{t(lang, 'alerts_jump_settings')} →</Link>
+          </p>
+        ) : (
+          <div className={styles.cards}>
+            {notices.map((n) => (
+              <InsightCard key={n.id} notice={n} lang={lang} links={links} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (tab === 'notifications') {
     const prefs = await getAlertPreferences(customerId);
     return (

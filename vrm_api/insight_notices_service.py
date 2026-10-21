@@ -212,9 +212,25 @@ def run_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]], previ
         keep.append(r)
         seen.add((r["customer_id"], r["dedupe_key"]))
     if keep:
-        _t("insight_notices").upsert(keep, on_conflict="customer_id,dedupe_key", ignore_duplicates=True).execute()
+        # The wording is stored with the notice, in both languages, so the app can show what a push or email said (the "Insights" tab)
+        # without a second copy of the sentences in the web code.
+        with_text = [{**r, "text": _texts(r, details)} for r in keep]
+        try:
+            _t("insight_notices").upsert(with_text, on_conflict="customer_id,dedupe_key", ignore_duplicates=True).execute()
+        except Exception:  # noqa: BLE001 — the `text` column does not exist yet (vrm_insight_notice_text.sql): store without it
+            _t("insight_notices").upsert(keep, on_conflict="customer_id,dedupe_key", ignore_duplicates=True).execute()
         summary["stored"] = len(keep)
     return summary
+
+
+def _texts(row: dict, details: dict[str, dict]) -> dict:
+    """`{"en": {"title", "body"}, "es": {...}}` for one notice row, as the push and the email word it."""
+    site_name = (details.get(row.get("site_id") or "") or {}).get("display_name") or row.get("site_id") or ""
+    out = {}
+    for lang in ("en", "es"):
+        card = describe(row, site_name=site_name, strings=email_i18n.get(lang), lang=lang, site_url=None)
+        out[lang] = {"title": card["title"], "body": card["body"]}
+    return out
 
 
 # ── wording ──────────────────────────────────────────────────────────────
@@ -289,7 +305,8 @@ def _push_payloads(items: list[tuple[dict, dict]], strings: dict, *, admin: bool
     if len(items) > MAX_INDIVIDUAL_PUSHES:
         return [{"title": _fill(strings["insight_multi_subject"], n=len(items)),
                  "body": " · ".join(f"{c['push_title']}: {c['site']}" for _, c in items[:3]),
-                 "url": "/admin/fleet/alerts" if admin else "/app/alerts", "tag": "insights-summary", "severity": "warning"}]
+                 # The summary opens the list of what it summarises: the Insights tab.
+                 "url": "/admin/fleet/alerts?tab=insights" if admin else "/app/alerts?tab=insights", "tag": "insights-summary", "severity": "warning"}]
     return [{"title": c["push_title"], "body": f"{c['site']} — {c['body']}" if c["site"] and c["body"] else (c["site"] or c["body"]),
              "url": c["path"], "tag": f"insight-{n['id']}", "severity": c["severity"]} for n, c in items]
 

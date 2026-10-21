@@ -380,3 +380,43 @@ def test_a_phone_scoped_to_another_property_is_not_sent_this_notice(monkeypatch)
     monkeypatch.setattr(svc, "mailer_send", lambda *a, **k: None)
     svc.deliver(now=NOW, mode="on", push=True, site_url="https://x")
     assert sorted(sorted(g) for g in sent_to) == [[2, 3]]
+
+
+# ── the app can show what was said ──────────────────────────────────────
+def test_a_stored_notice_carries_its_wording_in_both_languages(monkeypatch):
+    members = _members("Vista Atenas LP M1 (Houses)", "Vista Atenas LP M2 (Studios)")
+    details = [{"site_id": m["site_id"], "display_name": m["display_name"], "latitude": 9.979, "longitude": -84.377, "property_id": None} for m in members]
+    out, rows = group_pass(monkeypatch, details, members)
+    text = rows[0]["text"]
+    assert text["en"]["title"] == "A great solar day tomorrow at Vista Atenas LP" and "kWh of solar expected tomorrow" in text["en"]["body"]
+    assert text["es"]["title"] == "Un gran día solar mañana en Vista Atenas LP" and "kWh" in text["es"]["body"] and "{" not in text["en"]["body"] + text["es"]["body"]
+
+
+def test_without_the_text_column_the_notice_is_still_stored(monkeypatch):
+    members = _members("Casona")
+    details = [{"site_id": "casona", "display_name": "Casona", "latitude": None, "longitude": None, "property_id": None}]
+
+    class NoText(Table):
+        def upsert(self, rows, on_conflict=None, ignore_duplicates=False):
+            if any("text" in r for r in rows):
+                raise RuntimeError('column "text" does not exist')
+            return super().upsert(rows, on_conflict, ignore_duplicates)
+
+    class DBNoText(DB):
+        def __init__(self, **tables):
+            self.tables = {k: (NoText(v) if k == "insight_notices" else Table(v)) for k, v in tables.items()}
+
+    prefs = {("c1", "solar_day"): {"enabled": True, "email": True, "push": True}}
+    db = DBNoText(site_forecasts=[{"site_id": "casona", "generated_at": NOW_EVENING.isoformat(), "result": {**FORECAST, "generated_for": "2026-10-19T19:00"}, "load_profile": None}],
+                  energy_daily=[], insight_notices=[], sites=details, properties=[])
+    monkeypatch.setattr(svc, "_t", db)
+    monkeypatch.setattr(svc, "eligible_customer_ids", lambda ids: set(ids))
+    monkeypatch.setattr(svc, "load_preferences", lambda ids: prefs)
+    out = svc.run_pass(sites=members, fetched=[("ok", {"soc_pct": 60.0})], previous_by_site={}, now=NOW_EVENING)
+    assert out["stored"] == 1 and "text" not in db.tables["insight_notices"].rows[0]
+
+
+def test_the_summary_push_opens_the_insights_list():
+    cards = [({"id": i}, {"push_title": "Storm", "site": "El Encino", "body": "b", "path": "/x", "severity": "warning"}) for i in range(4)]
+    assert svc._push_payloads(cards, email_i18n.get("en"), admin=False)[0]["url"] == "/app/alerts?tab=insights"
+    assert svc._push_payloads(cards, email_i18n.get("en"), admin=True)[0]["url"] == "/admin/fleet/alerts?tab=insights"
