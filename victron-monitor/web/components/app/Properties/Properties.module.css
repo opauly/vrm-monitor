@@ -58,6 +58,8 @@
   color: var(--paper);
 }
 .cards {
+  /* It is a <section>, and the site-wide `section` rule adds 96px above and below: that was the big gap around these cards. */
+  padding: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: 12px;
