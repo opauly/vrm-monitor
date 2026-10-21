@@ -67,6 +67,29 @@
   color: var(--mute);
 }
 .loading {
-  font-size: 14px;
-  color: var(--mute);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--paper-dim);
+}
+.spinner {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 2px solid color-mix(in srgb, var(--victron-glow) 30%, transparent);
+  border-top-color: var(--victron-glow);
+  border-radius: 50%;
+  animation: summarySpin 0.8s linear infinite;
+}
+@keyframes summarySpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
 }

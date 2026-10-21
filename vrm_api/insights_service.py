@@ -321,4 +321,19 @@ def generate_daily(*, now: datetime | None = None, mode: str | None = None) -> d
             except Exception:  # noqa: BLE001
                 counts["failed"] += 1
                 logger.exception("insights: could not summarise fleet %s", customer_id)
+    # One summary per property too, so the first click on a property chip shows text at once instead of waiting for the model.
+    # (The same keys the fleet pages ask for: the property's own customer, and the property.) A database without properties has none.
+    try:
+        properties = _t("properties").select("id, customer_id").execute().data or []
+    except Exception:  # noqa: BLE001
+        properties = []
+    for prop in properties:
+        for lang in LANGS:
+            try:
+                if _active_sites(customer_id=prop["customer_id"], property_id=prop["id"]):
+                    fleet_summary(prop["customer_id"], lang, now=now, force=True, mode=mode, prefetched=by_site, property_id=prop["id"])
+                    counts["fleets"] += 1
+            except Exception:  # noqa: BLE001
+                counts["failed"] += 1
+                logger.exception("insights: could not summarise property %s", prop.get("id"))
     return counts
