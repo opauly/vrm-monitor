@@ -229,6 +229,17 @@ def deliver_pending(*, now: datetime | None = None, mode: str | None = None, pus
     email_active = mode == "on" or (mode == "test" and bool(_EMAIL_RE.match(test_to)))
     if not email_active and not push_on:
         return summary
+    forced = forced_customer_ids()
+
+    def email_on(customer_id: str) -> bool:
+        """Is email going out for this customer? In TEST mode everything is redirected to the admin's inbox, which is meant for previewing
+        the admin's OWN fleet: another customer's alerts (a beta tester's, a subscriber's) must not pile into it. They are skipped by email
+        (phones are unaffected) unless ALERTS_EMAIL_TEST_ALL=on, which previews every customer."""
+        if not email_active:
+            return False
+        if mode == "test" and os.environ.get("ALERTS_EMAIL_TEST_ALL", "").strip().lower() != "on":
+            return customer_id in forced
+        return True
 
     now = now or datetime.now(timezone.utc)
     site_url = site_url if site_url is not None else os.environ.get("SITE_URL")
@@ -268,11 +279,11 @@ def deliver_pending(*, now: datetime | None = None, mode: str | None = None, pus
         return prop_of.get(a.get("site_id") or "")
 
     def extra(a: dict) -> list[str]:
-        return prop_emails.get(prop(a) or "", [])
+        return prop_emails.get(prop(a) or "", []) if email_on(a["customer_id"]) else []
 
     def wanted(a: dict) -> bool:
         """Does ANY active channel's setting want this alert?"""
-        return (email_active and pref(a, "email")) or (push_on and pref(a, "push")) or bool(extra(a))
+        return (email_on(a["customer_id"]) and pref(a, "email")) or (push_on and pref(a, "push")) or bool(extra(a))
 
     keep_opens: list[dict] = []
     drop: list[dict] = []
@@ -307,7 +318,6 @@ def deliver_pending(*, now: datetime | None = None, mode: str | None = None, pus
     prop_names = alert_routing.property_names(sorted(set(prop_of.values())))
     customers = {c["id"]: c for c in (_t("customers").select("id, name, contact_email, auth_email, ui_language")
                                       .in_("id", list(by_customer)).execute().data or [])}
-    forced = forced_customer_ids()
 
     for customer_id, groups in by_customer.items():
         customer = customers.get(customer_id) or {}
@@ -316,7 +326,7 @@ def deliver_pending(*, now: datetime | None = None, mode: str | None = None, pus
 
         # Where can this customer be reached right now?
         email_to = None
-        if email_active:
+        if email_on(customer_id):
             if mode == "test":
                 email_to = test_to                       # test mode never needs a real address on file
             elif recipient_ok:

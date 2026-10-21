@@ -320,6 +320,15 @@ def deliver(*, now: datetime | None = None, mode: str | None = None, push: bool 
     email_active = mode == "on" or (mode == "test" and bool(_EMAIL_RE.match(test_to)))
     if not email_active and not push_on:
         return summary
+    forced = forced_customer_ids()
+
+    def email_on(customer_id: str) -> bool:
+        """As for alerts: TEST mode redirects only the admin's own fleet to the admin's inbox, unless ALERTS_EMAIL_TEST_ALL=on."""
+        if not email_active:
+            return False
+        if mode == "test" and os.environ.get("ALERTS_EMAIL_TEST_ALL", "").strip().lower() != "on":
+            return customer_id in forced
+        return True
 
     now = now or datetime.now(timezone.utc)
     site_url = site_url if site_url is not None else os.environ.get("SITE_URL")
@@ -344,7 +353,7 @@ def deliver(*, now: datetime | None = None, mode: str | None = None, push: bool 
         return (n.get("detail") or {}).get("property_id") or prop_of.get(n.get("site_id") or "")
 
     def extra(n: dict) -> list[str]:
-        return prop_emails.get(prop(n) or "", []) if prefs.get((n["customer_id"], n["kind"]), {}).get("enabled", False) else []
+        return prop_emails.get(prop(n) or "", []) if email_on(n["customer_id"]) and prefs.get((n["customer_id"], n["kind"]), {}).get("enabled", False) else []
 
     stale = [n for n in pending if now - (_parse(n.get("created_at")) or now) > MAX_AGE or not (pref(n, "email") or pref(n, "push") or extra(n))]
     if stale:
@@ -362,7 +371,6 @@ def deliver(*, now: datetime | None = None, mode: str | None = None, push: bool 
     prop_names = alert_routing.property_names(sorted({prop(n) for n in live} - {None}))
     customers = {c["id"]: c for c in (_t("customers").select("id, name, contact_email, auth_email, ui_language")
                                       .in_("id", sorted({n["customer_id"] for n in live})).execute().data or [])}
-    forced = forced_customer_ids()
 
     by_customer: dict[str, list[dict]] = {}
     for n in live:
@@ -372,7 +380,7 @@ def deliver(*, now: datetime | None = None, mode: str | None = None, push: bool 
         customer = customers.get(customer_id) or {}
         recipient = customer.get("contact_email") or customer.get("auth_email")
         recipient_ok = bool(recipient and _EMAIL_RE.match(recipient))
-        email_to = (test_to if mode == "test" else recipient) if email_active and (mode == "test" or recipient_ok) else None
+        email_to = (test_to if mode == "test" else recipient) if email_on(customer_id) and (mode == "test" or recipient_ok) else None
         devices: list[dict] = []
         if push_on:
             try:

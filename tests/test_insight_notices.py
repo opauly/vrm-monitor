@@ -420,3 +420,22 @@ def test_the_summary_push_opens_the_insights_list():
     cards = [({"id": i}, {"push_title": "Storm", "site": "El Encino", "body": "b", "path": "/x", "severity": "warning"}) for i in range(4)]
     assert svc._push_payloads(cards, email_i18n.get("en"), admin=False)[0]["url"] == "/app/alerts?tab=insights"
     assert svc._push_payloads(cards, email_i18n.get("en"), admin=True)[0]["url"] == "/admin/fleet/alerts?tab=insights"
+
+
+def test_in_test_mode_another_customers_insights_are_not_emailed_to_the_admin(monkeypatch):
+    monkeypatch.setenv("ALERTS_EMAIL_TEST_TO", "me@test.com")
+    monkeypatch.delenv("ALERTS_EMAIL_TEST_ALL", raising=False)
+    db = DB(insight_notices=[notice()], sites=[{"site_id": "s1", "display_name": "X"}], property_recipients=[], customers=[{"id": "c1", "contact_email": "a@b.co", "auth_email": None, "ui_language": "en"}])
+    monkeypatch.setattr(svc, "_t", db)
+    monkeypatch.setattr(svc.alert_routing, "_t", db)
+    monkeypatch.setattr(svc.alerts_push, "destinations", lambda **kw: [])
+    monkeypatch.setattr(svc, "load_preferences", lambda ids: {("c1", "solar_day"): {"enabled": True, "email": True, "push": True}})
+    monkeypatch.setattr(svc, "forced_customer_ids", lambda: set())
+    mails = []
+    monkeypatch.setattr(svc, "mailer_send", lambda to, subject, html: mails.append(to))
+    svc.deliver(now=NOW, mode="test", push=False, site_url="https://x")
+    assert mails == []
+    monkeypatch.setenv("ALERTS_EMAIL_TEST_ALL", "on")
+    db.tables["insight_notices"].rows[0]["notified_at"] = None
+    svc.deliver(now=NOW, mode="test", push=False, site_url="https://x")
+    assert mails == ["me@test.com"]

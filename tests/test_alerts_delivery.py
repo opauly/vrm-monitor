@@ -210,6 +210,7 @@ def test_contact_email_wins_over_login_email_and_falls_back(env):
 def test_test_mode_redirects_and_labels(env, monkeypatch):
     store, sent = env
     monkeypatch.setenv("ALERTS_EMAIL_TEST_TO", "me@example.com")
+    monkeypatch.setenv("ALERTS_EMAIL_TEST_ALL", "on")
     alert(store)
     run("test")
     assert sent[0]["to"] == "me@example.com" and sent[0]["subject"].startswith("[TEST → owner@example.com] ")
@@ -456,6 +457,7 @@ def test_test_mode_reaches_the_test_address_even_without_a_customer_email(env, m
     store, sent = env
     store["customers"][0].update(contact_email=None, auth_email=None)
     monkeypatch.setenv("ALERTS_EMAIL_TEST_TO", "me@example.com")
+    monkeypatch.setenv("ALERTS_EMAIL_TEST_ALL", "on")
     alert(store)
     run("test")
     assert sent[0]["to"] == "me@example.com" and sent[0]["subject"].startswith("[TEST → no email on file] ")
@@ -591,6 +593,7 @@ def test_a_property_recipient_only_hears_about_that_propertys_sites(env):
 def test_a_property_recipient_in_test_mode_is_redirected_and_labelled(env, monkeypatch):
     store, sent = env
     monkeypatch.setenv("ALERTS_EMAIL_TEST_TO", "me@test.com")
+    monkeypatch.setenv("ALERTS_EMAIL_TEST_ALL", "on")
     in_property(store, emails=["owner@villa.com"])
     alert(store)
     run(mode="test")
@@ -639,3 +642,30 @@ def test_a_property_recipient_is_told_why_they_get_it_and_has_no_settings_link(e
     by = {m["to"]: m["html"] for m in sent}
     assert "added your address as a recipient for Villa Azul" in by["owner@villa.com"] and "Pauly &amp; Co" in by["owner@villa.com"]
     assert "/app/alerts" not in by["owner@villa.com"] and "/app/alerts?tab=notifications" in by["owner@example.com"]
+
+
+# ── test mode is for the admin's own fleet ───────────────────────────────
+def test_in_test_mode_another_customers_alerts_do_not_land_in_the_admin_inbox(env, monkeypatch):
+    store, sent = env
+    monkeypatch.setenv("ALERTS_EMAIL_TEST_TO", "me@test.com")
+    row = alert(store)                                                # c1 is not a fleet account
+    out = run(mode="test")
+    assert sent == [] and out["sent"] == 0 and row["notified_at"]       # handled, not held for later
+
+
+def test_in_test_mode_the_admins_own_fleet_is_still_redirected_and_labelled(env, monkeypatch):
+    store, sent = env
+    monkeypatch.setenv("ALERTS_EMAIL_TEST_TO", "me@test.com")
+    monkeypatch.setenv("ALERTS_FORCE_CUSTOMER_IDS", "c1")
+    alert(store)
+    run(mode="test")
+    assert [(m["to"], m["subject"].split("]")[0]) for m in sent] == [("me@test.com", "[TEST → owner@example.com")]
+
+
+def test_a_phone_still_gets_another_customers_alert_in_test_mode(env, pushes, monkeypatch):
+    store, sent = env
+    monkeypatch.setenv("ALERTS_EMAIL_TEST_TO", "me@test.com")
+    device(store)
+    alert(store)
+    out = ad.deliver_pending(now=NOW, mode="test", push=True, site_url="https://vrm.example.com")
+    assert sent == [] and out["pushed"] == 1
