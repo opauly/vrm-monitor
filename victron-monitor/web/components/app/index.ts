@@ -15,6 +15,7 @@ export { PendingSubscriptionUpsell } from './PendingSubscriptionUpsell/PendingSu
 export { FeedbackWidget } from './FeedbackWidget/FeedbackWidget';
 export type { FeedbackWidgetProps, FeedbackWidgetSite } from './FeedbackWidget/FeedbackWidget';
 
+export { SectionTabs } from './SectionTabs/SectionTabs';
 export { PushPanel } from './PushPanel/PushPanel';
 export { ScoreBreakdown, AggregateBreakdown } from './ScoreBreakdown/ScoreBreakdown';
 

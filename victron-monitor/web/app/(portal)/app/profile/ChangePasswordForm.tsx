@@ -14,8 +14,8 @@ const INITIAL_STATE: PasswordFormState = {};
 // Action re-authenticating with `current_password`
 // (`./actions.ts:changePasswordAction`); this form's job is just to collect
 // the three values and show whatever that action reports back.
-export function ChangePasswordForm({ lang }: { lang: Lang }) {
-  const [state, formAction, pending] = useActionState(changePasswordAction, INITIAL_STATE);
+export function ChangePasswordForm({ lang, action }: { lang: Lang; action?: (prev: PasswordFormState, formData: FormData) => Promise<PasswordFormState> }) {
+  const [state, formAction, pending] = useActionState(action ?? changePasswordAction, INITIAL_STATE);
 
   return (
     <form action={formAction} className={styles.form} key={state.success ? 'reset' : 'form'}>

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { AppShell, type AppNavItem } from '@/components/app';
 import { requireAdmin } from '@/lib/server/auth';
 import { t } from '@/lib/i18n/strings';
+import { AdminProfile } from './AdminProfile';
 
 // First statement of the layout — see the matching comment in
 // app/(portal)/app/layout.tsx; same reasoning, admin side.
@@ -40,22 +41,22 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   // dashboard (`/admin/fleet`) — linking a new installation is still
   // `/admin/vrm-fleet`, reached via a "Manage installations" link on that
   // dashboard rather than its own top-level tab.
+  // 2026-11 (Oscar: "organize and describe each functionality better"): one menu entry per job, and the pages that are steps of the
+  // same job are tabs under it (`SectionTabs`) — Reports also holds Import CSV, Beta holds Feedback, Usage holds Activity and
+  // Analytics. `match` keeps the entry lit on the other tabs.
   const navItems: AppNavItem[] = [
-    { href: '/admin/customers', label: t(lang, 'admin_nav_customers') },
-    { href: '/admin/beta', label: t(lang, 'admin_nav_beta') },
-    { href: '/admin/feedback', label: t(lang, 'admin_nav_feedback') },
-    { href: '/admin/sites', label: t(lang, 'admin_nav_sites') },
-    { href: '/admin/upload', label: t(lang, 'admin_nav_upload') },
-    { href: '/admin/reports', label: t(lang, 'admin_nav_reports') },
-    { href: '/admin/activity', label: t(lang, 'admin_nav_activity') },
-    { href: '/admin/analytics', label: t(lang, 'admin_nav_analytics') },
-    { href: '/admin/fleet', label: t(lang, 'admin_nav_fleet'), personal: true },
+    { href: '/admin/fleet', label: t(lang, 'admin_nav_fleet'), personal: true, match: ['/admin/vrm-fleet'] },
     { href: '/admin/fleet/alerts', label: t(lang, 'admin_nav_alerts'), personal: true, child: true },
+    { href: '/admin/customers', label: t(lang, 'admin_nav_customers') },
+    { href: '/admin/sites', label: t(lang, 'admin_nav_sites') },
+    { href: '/admin/reports', label: t(lang, 'admin_nav_reports'), match: ['/admin/upload'] },
+    { href: '/admin/beta', label: t(lang, 'admin_nav_beta'), match: ['/admin/feedback'] },
+    { href: '/admin/activity', label: t(lang, 'admin_nav_usage'), match: ['/admin/analytics'] },
     { href: '/admin/help', label: t(lang, 'admin_nav_help') },
   ];
 
   return (
-    <AppShell role="admin" email={session.email} navItems={navItems} lang={lang}>
+    <AppShell role="admin" email={session.email} navItems={navItems} lang={lang} profile={<AdminProfile email={session.email} lang={lang} />}>
       {children}
     </AppShell>
   );

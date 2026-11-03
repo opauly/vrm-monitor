@@ -3,6 +3,7 @@ import { AppShell, type AppNavItem } from '@/components/app';
 import { requireCustomerAllowPending } from '@/lib/server/auth';
 import { countOpenAlerts, getCustomer, listSites } from '@/lib/server/db';
 import { t } from '@/lib/i18n/strings';
+import { ProfileModalContent } from './profile/ProfileModalContent';
 
 // First statement of the layout, per PLAN_PHASE14.md §1.2 rule 4 —
 // this is what actually keeps a signed-out visitor or a wrong-role (admin)
@@ -41,28 +42,22 @@ export default async function PortalLayout({ children }: { children: ReactNode }
   const badge = customer.billing_status === 'beta' ? t(session.uiLanguage, 'nav_beta_badge') : undefined;
   const feedbackSites = sites.map((s) => ({ site_id: s.site_id, display_name: s.display_name }));
 
+  // One entry per job: Reports also holds Import CSV and Branding (tabs under it); Billing and Profile live in the avatar menu.
   const navItems: AppNavItem[] = [
-    { href: '/app', label: t(session.uiLanguage, 'nav_reports') },
-    { href: '/app/upload', label: t(session.uiLanguage, 'nav_upload') },
+    { href: '/app', label: t(session.uiLanguage, 'nav_reports'), exact: true, match: ['/app/upload', '/app/branding'] },
     { href: '/app/sites', label: t(session.uiLanguage, 'nav_my_sites') },
-    // Shown to every customer regardless of tier — navigation-level gating
-    // is UX, never the control (AppShellProps' own comment); the page
-    // itself (requireCustomerAllowPending() + getDashboardAccess()) decides
-    // real content vs. one of two upsells (pending-subscription vs.
-    // tier), same as /app/branding below.
+    // Shown to every customer regardless of tier — navigation-level gating is UX, never the control; the page itself
+    // (requireCustomerAllowPending() + getDashboardAccess()) decides real content vs. one of two upsells.
     { href: '/app/dashboard', label: t(session.uiLanguage, 'nav_dashboard') },
-    // Open-alert count in a pill. Shown to every tier like the dashboard tab —
-    // the page decides real content vs. upsell, and a customer without live
-    // monitoring never has open alerts (the sweep doesn't raise them).
+    // Open-alert count in a pill; a customer without live monitoring never has open alerts (the sweep doesn't raise them).
     { href: '/app/alerts', label: t(session.uiLanguage, 'nav_alerts'), count: openAlerts || undefined },
-    { href: '/app/branding', label: t(session.uiLanguage, 'nav_branding') },
-    { href: '/app/billing', label: t(session.uiLanguage, 'nav_billing') },
-    { href: '/app/profile', label: t(session.uiLanguage, 'nav_profile') },
     { href: '/app/help', label: t(session.uiLanguage, 'nav_help') },
   ];
 
   return (
-    <AppShell role="customer" email={session.email} navItems={navItems} lang={session.uiLanguage} badge={badge} feedbackSites={feedbackSites}>
+    <AppShell role="customer" email={session.email} navItems={navItems} lang={session.uiLanguage} badge={badge} feedbackSites={feedbackSites}
+      accountItems={[{ href: '/app/billing', label: t(session.uiLanguage, 'nav_billing') }]}
+      profile={<ProfileModalContent customer={customer} email={session.email} siteCount={sites.length} lang={session.uiLanguage} />}>
       {children}
     </AppShell>
   );

@@ -1,0 +1,27 @@
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+.tab {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  color: var(--paper-dim);
+  text-decoration: none;
+  padding: 9px 16px;
+  margin-bottom: -1px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.tab:hover {
+  color: var(--paper);
+}
+.tabActive {
+  color: var(--paper);
+  background: var(--panel);
+  border-color: var(--line);
+}

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { SectionTabs } from '@/components/app';
 import { requireAdmin } from '@/lib/server/auth';
 import { listBetaGrants } from '@/lib/server/db/admin';
 import { t } from '@/lib/i18n/strings';
@@ -19,6 +20,7 @@ export default async function AdminBetaPage() {
   return (
     <div>
       <h1>{t(lang, 'admin_beta_title')}</h1>
+      <SectionTabs section="admin-beta" lang={lang} />
       <p className="mono page-desc">{t(lang, 'admin_beta_desc')}</p>
       <BetaManager grants={grants} lang={lang} />
     </div>

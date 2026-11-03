@@ -4,7 +4,7 @@ import { getBranding, getBrandingAccess, getCustomer } from '@/lib/server/db';
 import { createBrandingLogoUrl } from '@/lib/server/storage';
 import { t } from '@/lib/i18n/strings';
 import { Panel, Button } from '@/components/ui';
-import { PendingSubscriptionUpsell } from '@/components/app';
+import { PendingSubscriptionUpsell, SectionTabs } from '@/components/app';
 import { BrandingForm } from './BrandingForm';
 import styles from './branding.module.css';
 
@@ -33,6 +33,7 @@ export default async function BrandingPage() {
     return (
       <div>
         <h1>{t(lang, 'branding_title')}</h1>
+        <SectionTabs section="app-reports" lang={lang} />
         <PendingSubscriptionUpsell lang={lang} />
       </div>
     );
@@ -50,6 +51,7 @@ export default async function BrandingPage() {
       return (
         <div>
           <h1>{t(lang, 'branding_title')}</h1>
+          <SectionTabs section="app-reports" lang={lang} />
           <Panel className={styles.upsell}>
             <h2>{t(lang, 'branding_owner_unavailable_title')}</h2>
             <p>{t(lang, 'branding_owner_unavailable_body')}</p>
@@ -60,6 +62,7 @@ export default async function BrandingPage() {
     return (
       <div>
         <h1>{t(lang, 'branding_title')}</h1>
+        <SectionTabs section="app-reports" lang={lang} />
         <Panel className={styles.upsell}>
           <h2>{t(lang, 'branding_upsell_title')}</h2>
           <p>{t(lang, 'branding_upsell_body')}</p>
@@ -75,6 +78,7 @@ export default async function BrandingPage() {
   return (
     <div>
       <h1>{t(lang, 'branding_title')}</h1>
+      <SectionTabs section="app-reports" lang={lang} />
       <p className={styles.intro}>{t(lang, 'branding_intro')}</p>
       <BrandingForm branding={branding} existingLogoUrl={existingLogoUrl} lang={lang} />
     </div>

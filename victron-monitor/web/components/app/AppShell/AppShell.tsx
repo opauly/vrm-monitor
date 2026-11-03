@@ -1,10 +1,9 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { AccountMenu } from '@/components/ui';
+import { AccountMenu, type AccountMenuLink } from '@/components/ui';
 import { t, type Lang } from '@/lib/i18n/strings';
 import { NavLink } from './NavLink';
-import { AdminLangSwitcher } from './AdminLangSwitcher';
 import { MobileMenu } from './MobileMenu';
 // Relative import, not `@/components/app` (the barrel) — that barrel also
 // exports AppShell itself, so importing it FROM here would be a circular
@@ -32,6 +31,10 @@ export type AppNavItem = {
   child?: boolean;
   /** A small count pill after the label (e.g. open alerts); omitted or 0 shows nothing. */
   count?: number;
+  /** The item lights up only on exactly `href` (a home route that every other page sits under). */
+  exact?: boolean;
+  /** Other routes that belong to this item, so it stays lit on them (a section's other tabs). */
+  match?: string[];
 };
 
 export type AppShellProps = {
@@ -60,6 +63,10 @@ export type AppShellProps = {
    * 'admin'` (the widget never renders there at all) or a brand-new
    * customer with no sites yet. */
   feedbackSites?: FeedbackWidgetSite[];
+  /** The Profile window the avatar menu opens (server-rendered by the layout, which knows whose it is). */
+  profile?: ReactNode;
+  /** Extra links in the avatar menu, above Log out (Billing). */
+  accountItems?: AccountMenuLink[];
   children: ReactNode;
 };
 
@@ -70,7 +77,7 @@ export type AppShellProps = {
 // itself — the account corner's avatar/dropdown interaction lives inside
 // `AccountMenu`, its own small Client Component, same split `NavAuthArea`
 // already uses on the marketing nav for the identical reason.
-export function AppShell({ role, email, navItems, lang, badge, feedbackSites, children }: AppShellProps) {
+export function AppShell({ role, email, navItems, lang, badge, feedbackSites, profile, accountItems, children }: AppShellProps) {
   // Two groups, not one — see `AppNavItem.personal`'s own doc comment.
   // `/app`'s customer nav never sets `personal` on anything, so
   // `personalItems` is always empty there and this renders exactly as
@@ -93,7 +100,7 @@ export function AppShell({ role, email, navItems, lang, badge, feedbackSites, ch
         <MobileMenu label={t(lang, 'app_menu_toggle')}>
           <nav className={styles.nav}>
             {mainItems.map((item) => (
-              <NavLink key={item.href} href={item.href} className={styles.navLink} activeClassName={styles.navLinkActive}>
+              <NavLink key={item.href} href={item.href} exact={item.exact} match={item.match} className={styles.navLink} activeClassName={styles.navLinkActive}>
                 {item.label}
                 {item.count ? <span className={styles.navCount}>{item.count > 99 ? '99+' : item.count}</span> : null}
               </NavLink>
@@ -104,12 +111,12 @@ export function AppShell({ role, email, navItems, lang, badge, feedbackSites, ch
               <span className={styles.divider} aria-hidden="true" />
               {personalItems.map((item) =>
                 item.child ? (
-                  <NavLink key={item.href} href={item.href} className={styles.navLinkChild} activeClassName={styles.navLinkChildActive}>
+                  <NavLink key={item.href} href={item.href} exact={item.exact} match={item.match} className={styles.navLinkChild} activeClassName={styles.navLinkChildActive}>
                     <span className={styles.childArrow} aria-hidden="true">↳</span>
                     {item.label}
                   </NavLink>
                 ) : (
-                  <NavLink key={item.href} href={item.href} className={styles.navLinkPersonal} activeClassName={styles.navLinkPersonalActive}>
+                  <NavLink key={item.href} href={item.href} exact={item.exact} match={item.match} className={styles.navLinkPersonal} activeClassName={styles.navLinkPersonalActive}>
                     {item.label}
                   </NavLink>
                 ),
@@ -117,9 +124,12 @@ export function AppShell({ role, email, navItems, lang, badge, feedbackSites, ch
             </nav>
           )}
           <div className={styles.account}>
-            {role === 'admin' && <AdminLangSwitcher lang={lang} />}
             {role === 'customer' && <FeedbackWidget lang={lang} sites={feedbackSites ?? []} />}
-            <AccountMenu email={email} />
+            <AccountMenu
+              email={email}
+              items={accountItems}
+              profile={profile ? { label: t(lang, 'nav_profile'), title: t(lang, 'profile_title'), closeLabel: t(lang, 'profile_modal_close'), content: profile } : undefined}
+            />
           </div>
         </MobileMenu>
       </header>

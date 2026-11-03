@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { SectionTabs } from '@/components/app';
 import { requireAdmin } from '@/lib/server/auth';
 import { listAllSites, listCustomers } from '@/lib/server/db/admin';
 import { listAllProperties } from '@/lib/server/db';
@@ -30,10 +31,8 @@ export default async function AdminReportsPage() {
   return (
     <div>
       <h1>{t(lang, 'admin_reports_title')}</h1>
-      <p className="mono page-desc">
-        {t(lang, 'admin_reports_desc_1')} <code>vrm</code> {t(lang, 'admin_reports_desc_2')} <code>monitoring</code>{' '}
-        {t(lang, 'admin_reports_desc_3')}
-      </p>
+      <SectionTabs section="admin-reports" lang={lang} />
+      <p className="mono page-desc">{t(lang, 'admin_reports_blurb')}</p>
       <AdminReportsManager vrmSites={vrmSites} customers={customers} properties={properties} lang={lang} />
     </div>
   );

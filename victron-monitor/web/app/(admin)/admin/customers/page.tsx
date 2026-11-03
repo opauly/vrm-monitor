@@ -21,10 +21,7 @@ export default async function AdminCustomersPage() {
   return (
     <div>
       <h1>{t(lang, 'admin_customers_title')}</h1>
-      <p className="mono page-desc">
-        {t(lang, 'admin_customers_desc_1')} <code>clients</code> {t(lang, 'admin_customers_desc_2')} <code>monitoring</code>{' '}
-        {t(lang, 'admin_customers_desc_3')}
-      </p>
+      <p className="mono page-desc">{t(lang, 'admin_customers_blurb')}</p>
       <CustomersManager customers={customers} lang={lang} />
     </div>
   );

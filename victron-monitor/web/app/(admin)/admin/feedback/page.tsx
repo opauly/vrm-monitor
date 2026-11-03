@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { SectionTabs } from '@/components/app';
 import { requireAdmin } from '@/lib/server/auth';
 import { listFeedback, getAppSetting } from '@/lib/server/db/admin';
 import { t } from '@/lib/i18n/strings';
@@ -20,6 +21,7 @@ export default async function AdminFeedbackPage() {
   return (
     <div>
       <h1>{t(lang, 'admin_feedback_title')}</h1>
+      <SectionTabs section="admin-beta" lang={lang} />
       <p className="mono page-desc">{t(lang, 'admin_feedback_desc')}</p>
       <FeedbackManager feedback={feedback} notifyEmail={notifyEmail ?? ''} lang={lang} />
     </div>

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { requireCustomerAllowPending } from '@/lib/server/auth';
 import { canAddSite, listIngestions, listSites } from '@/lib/server/db';
 import { t } from '@/lib/i18n/strings';
-import { PendingSubscriptionUpsell } from '@/components/app';
+import { PendingSubscriptionUpsell, SectionTabs } from '@/components/app';
 import { UploadManager } from './UploadManager';
 
 export const metadata: Metadata = {
@@ -22,6 +22,7 @@ export default async function UploadPage() {
     return (
       <div>
         <h1>{t(session.uiLanguage, 'upload_title')}</h1>
+        <SectionTabs section="app-reports" lang={session.uiLanguage} />
         <PendingSubscriptionUpsell lang={session.uiLanguage} />
       </div>
     );
@@ -36,6 +37,7 @@ export default async function UploadPage() {
   return (
     <div>
       <h1>{t(session.uiLanguage, 'upload_title')}</h1>
+      <SectionTabs section="app-reports" lang={session.uiLanguage} />
       <p>{t(session.uiLanguage, 'upload_intro')}</p>
       <UploadManager sites={sites} lang={session.uiLanguage} canAdd={canAdd} ingestions={ingestions} />
     </div>

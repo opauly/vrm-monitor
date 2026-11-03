@@ -81,3 +81,58 @@
   background: var(--panel-2);
   color: var(--paper);
 }
+
+/* The Profile window. */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow-y: auto;
+  padding: 6vh 16px;
+  background: rgba(5, 12, 22, 0.72);
+}
+.dialog {
+  width: min(680px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.7);
+}
+.dialogHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.dialogTitle {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--victron-glow);
+}
+.dialogClose {
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--paper-dim);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dialogClose:hover,
+.dialogClose:focus-visible {
+  color: var(--paper);
+  border-color: var(--line);
+  outline: none;
+}
+.dialogBody {
+  padding: 8px 20px 24px;
+}

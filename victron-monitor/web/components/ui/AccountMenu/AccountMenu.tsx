@@ -11,15 +11,36 @@
 // the app itself there's usually nothing to add (Profile/Help are already
 // real nav tabs there), while the marketing nav's version links back INTO
 // the app.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { signOutAction } from '@/lib/server/auth-actions';
 import styles from './AccountMenu.module.css';
 
 export type AccountMenuLink = { href: string; label: string };
 
-export function AccountMenu({ email, items = [] }: { email: string; items?: AccountMenuLink[] }) {
+/** The Profile window: the menu's "Profile" entry opens `content` (server-rendered by the caller) in a dialog over the page. */
+export type AccountProfile = { label: string; title: string; closeLabel: string; content: ReactNode };
+
+export function AccountMenu({ email, items = [], profile }: { email: string; items?: AccountMenuLink[]; profile?: AccountProfile }) {
   const [open, setOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeRef.current?.focus();
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setProfileOpen(false);
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previous;
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [profileOpen]);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -57,6 +78,11 @@ export function AccountMenu({ email, items = [] }: { email: string; items?: Acco
       {open && (
         <div className={styles.menu} role="menu">
           <div className={styles.menuEmail}>{email}</div>
+          {profile && (
+            <button type="button" className={styles.menuItemButton} role="menuitem" onClick={() => { setOpen(false); setProfileOpen(true); }}>
+              {profile.label}
+            </button>
+          )}
           {items.map((item) => (
             <Link key={item.href} href={item.href} className={styles.menuItem} role="menuitem" onClick={() => setOpen(false)}>
               {item.label}
@@ -69,6 +95,21 @@ export function AccountMenu({ email, items = [] }: { email: string; items?: Acco
           </form>
         </div>
       )}
+      {profile && profileOpen &&
+        createPortal(
+          <div className={styles.backdrop} onMouseDown={(e) => { if (e.target === e.currentTarget) setProfileOpen(false); }}>
+            <div className={styles.dialog} role="dialog" aria-modal="true" aria-label={profile.title}>
+              <div className={styles.dialogHead}>
+                <span className={styles.dialogTitle}>{profile.title}</span>
+                <button ref={closeRef} type="button" className={styles.dialogClose} aria-label={profile.closeLabel} onClick={() => setProfileOpen(false)}>
+                  ×
+                </button>
+              </div>
+              <div className={styles.dialogBody}>{profile.content}</div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

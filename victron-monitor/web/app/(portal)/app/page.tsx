@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { requireCustomerAllowPending } from '@/lib/server/auth';
 import { getBillingStatus, getVrmLinkStatus, listProperties, listReportRuns, listSites } from '@/lib/server/db';
 import { t } from '@/lib/i18n/strings';
-import { BillingBanners, PendingSubscriptionUpsell, VrmConnectionBanner } from '@/components/app';
+import { BillingBanners, PendingSubscriptionUpsell, VrmConnectionBanner, SectionTabs } from '@/components/app';
 import { ReportHistory } from './ReportHistory';
 import { ReportManager } from './ReportManager';
 
@@ -32,6 +32,7 @@ export default async function ReportsPage() {
     return (
       <div>
         <h1>{t(session.uiLanguage, 'reports_title')}</h1>
+        <SectionTabs section="app-reports" lang={session.uiLanguage} />
         <PendingSubscriptionUpsell lang={session.uiLanguage} />
       </div>
     );
@@ -57,6 +58,7 @@ export default async function ReportsPage() {
   return (
     <div>
       <h1>{t(session.uiLanguage, 'reports_title')}</h1>
+      <SectionTabs section="app-reports" lang={session.uiLanguage} />
       <p>{t(session.uiLanguage, 'reports_intro')}</p>
       <VrmConnectionBanner status={vrmStatus} lang={session.uiLanguage} />
       <BillingBanners status={billingStatus} lang={session.uiLanguage} />

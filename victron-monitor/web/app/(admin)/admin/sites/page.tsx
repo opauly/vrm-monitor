@@ -35,9 +35,7 @@ export default async function AdminSitesPage() {
   return (
     <div>
       <h1>{t(lang, 'admin_sites_title')}</h1>
-      <p className="mono page-desc">
-        {t(lang, 'admin_sites_desc_1')} <code>vrm</code> {t(lang, 'admin_sites_desc_2')}
-      </p>
+      <p className="mono page-desc">{t(lang, 'admin_sites_blurb')}</p>
       <AdminSitesWorkspace
         sites={sites}
         customers={customers}

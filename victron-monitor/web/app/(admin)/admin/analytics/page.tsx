@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { SectionTabs } from '@/components/app';
 import { requireAdmin } from '@/lib/server/auth';
 import { Panel } from '@/components/ui';
 import { t } from '@/lib/i18n/strings';
@@ -36,6 +37,7 @@ export default async function AdminAnalyticsPage() {
   return (
     <div>
       <h1>{t(lang, 'admin_analytics_title')}</h1>
+      <SectionTabs section="admin-usage" lang={lang} />
       <p className="mono page-desc">{t(lang, 'admin_analytics_desc')}</p>
 
       <div className={styles.eventList}>

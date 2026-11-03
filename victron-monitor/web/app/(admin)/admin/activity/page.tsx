@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { SectionTabs } from '@/components/app';
 import { requireAdmin } from '@/lib/server/auth';
 import { listAllIngestions, listAllReportRuns, listAllSites, listBillingEvents, listCustomers, listRecentSignups } from '@/lib/server/db/admin';
 import { t } from '@/lib/i18n/strings';
@@ -42,11 +43,8 @@ export default async function AdminActivityPage() {
   return (
     <div>
       <h1>{t(lang, 'admin_activity_title')}</h1>
-      <p className="mono page-desc">
-        {t(lang, 'admin_activity_desc_1')}
-        <code>vrm.ingestion_log</code>
-        {t(lang, 'admin_activity_desc_2')}
-      </p>
+      <SectionTabs section="admin-usage" lang={lang} />
+      <p className="mono page-desc">{t(lang, 'admin_activity_blurb')}</p>
       <ActivityManager
         customers={customers}
         customerIdBySite={Object.fromEntries(customerIdBySite)}

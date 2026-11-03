@@ -68,3 +68,18 @@
   font-size: 14px;
   margin-bottom: 14px;
 }
+
+/* Headings inside the Profile window (the page uses <h2> in cards; here the dialog title is the page title). */
+.modalHeading {
+  margin: 18px 0 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--victron-glow);
+}
+.modalMore {
+  margin: 8px 0 0;
+  font-size: 13px;
+}

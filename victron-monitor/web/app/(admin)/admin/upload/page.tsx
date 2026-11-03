@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { SectionTabs } from '@/components/app';
 import { requireAdmin } from '@/lib/server/auth';
 import { listCustomers } from '@/lib/server/db/admin';
 import { t } from '@/lib/i18n/strings';
@@ -26,7 +27,8 @@ export default async function AdminUploadPage() {
   return (
     <div>
       <h1>{t(lang, 'admin_upload_title')}</h1>
-      <p className="mono page-desc">{t(lang, 'admin_upload_desc')}</p>
+      <SectionTabs section="admin-reports" lang={lang} />
+      <p className="mono page-desc">{t(lang, 'admin_upload_blurb')}</p>
       <AdminUploadManager customers={customers} lang={lang} />
     </div>
   );
