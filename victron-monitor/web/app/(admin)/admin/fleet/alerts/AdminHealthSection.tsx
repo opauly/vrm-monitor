@@ -28,8 +28,8 @@ function AdminAlertCard({ alert, lang, resolved }: { alert: AdminAlert; lang: La
 export async function AdminHealthSection({ lang }: { lang: Lang }) {
   const [open, recent] = await Promise.all([listOpenAdminAlerts(), listRecentResolvedAdminAlerts()]);
   return (
-    <section>
-      <h2 className={styles.sectionLabel}>{t(lang, 'admin_alerts_title')}</h2>
+    <div>
+      <h2 className={styles.pageHeading}>{t(lang, 'admin_alerts_title')}</h2>
       <p className={styles.intro}>{t(lang, 'admin_alerts_intro')}</p>
       {open.length === 0 ? (
         <p className={styles.empty}>{t(lang, 'admin_alerts_ok')}</p>
@@ -50,6 +50,6 @@ export async function AdminHealthSection({ lang }: { lang: Lang }) {
           </div>
         </>
       )}
-    </section>
+    </div>
   );
 }

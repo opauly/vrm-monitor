@@ -3,7 +3,22 @@
 .intro {
   color: var(--paper-dim);
   max-width: none;
-  margin-bottom: 24px;
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* The page's main headings (System health, Your sites, Phone notifications…); the small mono .sectionLabel below them are the
+   subheadings (Active now, Resolved…). */
+.pageHeading {
+  font-size: 26px;
+  line-height: 1.05;
+  margin: 32px 0 6px;
+}
+.pageHeadingRule {
+  margin-top: 44px;
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
 }
 
 .sectionLabel {
@@ -131,6 +146,9 @@
 }
 .resolvedBlock {
   margin-top: 28px;
+}
+.insightsBlock {
+  margin-top: 0;
 }
 .resolvedHead {
   display: flex;
@@ -303,6 +321,7 @@ summary.resolvedSummary {
   color: var(--paper-dim);
   max-width: none;
   margin-bottom: 14px;
+  font-size: 14px;
 }
 .settingsForm {
   display: flex;

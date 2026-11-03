@@ -210,7 +210,7 @@ export async function AlertsView({ lang, tab, routing, customerId, email, links,
           onTest={onTest}
         />
 
-        <h2 id="settings" className={styles.sectionLabel}>{t(lang, 'alerts_settings_title')}</h2>
+        <h2 id="settings" className={`${styles.pageHeading} ${styles.pageHeadingRule}`}>{t(lang, 'alerts_settings_title')}</h2>
         <Panel>
           <p className={styles.settingsIntro}>{t(lang, 'alerts_settings_intro')}</p>
           <AlertSettingsForm

@@ -39,7 +39,12 @@ export function InsightsList({ lang, items }: { lang: Lang; items: InsightItem[]
   const allOpen = visible.length > 0 && visible.every((i) => open[i.id]);
 
   return (
-    <div>
+    // Closed until asked for, like the resolved alerts: the list can run to dozens, the count says what is inside.
+    <details className={`${styles.resolvedBlock} ${styles.insightsBlock}`}>
+      <summary className={styles.resolvedHead}>
+        <span className={styles.sectionLabelInline}>{t(lang, 'insights_title')}</span>
+        <span className={styles.resolvedCount}>{t(lang, 'insights_sent_count').replace('{n}', String(items.length))}</span>
+      </summary>
       <div className={styles.insightControls}>
         <Input
           type="search"
@@ -96,6 +101,6 @@ export function InsightsList({ lang, items }: { lang: Lang; items: InsightItem[]
           {t(lang, 'insights_show_more').replace('{n}', String(filtered.length - visible.length))}
         </button>
       )}
-    </div>
+    </details>
   );
 }

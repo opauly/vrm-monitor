@@ -53,7 +53,7 @@ export default async function AdminFleetAlertsPage({ searchParams }: { searchPar
       <h1>{t(lang, 'admin_fleet_alerts_title')}</h1>
       <AlertsTabs lang={lang} basePath="/admin/fleet/alerts" tab={tab} />
       {tab === 'log' && <AdminHealthSection lang={lang} />}
-      {tab === 'log' && <h2 className={alertStyles.sectionLabel}>{t(lang, 'admin_alerts_sites_title')}</h2>}
+      {tab === 'log' && <h2 className={`${alertStyles.pageHeading} ${alertStyles.pageHeadingRule}`}>{t(lang, 'admin_alerts_sites_title')}</h2>}
       {!customerId || !customer ? (
         <Panel>
           <p>{t(lang, 'admin_fleet_alerts_not_configured')}</p>
