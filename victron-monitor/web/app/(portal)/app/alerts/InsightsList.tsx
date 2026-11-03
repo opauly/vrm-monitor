@@ -77,7 +77,10 @@ export function InsightsList({ lang, items }: { lang: Lang; items: InsightItem[]
               key={i.id}
               className={`${styles.insightRow} ${i.severity === 'warning' ? styles.insightWarn : styles.insightOk}`}
               open={!!open[i.id]}
-              onToggle={(e) => setOpen((prev) => ({ ...prev, [i.id]: (e.currentTarget as HTMLDetailsElement).open }))}
+              onToggle={(e) => {
+                const isOpen = e.currentTarget.open; // read now: currentTarget is cleared once the handler returns
+                setOpen((prev) => (prev[i.id] === isOpen ? prev : { ...prev, [i.id]: isOpen }));
+              }}
             >
               <summary className={styles.insightSummary}>
                 <span className={styles.insightTitle}>{i.title}</span>

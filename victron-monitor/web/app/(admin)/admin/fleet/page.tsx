@@ -181,7 +181,7 @@ export default async function AdminFleetPage({ searchParams }: { searchParams: P
         </div>
       </div>
       {adminAlerts.length > 0 && (
-        <Link href="/admin/fleet/alerts" className={`${styles.healthBanner} ${adminAlerts.some((a) => a.severity === 'critical') ? styles.healthBannerCritical : ''}`}>
+        <Link href="/admin/fleet/alerts?tab=system" className={`${styles.healthBanner} ${adminAlerts.some((a) => a.severity === 'critical') ? styles.healthBannerCritical : ''}`}>
           <span>
             {adminAlerts.length === 1
               ? t(lang, 'admin_alerts_banner_one')

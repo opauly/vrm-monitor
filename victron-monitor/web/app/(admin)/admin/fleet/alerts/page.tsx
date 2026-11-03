@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/server/auth';
 import { fleetAlertCustomerId } from '@/lib/server/fleetAlertCustomer';
-import { getCustomer, listOwnerDevices, listProperties, listPropertyRecipients } from '@/lib/server/db';
+import { getCustomer, listOpenAdminAlerts, listOwnerDevices, listProperties, listPropertyRecipients } from '@/lib/server/db';
 import { PropertyRouting } from '@/components/app';
 import { addRecipientAction, removeRecipientAction, setDeviceScopeAction } from './routingActions';
 import { Panel } from '@/components/ui';
@@ -12,7 +12,6 @@ import { AlertsTabs, AlertsView, parseAlertsTab } from '@/app/(portal)/app/alert
 import { sendAdminTestPushAction, subscribeAdminPushAction, unsubscribeAdminPushAction } from '../pushActions';
 import { saveFleetAlertSettingsAction } from './actions';
 import styles from '../[site_id]/site.module.css';
-import alertStyles from '@/app/(portal)/app/alerts/alerts.module.css';
 
 export const metadata: Metadata = { title: 'Fleet alerts' };
 
@@ -22,11 +21,12 @@ export const metadata: Metadata = { title: 'Fleet alerts' };
 // only the account, the links and the save action differ.
 export default async function AdminFleetAlertsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const admin = await requireAdmin();
-  const tab = parseAlertsTab((await searchParams).tab);
+  const tab = parseAlertsTab((await searchParams).tab, true);
   const lang = admin.uiLanguage;
   const customerId = fleetAlertCustomerId();
 
   const customer = customerId ? await getCustomer(customerId).catch(() => null) : null;
+  const openSystem = (await listOpenAdminAlerts().catch(() => [])).length;
 
   // "Who gets what, by property": the fleet account's properties, with the admin's own phones.
   let routing = null;
@@ -51,10 +51,10 @@ export default async function AdminFleetAlertsPage({ searchParams }: { searchPar
         <Link href="/admin/fleet">{t(lang, 'admin_fleet_title')}</Link> / <span>{t(lang, 'admin_fleet_alerts_title')}</span>
       </div>
       <h1>{t(lang, 'admin_fleet_alerts_title')}</h1>
-      <AlertsTabs lang={lang} basePath="/admin/fleet/alerts" tab={tab} />
-      {tab === 'log' && <AdminHealthSection lang={lang} />}
-      {tab === 'log' && <h2 className={`${alertStyles.pageHeading} ${alertStyles.pageHeadingRule}`}>{t(lang, 'admin_alerts_sites_title')}</h2>}
-      {!customerId || !customer ? (
+      <AlertsTabs lang={lang} basePath="/admin/fleet/alerts" tab={tab} system={{ open: openSystem }} />
+      {tab === 'system' ? (
+        <AdminHealthSection lang={lang} />
+      ) : !customerId || !customer ? (
         <Panel>
           <p>{t(lang, 'admin_fleet_alerts_not_configured')}</p>
         </Panel>

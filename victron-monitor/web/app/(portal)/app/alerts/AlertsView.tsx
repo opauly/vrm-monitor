@@ -35,18 +35,22 @@ export type AlertLinks = {
   property?: (propertyId: string) => string;
 };
 
-/** The page has three tabs: what has happened (the log), the heads-ups and tips that were sent (insights), and how you hear about it (phone and email settings). */
-export type AlertsTab = 'log' | 'insights' | 'notifications';
+/** The page has three tabs: what has happened (the log), the heads-ups and tips that were sent (insights), and how you hear about it (phone and email settings).
+ *  The admin's page adds a fourth, 'system': whether the monitor itself is working (it is not about any customer's site). */
+export type AlertsTab = 'log' | 'insights' | 'notifications' | 'system';
 
-export function parseAlertsTab(value: string | undefined): AlertsTab {
+export function parseAlertsTab(value: string | undefined, allowSystem = false): AlertsTab {
+  if (value === 'system' && allowSystem) return 'system';
   return value === 'notifications' || value === 'insights' ? value : 'log';
 }
 
 // Plain links (`?tab=notifications`), so a tab can be bookmarked and shared and no client state is needed.
-export function AlertsTabs({ lang, basePath, tab }: { lang: Lang; basePath: string; tab: AlertsTab }) {
-  const items: { id: AlertsTab; href: string; label: string }[] = [
+// `system` adds the admin's System health tab, with how many system alerts are open (a badge, so it is not hidden behind a tab).
+export function AlertsTabs({ lang, basePath, tab, system }: { lang: Lang; basePath: string; tab: AlertsTab; system?: { open: number } }) {
+  const items: { id: AlertsTab; href: string; label: string; badge?: number }[] = [
     { id: 'log', href: basePath, label: t(lang, 'alerts_tab_log') },
     { id: 'insights', href: `${basePath}?tab=insights`, label: t(lang, 'alerts_tab_insights') },
+    ...(system ? [{ id: 'system' as const, href: `${basePath}?tab=system`, label: t(lang, 'alerts_tab_system'), badge: system.open }] : []),
     { id: 'notifications', href: `${basePath}?tab=notifications`, label: t(lang, 'alerts_tab_notifications') },
   ];
   return (
@@ -54,6 +58,7 @@ export function AlertsTabs({ lang, basePath, tab }: { lang: Lang; basePath: stri
       {items.map((item) => (
         <Link key={item.id} href={item.href} className={`${styles.tab} ${tab === item.id ? styles.tabActive : ''}`} aria-current={tab === item.id ? 'page' : undefined}>
           {item.label}
+          {!!item.badge && <span className={styles.tabBadge}>{item.badge}</span>}
         </Link>
       ))}
     </nav>

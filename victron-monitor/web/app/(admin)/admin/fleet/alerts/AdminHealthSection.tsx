@@ -4,7 +4,7 @@ import { formatDateTimeInZone } from '@/lib/dates';
 import { t, type Lang } from '@/lib/i18n/strings';
 import styles from '@/app/(portal)/app/alerts/alerts.module.css';
 
-// "System health" at the top of /admin/fleet/alerts: the alerts about the
+// The "System health" tab of /admin/fleet/alerts: the alerts about the
 // monitor itself (vrm.admin_alerts) — sweep stopped, history behind, many sites
 // silent at once, VRM unreadable. Same card look as the customer alerts below it.
 
@@ -27,10 +27,11 @@ function AdminAlertCard({ alert, lang, resolved }: { alert: AdminAlert; lang: La
 
 export async function AdminHealthSection({ lang }: { lang: Lang }) {
   const [open, recent] = await Promise.all([listOpenAdminAlerts(), listRecentResolvedAdminAlerts()]);
+  // The same shape as the Alerts tab: a line saying what this is, what is open now, the history one click away.
   return (
     <div>
-      <h2 className={styles.pageHeading}>{t(lang, 'admin_alerts_title')}</h2>
       <p className={styles.intro}>{t(lang, 'admin_alerts_intro')}</p>
+      <h2 className={styles.sectionLabel}>{t(lang, 'alerts_active_title')}</h2>
       {open.length === 0 ? (
         <p className={styles.empty}>{t(lang, 'admin_alerts_ok')}</p>
       ) : (
@@ -41,14 +42,17 @@ export async function AdminHealthSection({ lang }: { lang: Lang }) {
         </div>
       )}
       {recent.length > 0 && (
-        <>
-          <h3 className={styles.sectionLabel}>{t(lang, 'admin_alerts_recent')}</h3>
+        <details className={styles.resolvedBlock}>
+          <summary className={styles.resolvedHead}>
+            <span className={styles.sectionLabelInline}>{t(lang, 'admin_alerts_recent')}</span>
+            <span className={styles.resolvedCount}>{t(lang, 'alerts_recent_count').replace('{n}', String(recent.length))}</span>
+          </summary>
           <div className={styles.cards}>
             {recent.map((a) => (
               <AdminAlertCard key={a.id} alert={a} lang={lang} resolved />
             ))}
           </div>
-        </>
+        </details>
       )}
     </div>
   );
