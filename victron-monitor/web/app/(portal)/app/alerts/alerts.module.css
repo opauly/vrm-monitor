@@ -118,6 +118,26 @@
   align-items: baseline;
   gap: 2px 16px;
   cursor: pointer;
+  list-style: none;
+}
+summary.insightSummary::-webkit-details-marker {
+  display: none;
+}
+/* The same chevron as the Resolved list: it turns down when the row is open. */
+summary.insightSummary::before {
+  content: '';
+  flex: none;
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--victron-glow);
+  border-bottom: 2px solid var(--victron-glow);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+  margin: 0 4px 0 2px;
+}
+details[open] > summary.insightSummary::before {
+  transform: rotate(45deg);
 }
 .insightTitle {
   font-weight: 600;
