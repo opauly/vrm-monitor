@@ -26,13 +26,22 @@ export function describeAlert(lang: Lang, alert: AlertWithSite): { title: string
         body: fill(t(lang, 'alerts_text_site_offline_body'), { since: lastSeen, minutes: typeof detail.minutes_silent === 'number' ? detail.minutes_silent : '—' }),
       };
     }
-    case 'grid_outage':
-      return {
-        title: fill(t(lang, 'alerts_text_grid_outage_title'), { site }),
-        body: fill(t(lang, 'alerts_text_grid_outage_body'), {
-          soc_phrase: soc === null ? '' : fill(t(lang, 'alerts_text_grid_outage_soc'), { soc }),
-        }),
-      };
+    case 'grid_outage': {
+      // Systems of one property share the utility: when the others kept their grid it is this system's problem, said as such.
+      const soc_phrase = soc === null ? '' : fill(t(lang, 'alerts_text_grid_outage_soc'), { soc });
+      const n = typeof detail.neighbors === 'number' ? detail.neighbors : 0;
+      const group = typeof detail.group === 'string' ? detail.group : t(lang, 'alerts_group_fallback');
+      if (detail.scope === 'site_only') {
+        return {
+          title: fill(t(lang, 'alerts_text_grid_outage_local_title'), { site }),
+          body: fill(t(lang, 'alerts_text_grid_outage_local_body'), { n, group, soc_phrase }),
+        };
+      }
+      if (detail.scope === 'shared') {
+        return { title: fill(t(lang, 'alerts_text_grid_outage_title'), { site }), body: fill(t(lang, 'alerts_text_grid_outage_shared_body'), { n, group, soc_phrase }) };
+      }
+      return { title: fill(t(lang, 'alerts_text_grid_outage_title'), { site }), body: fill(t(lang, 'alerts_text_grid_outage_body'), { soc_phrase }) };
+    }
     case 'low_battery': {
       const critical = alert.severity === 'critical';
       return {

@@ -142,10 +142,13 @@ def describe(alert: dict, *, resolved: bool, site_name: str, tz_name: str | None
     url = f"{base}{link_target}" if base else None
     button = t["alert_reconnect"] if kind == rules.VRM_LINK_BROKEN else t["alert_view_site"]
 
+    # An outage that only this system saw (its neighbours on the same property kept their grid) is worded as that, not as the utility's.
+    local = kind == rules.GRID_OUTAGE and detail.get("scope") == "site_only"
     if resolved:
-        return {"title": _fill(t[f"alert_{kind}_resolved"], site=site_name), "body": "", "severity": "ok",
+        stem = "alert_grid_outage_local" if local else f"alert_{kind}"
+        return {"title": _fill(t[f"{stem}_resolved"], site=site_name), "body": "", "severity": "ok",
                 "severity_label": "", "url": url, "path": link_target, "button_label": button, "site": site_name,
-                "push_title": t.get(f"alert_{kind}_push_resolved") or _fill(t[f"alert_{kind}_resolved"], site=site_name)}
+                "push_title": t.get(f"{stem}_push_resolved") or _fill(t[f"{stem}_resolved"], site=site_name)}
 
     severity = alert.get("severity") or rules.WARNING
     title_key, body_key = f"alert_{kind}_title", f"alert_{kind}_body"
@@ -155,6 +158,11 @@ def describe(alert: dict, *, resolved: bool, site_name: str, tz_name: str | None
     elif kind == rules.GRID_OUTAGE:
         soc = detail.get("soc_pct")
         values["soc_phrase"] = _fill(t["alert_grid_outage_soc_phrase"], soc=round(soc)) if isinstance(soc, (int, float)) else ""
+        values.update(n=detail.get("neighbors", ""), group=detail.get("group") or t["alert_group_fallback"])
+        if local:
+            title_key, body_key = "alert_grid_outage_local_title", "alert_grid_outage_local_body"
+        elif detail.get("scope") == "shared":
+            body_key = "alert_grid_outage_shared_body"
     elif kind == rules.LOW_BATTERY:
         soc = detail.get("soc_pct")
         values["soc"] = round(soc) if isinstance(soc, (int, float)) else "—"
@@ -178,7 +186,8 @@ def describe(alert: dict, *, resolved: bool, site_name: str, tz_name: str | None
         soc = detail.get("soc_pct")
         values["soc_phrase"] = _fill(t["alert_generator_use_soc_phrase"], soc=round(soc)) if isinstance(soc, (int, float)) else ""
 
-    push_key = "alert_low_battery_critical_push" if (kind == rules.LOW_BATTERY and severity == rules.CRITICAL) else f"alert_{kind}_push"
+    push_key = ("alert_low_battery_critical_push" if (kind == rules.LOW_BATTERY and severity == rules.CRITICAL)
+                else "alert_grid_outage_local_push" if local else f"alert_{kind}_push")
     return {"title": _fill(t[title_key], **values), "body": _fill(t[body_key], **values), "severity": severity,
             "severity_label": t["alert_severity_critical" if severity == rules.CRITICAL else "alert_severity_warning"],
             "url": url, "path": link_target, "button_label": button, "site": site_name,

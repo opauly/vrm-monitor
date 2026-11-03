@@ -199,3 +199,41 @@ def test_a_live_ac_input_on_an_off_grid_site_is_a_generator_and_clears_once_it_i
 
 def test_generator_alerts_are_off_until_switched_on():
     assert A.GENERATOR_USE in A.DEFAULT_OFF_KINDS and A.DEVICE_FAULT not in A.DEFAULT_OFF_KINDS
+
+
+# ── an outage seen against the property's other systems ──────────────────
+def mate(v, name="Casona", minutes_ago=5, system_type="hybrid"):
+    return (name, system_type, snap(minutes_ago, v=v))
+
+
+def outage(neighbors):
+    return run_with(snap(v=0.0), neighbors=A.neighbor_readings(neighbors, NOW), group="El Encino")[A.GRID_OUTAGE]
+
+
+def run_with(snapshot, **kw):
+    return {c.kind: c for c in A.evaluate_site(site=SITE, snapshot=snapshot, previous=None, open_kinds=set(), grid_imported_recently=True, now=NOW, **kw)}
+
+
+def test_the_neighbours_keeping_their_grid_makes_it_this_systems_problem_not_the_utilitys():
+    got = outage([mate(122.0, "Casona"), mate(121.0, "Casita"), mate(123.0, "Apartamento")])
+    assert got.active and got.detail["scope"] == "site_only" and got.detail["neighbors"] == 3 and got.detail["group"] == "El Encino"
+
+
+def test_the_neighbours_losing_it_too_makes_it_the_utility():
+    got = outage([mate(0.0, "Casona"), mate(2.0, "Casita")])
+    assert got.detail["scope"] == "shared" and got.detail["neighbors"] == 2
+
+
+def test_some_neighbours_losing_it_is_partial():
+    assert outage([mate(0.0, "Casona"), mate(121.0, "Casita")]).detail["scope"] == "partial"
+
+
+def test_neighbours_that_know_nothing_about_the_grid_are_not_asked():
+    off_grid, silent, no_reading = mate(0.0, "Generator site", system_type="off_grid"), mate(122.0, "Silent", minutes_ago=90), ("Blank", "hybrid", {"captured_at": (NOW - timedelta(minutes=5)).isoformat(), "raw": {}})
+    got = outage([off_grid, silent, no_reading])
+    assert "scope" not in got.detail                                   # nobody to compare with: the plain grid outage
+
+
+def test_a_site_with_no_property_is_a_plain_grid_outage_as_before():
+    got = run_with(snap(v=0.0))[A.GRID_OUTAGE]
+    assert got.active and "scope" not in got.detail

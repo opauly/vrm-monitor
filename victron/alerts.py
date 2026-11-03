@@ -153,6 +153,32 @@ def _active_alarm_keys(snapshot: dict | None) -> tuple[list[str], list[str]]:
     )
 
 
+def neighbor_readings(members: list[tuple[str, str | None, dict | None]], now: datetime) -> list[dict]:
+    """`[{name, ac_v}]` for the other systems of a property that can say something about the utility: `members` are
+    `(name, system_type, snapshot)`. A system that is off-grid, silent for 45+ minutes, or without an AC-input reading is left out
+    (it knows nothing about the grid)."""
+    out = []
+    for name, system_type, snapshot in members:
+        seen = _parse_ts((snapshot or {}).get("captured_at"))
+        volts = _grid_voltage(_raw(snapshot))
+        if system_type != "off_grid" and seen is not None and now - seen <= OFFLINE_AFTER and volts is not None:
+            out.append({"name": name, "ac_v": volts})
+    return out
+
+
+def outage_scope(neighbors: list[dict] | None, group: str | None) -> dict:
+    """What the neighbours say about an outage here: `{}` when there are none to ask, else `scope` =
+      site_only — every neighbour still has AC input: not the utility, something local to this system (its breaker, wiring or supply);
+      shared    — none of them has: it is the utility;
+      partial   — some do, some do not.
+    with the neighbour count (and the property's name) the wording needs."""
+    if not neighbors:
+        return {}
+    ok = sum(1 for n in neighbors if n["ac_v"] >= GRID_V_RESOLVE)
+    scope = "site_only" if ok == len(neighbors) else "shared" if ok == 0 else "partial"
+    return {"scope": scope, "neighbors": len(neighbors), **({"group": group} if group else {})}
+
+
 def evaluate_site(
     *,
     site: dict,
@@ -163,6 +189,8 @@ def evaluate_site(
     now: datetime,
     devices: list[dict] | None = None,
     alarm_events: list | None = None,
+    neighbors: list[dict] | None = None,
+    group: str | None = None,
 ) -> list[Condition]:
     """Conditions for one site.
 
@@ -173,7 +201,9 @@ def evaluate_site(
     hysteresis). `grid_imported_recently` is whether `energy_daily` shows
     grid import in the last GRID_SEEN_WITHIN_DAYS days. `devices` are the site's
     `vrm.site_devices` rows after this sweep (None/empty = nothing known: no
-    device condition either way).
+    device condition either way). `neighbors` / `group` are the other systems of the same property (they share the AC input, so
+    share the utility) with their current AC-input voltage — `neighbor_readings()` — and the property's name: they decide whether an
+    outage here is the utility's (the neighbours lost it too) or only this system's.
     """
     customer_id, site_id = site["customer_id"], site["site_id"]
 
@@ -211,14 +241,15 @@ def evaluate_site(
     grid_v = _grid_voltage(raw)
     if site.get("system_type") != "off_grid" and grid_v is not None:
         soc_detail = None if soc is None else round(soc, 1)
+        scope = outage_scope(neighbors, group)
         if grid_v >= GRID_V_RESOLVE:
             out.append(cond(GRID_OUTAGE, False))
         elif grid_v < GRID_V_OPEN and grid_imported_recently:
-            out.append(cond(GRID_OUTAGE, True, WARNING, soc_pct=soc_detail, ac_input_v=round(grid_v)))
+            out.append(cond(GRID_OUTAGE, True, WARNING, soc_pct=soc_detail, ac_input_v=round(grid_v), **scope))
         elif GRID_OUTAGE in open_kinds:
             # Hysteresis band (60-100 V), or a site that stopped importing:
             # an alert that is already open stays open until clearly restored.
-            out.append(cond(GRID_OUTAGE, True, WARNING, soc_pct=soc_detail, ac_input_v=round(grid_v)))
+            out.append(cond(GRID_OUTAGE, True, WARNING, soc_pct=soc_detail, ac_input_v=round(grid_v), **scope))
 
     # ── system alarms ─────────────────────────────────────────────────────
     soft_now, critical_now = _active_alarm_keys(reading)

@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 
 from database.supabase_client import get_client
 from victron import alerts as rules
+from vrm_api import alert_routing
 
 logger = logging.getLogger("vrm_api.alerts")
 
@@ -165,8 +166,20 @@ def run_alert_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]],
     silent_close = [a for a in open_alerts if not allowed(a["customer_id"], a["kind"])]
     open_alerts = [a for a in open_alerts if allowed(a["customer_id"], a["kind"])]
 
+    # Systems of one property share the utility: their AC-input readings say whether an outage is the grid's or only one system's.
+    prop_of = alert_routing.site_properties([s["site_id"] for s in sites])
+    names = {}
+    if prop_of:
+        try:
+            names = {r["site_id"]: r["display_name"] for r in _t("sites").select("site_id, display_name").in_("site_id", sorted(prop_of)).execute().data or []}
+        except Exception:  # noqa: BLE001
+            names = {}
+    group_names = alert_routing.property_names(sorted(set(prop_of.values())))
+    live = {s["site_id"]: (s, snap if status == "ok" else None) for s, (status, snap) in zip(sites, fetched)}
+
     conditions: list[rules.Condition] = []
     for site, (status, snapshot) in zip(sites, fetched):
+        mates = [sid for sid, pid in prop_of.items() if pid == prop_of.get(site["site_id"]) and sid != site["site_id"] and sid in live]
         conditions += rules.evaluate_site(
             site=site,
             snapshot=snapshot if status == "ok" else None,
@@ -176,6 +189,8 @@ def run_alert_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]],
             now=now,
             devices=(devices_by_site or {}).get(site["site_id"]),
             alarm_events=(alarm_events_by_site or {}).get(site["site_id"]),
+            neighbors=rules.neighbor_readings([(names.get(m) or m, live[m][0].get("system_type"), live[m][1]) for m in mates], now) if mates else None,
+            group=group_names.get(prop_of.get(site["site_id"], "")),
         )
 
     if customer_ids:

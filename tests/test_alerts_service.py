@@ -55,6 +55,8 @@ PLAN_LIMITS = [{"plan_key": "default", "live_dashboard": False}, {"plan_key": "t
 def db(monkeypatch):
     store = {"customers": [customer()], "plan_limits": [dict(r) for r in PLAN_LIMITS]}
     monkeypatch.setattr(svc, "_t", lambda name: FakeTable(store, name))
+    monkeypatch.setattr(svc.alert_routing, "site_properties", lambda ids: {})          # no properties: and no call out to the real database
+    monkeypatch.setattr(svc.alert_routing, "property_names", lambda ids: {})
     monkeypatch.delenv("ALERTS_FORCE_CUSTOMER_IDS", raising=False)
     return store
 

@@ -669,3 +669,29 @@ def test_a_phone_still_gets_another_customers_alert_in_test_mode(env, pushes, mo
     alert(store)
     out = ad.deliver_pending(now=NOW, mode="test", push=True, site_url="https://vrm.example.com")
     assert sent == [] and out["pushed"] == 1
+
+
+# ── an outage only one system of a property saw ─────────────────────────
+def test_a_local_outage_is_worded_as_this_systems_problem_not_the_utilitys(env):
+    from victron import email_i18n
+    alert_row = {"id": 1, "kind": "grid_outage", "severity": "warning", "customer_id": "c1", "site_id": "s1",
+                 "detail": {"soc_pct": 100.0, "ac_input_v": 54, "scope": "site_only", "neighbors": 3, "group": "El Encino"}}
+    for lang, title, fragment in (("en", "AC input lost at El Encino (Cabaña)", "the other 3 at El Encino still have grid power"),
+                                  ("es", "Se perdió la entrada de CA en El Encino (Cabaña)", "los otros 3 de El Encino siguen con red")):
+        card = ad.describe(alert_row, resolved=False, site_name="El Encino (Cabaña)", tz_name=None, strings=email_i18n.get(lang), site_url="https://x")
+        assert card["title"] == title and fragment in card["body"]
+        assert ("(charge: 100%)" if lang == "en" else "(carga: 100%)") in card["body"]
+    en = email_i18n.get("en")
+    assert ad.describe(alert_row, resolved=False, site_name="X", tz_name=None, strings=en, site_url=None)["push_title"] == "AC input lost (this system only)"
+    back = ad.describe(alert_row, resolved=True, site_name="El Encino (Cabaña)", tz_name=None, strings=en, site_url=None)
+    assert back["title"] == "AC input is back at El Encino (Cabaña)" and back["push_title"] == "AC input is back"
+
+
+def test_a_shared_outage_names_the_property_and_a_plain_one_is_unchanged(env):
+    from victron import email_i18n
+    en = email_i18n.get("en")
+    shared = {"id": 1, "kind": "grid_outage", "severity": "warning", "customer_id": "c1", "site_id": "s1", "detail": {"soc_pct": 60.0, "scope": "shared", "neighbors": 3, "group": "El Encino"}}
+    card = ad.describe(shared, resolved=False, site_name="El Encino (Casona)", tz_name=None, strings=en, site_url=None)
+    assert card["title"] == "Grid outage at El Encino (Casona)" and "Utility power is out at El Encino: the other 3 systems there lost it too" in card["body"]
+    plain = {**shared, "detail": {"soc_pct": 60.0}}
+    assert ad.describe(plain, resolved=False, site_name="X", tz_name=None, strings=en, site_url=None)["body"] == "Utility power is out. The system is running on its battery (charge: 60%)."
