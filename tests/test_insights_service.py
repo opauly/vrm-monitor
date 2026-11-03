@@ -163,6 +163,13 @@ def test_router_needs_the_pipeline_key():
 
 def test_router_returns_the_service_result(db, key, monkeypatch):
     monkeypatch.setenv("INSIGHTS_AI", "template")
+
+    class Frozen(datetime):          # the fixture's days are dated: the router must see the clock they were made for, not today's
+        @classmethod
+        def now(cls, tz=None):
+            return NOW
+
+    monkeypatch.setattr(svc, "datetime", Frozen)
     r = client.get("/v1/insights/site?site_id=s1&lang=es", headers=key)
     assert r.status_code == 200 and r.json()["enabled"] and "8 kWh de solar" in r.json()["headline"] and r.json()["source"] == "template"
     assert client.get("/v1/insights/site?site_id=nope", headers=key).status_code == 404

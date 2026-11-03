@@ -439,3 +439,31 @@ def test_in_test_mode_another_customers_insights_are_not_emailed_to_the_admin(mo
     db.tables["insight_notices"].rows[0]["notified_at"] = None
     svc.deliver(now=NOW, mode="test", push=False, site_url="https://x")
     assert mails == ["me@test.com"]
+
+
+# ── "the sunniest hours" instead of a generic midday ─────────────────────
+def test_a_great_solar_day_names_the_real_sunniest_hours_when_the_forecast_has_them():
+    forecast = {**FORECAST, "tomorrow": {"solar": {"kwh": 31.0, "vs_typical_pct": 31}, "best_window": {"from": "10:00", "to": "15:00"}}}
+    n = run(19, members=[member(forecast=forecast)])[R.SOLAR_DAY]
+    assert n.detail["window"] == {"from": "10:00", "to": "15:00"}
+    en = card(R.SOLAR_DAY, n.detail)["body"]
+    assert "sunniest hours are expected 10:00 to 15:00" in en and "around midday" not in en and en.endswith("a good time to run heavy loads.")
+    es = card(R.SOLAR_DAY, n.detail, "es")["body"]
+    assert "de 10:00 a 15:00" in es and "mediodía" not in es and "{" not in es
+
+
+def test_without_hourly_sunlight_it_still_says_midday():
+    n = run(19)[R.SOLAR_DAY]
+    assert "window" not in n.detail and "around midday" in card(R.SOLAR_DAY, n.detail)["body"]
+
+
+def test_the_outlook_tip_uses_the_sunniest_hours_too():
+    forecast = {**FORECAST, "today": {**FORECAST["today"], "best_window": {"from": "09:00", "to": "14:00"}}, "storm_windows": []}
+    d = run(8, members=[member(forecast=forecast)])[R.DAILY_BRIEFING].detail
+    assert "The sunniest hours are 09:00 to 14:00" in card(R.DAILY_BRIEFING, d)["body"]
+
+
+def test_the_summary_push_groups_the_places_by_kind():
+    items = [({"id": i}, {"push_title": "Today's outlook", "site": name, "body": "b", "path": "/x", "severity": "ok"}) for i, name in enumerate(["Vista Atenas", "Emtec CR", "Ukiyo"])]
+    items.append(({"id": 9}, {"push_title": "Storm ahead", "site": "El Encino", "body": "b", "path": "/x", "severity": "warning"}))
+    assert svc._push_payloads(items, email_i18n.get("en"), admin=False)[0]["body"] == "Today's outlook: Vista Atenas, Emtec CR, Ukiyo · Storm ahead: El Encino"

@@ -184,3 +184,10 @@ def test_storm_hours_are_reported_as_windows_for_today_and_tomorrow():
     got = F.storm_windows({"hourly": rows}, base)
     assert got == [{"day": "today", "from": "15:00", "to": "18:00"}, {"day": "tomorrow", "from": "14:00", "to": "15:00"}]
     assert F.storm_windows({"hourly": []}, base) == []
+
+
+def test_the_best_window_is_the_sunniest_hours_of_that_day():
+    ghi = {f"2026-10-09T{h:02d}": v for h, v in {6: 40, 7: 180, 8: 360, 9: 560, 10: 760, 11: 880, 12: 900, 13: 850, 14: 700, 15: 480, 16: 250, 17: 60}.items()}
+    assert F.best_window(ghi, "2026-10-09") == {"from": "10:00", "to": "15:00"}       # hours at 75%+ of the 900 peak: 10:00 to 14:59
+    assert F.best_window(ghi, "2026-10-10") is None and F.best_window({}, "2026-10-09") is None
+    assert F.best_window({"2026-10-09T12": 0.0}, "2026-10-09") is None

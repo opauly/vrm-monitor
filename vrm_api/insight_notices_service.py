@@ -255,7 +255,8 @@ def _briefing_body(d: dict, t: dict, lang: str) -> str:
     if d.get("charge_first"):
         parts.append(t["insight_brief_tip_storm"])
     elif d.get("direction") == "above":
-        parts.append(t["insight_brief_tip_midday"])
+        w = d.get("window")
+        parts.append(_fill(t["insight_brief_tip_window"], from_=w["from"], to=w["to"]) if w else t["insight_brief_tip_midday"])
     return " ".join(parts)
 
 
@@ -280,8 +281,11 @@ def describe(notice: dict, *, site_name: str, strings: dict, lang: str, site_url
         body = _briefing_body(d, strings, lang)
         title, push = _fill(strings["insight_briefing_title"], site=name), strings["insight_briefing_push"]
     elif kind == rules.SOLAR_DAY:
-        key = "insight_solar_day_body_many" if many else "insight_solar_day_body"
-        body = _fill(strings[key], kwh=d.get("kwh"), pct=d.get("pct"), typical=d.get("typical"), n=d.get("sites"))
+        # With the forecast's hourly sunlight, the real sunniest hours replace the generic "around midday".
+        w = d.get("window")
+        key = ("insight_solar_day_body_many" if many else "insight_solar_day_body") + ("_window" if w else "")
+        body = _fill(strings[key], kwh=d.get("kwh"), pct=d.get("pct"), typical=d.get("typical"), n=d.get("sites"),
+                     from_=w["from"] if w else "", to=w["to"] if w else "")
         title, push = _fill(strings["insight_solar_day_title"], **values), strings["insight_solar_day_push"]
     elif kind == rules.STORM_BATTERY:
         when = insight_ai.storm_when(d.get("windows") or [], lang)
@@ -303,8 +307,14 @@ def describe(notice: dict, *, site_name: str, strings: dict, lang: str, site_url
 
 def _push_payloads(items: list[tuple[dict, dict]], strings: dict, *, admin: bool) -> list[dict]:
     if len(items) > MAX_INDIVIDUAL_PUSHES:
+        # "Today's outlook: Vista Atenas, Emtec CR, Ukiyo · Storm ahead: El Encino": the kind said once, then the places it is about.
+        by_kind: dict[str, list[str]] = {}
+        for _, c in items:
+            by_kind.setdefault(c["push_title"], [])
+            if c["site"] and c["site"] not in by_kind[c["push_title"]]:
+                by_kind[c["push_title"]].append(c["site"])
         return [{"title": _fill(strings["insight_multi_subject"], n=len(items)),
-                 "body": " · ".join(f"{c['push_title']}: {c['site']}" for _, c in items[:3]),
+                 "body": " · ".join(f"{kind}: {', '.join(places)}" if places else kind for kind, places in by_kind.items()),
                  # The summary opens the list of what it summarises: the Insights tab.
                  "url": "/admin/fleet/alerts?tab=insights" if admin else "/app/alerts?tab=insights", "tag": "insights-summary", "severity": "warning"}]
     return [{"title": c["push_title"], "body": f"{c['site']} — {c['body']}" if c["site"] and c["body"] else (c["site"] or c["body"]),

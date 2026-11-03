@@ -16,6 +16,7 @@ import { describeAlert } from '@/lib/alertText';
 import { t, type Lang, type StringKey } from '@/lib/i18n/strings';
 import type { PushActionResult, PushSubscriptionInput, PushTestResult } from '@/lib/push';
 import { AlertSettingsForm } from './AlertSettingsForm';
+import { InsightsList, type InsightItem } from './InsightsList';
 import type { AlertSettingsState } from './actions';
 import styles from './alerts.module.css';
 
@@ -161,26 +162,21 @@ function ResolvedRow({ group, lang, links }: { group: ResolvedGroup; lang: Lang;
 }
 
 // What a push or an email about an insight said: the wording stored with it (in the viewer's language), else just its kind and site.
-function InsightCard({ notice, lang, links }: { notice: InsightNoticeRecord; lang: Lang; links: AlertLinks }) {
+function toInsightItem(notice: InsightNoticeRecord, lang: Lang, links: AlertLinks): InsightItem {
   const stored = notice.text?.[lang] ?? notice.text?.en;
   const kind = t(lang, `alerts_kind_${notice.kind}` as StringKey);
-  const title = stored?.title ?? (notice.site_name ? `${kind} — ${notice.site_name}` : kind);
   const propertyId = typeof notice.detail.property_id === 'string' ? notice.detail.property_id : null;
-  const href = propertyId && links.property ? links.property(propertyId) : notice.site_id ? links.site(notice.site_id) : null;
-  return (
-    <article className={`${styles.card} ${notice.severity === 'warning' ? styles.cardWarning : styles.cardResolved}`}>
-      <h3 className={styles.cardTitle}>{title}</h3>
-      {stored?.body && <p className={styles.cardBody}>{stored.body}</p>}
-      <div className={styles.meta}>
-        <span>{formatDateTimeInZone(notice.created_at, notice.site_timezone, 'en-US')}</span>
-        {href && (
-          <Link href={href} className={styles.cardLink}>
-            {t(lang, propertyId ? 'insights_view_property' : 'alerts_view_site')} →
-          </Link>
-        )}
-      </div>
-    </article>
-  );
+  return {
+    id: notice.id,
+    kind: notice.kind,
+    severity: notice.severity,
+    title: stored?.title ?? (notice.site_name ? `${kind} — ${notice.site_name}` : kind),
+    body: stored?.body ?? '',
+    when: formatDateTimeInZone(notice.created_at, notice.site_timezone, 'en-US'),
+    site: (typeof notice.detail.name === 'string' ? notice.detail.name : notice.site_name) ?? '',
+    href: propertyId && links.property ? links.property(propertyId) : notice.site_id ? links.site(notice.site_id) : null,
+    linkLabel: t(lang, propertyId ? 'insights_view_property' : 'alerts_view_site'),
+  };
 }
 
 export async function AlertsView({ lang, tab, routing, customerId, email, links, intro, pushIntro, saveAction, onSubscribe, onUnsubscribe, onTest }: AlertsViewProps) {
@@ -195,11 +191,7 @@ export async function AlertsView({ lang, tab, routing, customerId, email, links,
             <Link href={`?tab=notifications`} className={styles.cardLink}>{t(lang, 'alerts_jump_settings')} →</Link>
           </p>
         ) : (
-          <div className={styles.cards}>
-            {notices.map((n) => (
-              <InsightCard key={n.id} notice={n} lang={lang} links={links} />
-            ))}
-          </div>
+          <InsightsList lang={lang} items={notices.map((n) => toInsightItem(n, lang, links))} />
         )}
       </div>
     );

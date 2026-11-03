@@ -169,6 +169,20 @@ def _ghi_by_hour(weather: dict) -> dict[str, float]:
     return {r["time"][:13]: r["ghi"] for r in weather.get("hourly", []) if r.get("ghi") is not None}
 
 
+BEST_WINDOW_SHARE = 0.75       # the sunniest hours: at least this share of the day's peak sunlight
+
+
+def best_window(ghi: dict[str, float], date: str) -> dict | None:
+    """The stretch of `date` with the most sun, from the weather's own hourly sunlight: `{"from": "10:00", "to": "14:00"}`.
+    The hours within BEST_WINDOW_SHARE of the day's peak, first to last. None without a usable day."""
+    hours = {int(k[11:13]): v for k, v in ghi.items() if k.startswith(date) and v is not None}
+    peak = max(hours.values(), default=0)
+    if peak <= 0:
+        return None
+    sunny = [h for h, v in hours.items() if v >= BEST_WINDOW_SHARE * peak]
+    return {"from": f"{min(sunny):02d}:00", "to": f"{max(sunny) + 1:02d}:00"}
+
+
 def simulate(*, start: datetime, end: datetime, energy_kwh: float, capacity_kwh: float, k: float | None,
              ghi: dict[str, float], load_w: list[float]) -> dict:
     """Step the battery from `start` to `end`. Returns the energy at the end and when it
@@ -224,7 +238,8 @@ def build_forecast(*, weather: dict, now: datetime, pv_history: list[dict], load
     def day_card(date: str) -> dict:
         w = day_weather.get(date) or {}
         return {"date": date, "sky": sky(w) if w else None, "cloud_pct": w.get("cloud_pct"), "temp_max_c": w.get("temp_max_c"),
-                "rain_prob_pct": w.get("rain_prob_pct"), "storm": bool(w.get("storm")), "solar": solar_for(date)}
+                "rain_prob_pct": w.get("rain_prob_pct"), "storm": bool(w.get("storm")), "solar": solar_for(date),
+                "best_window": best_window(ghi, date)}
 
     storm = storm_ahead(weather, now)
     result: dict = {

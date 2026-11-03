@@ -161,6 +161,9 @@ def evaluate_group(*, key: str, name: str, members: list[Member], now_local: dat
             if socs:
                 detail.update(soc_min=min(v for _, v, _ in socs), soc_max=max(v for _, v, _ in socs))
             detail["charge_first"] = bool(windows and socs and detail["soc_min"] < 80)
+            best = next((w for w in ((m.forecast or {}).get("today", {}).get("best_window") for m in usable) if w), None)
+            if best:
+                detail["window"] = best
             out.append(Notice(DAILY_BRIEFING, f"briefing:{key}:{today}", "ok", detail))
 
     if SOLAR_DAY in want and SOLAR_DAY_HOURS[0] <= hour < SOLAR_DAY_HOURS[1] and usable:
@@ -169,8 +172,10 @@ def evaluate_group(*, key: str, name: str, members: list[Member], now_local: dat
             kwh, typical, _ = total
             if typical >= 2 and kwh >= SOLAR_DAY_MIN_RATIO * typical and kwh >= typical + SOLAR_DAY_MIN_EXTRA_KWH:
                 tomorrow = today + timedelta(days=1)
+                window = next((w for w in ((m.forecast or {}).get("tomorrow", {}).get("best_window") for m in usable) if w), None)
                 out.append(Notice(SOLAR_DAY, f"solar_day:{key}:{tomorrow}", "ok", {
-                    **where, "date": str(tomorrow), "kwh": round(kwh, 1), "typical": round(typical, 1), "pct": abs(round((kwh / typical - 1) * 100))}))
+                    **where, "date": str(tomorrow), "kwh": round(kwh, 1), "typical": round(typical, 1), "pct": abs(round((kwh / typical - 1) * 100)),
+                    **({"window": window} if window else {})}))
 
     if STORM_BATTERY in want and _in(hour, AWAKE_HOURS) and usable and socs:
         window = next((w for w in _windows(usable) if _storm_in_reach({"storm_windows": [w]}, now_local)), None)
