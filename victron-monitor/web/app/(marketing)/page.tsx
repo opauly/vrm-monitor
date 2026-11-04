@@ -81,7 +81,7 @@ const SOFTWARE_JSON_LD = {
   },
   offers: [
     { '@type': 'Offer', name: 'Starter', price: '29.99', priceCurrency: 'USD', description: 'Up to 10 sites, automatic daily, weekly & overview reports.' },
-    { '@type': 'Offer', name: 'Growth', price: '99.99', priceCurrency: 'USD', description: 'Up to 50 sites, adds the live dashboard, alerts and AI Insights.' },
+    { '@type': 'Offer', name: 'Growth', price: '99.99', priceCurrency: 'USD', description: 'Up to 50 sites, adds VRM Fleet, alerts and AI Insights.' },
   ],
 };
 

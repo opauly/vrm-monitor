@@ -117,7 +117,7 @@ export const STRINGS = {
     nav_reports: 'Reports',
     nav_upload: 'Upload CSV',
     nav_my_sites: 'My Sites',
-    nav_dashboard: 'Dashboard',
+    nav_dashboard: 'VRM Fleet',
     nav_branding: 'Branding',
     nav_profile: 'Profile',
     nav_billing: 'Billing',
@@ -1336,8 +1336,8 @@ export const STRINGS = {
     admin_help_link_new_installation: 'Link a new installation',
     help_diagram_aria:
       'Diagram: a VRM API connection syncs automatically every ~15 minutes into live data, feeding both scheduled ' +
-      'or on-demand reports and the live dashboard (Growth and Fleet only). A CSV export is a one-time upload that ' +
-      'only ever produces a single one-off report, with no live dashboard and no scheduling.',
+      'or on-demand reports and VRM Fleet (Growth and Fleet only). A CSV export is a one-time upload that ' +
+      'only ever produces a single one-off report, with no VRM Fleet and no scheduling.',
     help_diagram_vrm_api: 'VRM API',
     help_diagram_connect_once: 'connect once',
     help_diagram_15min: '~15 min',
@@ -1345,13 +1345,13 @@ export const STRINGS = {
     help_diagram_synced_ongoing: 'synced, ongoing',
     help_diagram_reports: 'Reports',
     help_diagram_scheduled_or_ondemand: 'scheduled or on-demand',
-    help_diagram_plus_live_dashboard: '+ Live dashboard*',
+    help_diagram_plus_live_dashboard: '+ VRM Fleet*',
     help_diagram_csv_export: 'CSV export',
     help_diagram_from_vrm_by_hand: 'from VRM, by hand',
     help_diagram_one_time: 'one-time',
     help_diagram_one_off_report: 'One-off report',
-    help_diagram_no_schedule_no_live: 'no schedule, no live dashboard',
-    help_diagram_footnote: '* Live dashboard available on Growth and Fleet.',
+    help_diagram_no_schedule_no_live: 'no schedule, no VRM Fleet',
+    help_diagram_footnote: '* VRM Fleet available on Growth and Fleet.',
     help_legend_aria: 'Score bands: 90 to 100 is Excellent, 80 to 89 is Good, 70 to 79 is Watch, and below 70 is Attention.',
     help_legend_excellent: 'Excellent',
     help_legend_good: 'Good',
@@ -1814,7 +1814,7 @@ export const STRINGS = {
     // (BillingManager.tsx's own early return) and the ending-soon banner.
     billing_beta_free_lifetime: 'You have free access to VRM Monitor as a beta tester — no expiry.',
     billing_beta_free_until: 'You have free access to VRM Monitor as a beta tester, until {date}.',
-    billing_beta_ending_banner: 'Your free beta access ends in {days} day(s) — reports and the dashboard will pause until you subscribe.',
+    billing_beta_ending_banner: 'Your free beta access ends in {days} day(s) — reports and VRM Fleet will pause until you subscribe.',
     billing_sites_used_label: 'Sites used',
     billing_sites_unlimited: 'unlimited',
     billing_status_trialing: 'Trial',
@@ -1962,12 +1962,12 @@ export const STRINGS = {
 
     // ── Dashboard (customer-facing Fleet Dashboard, /app/dashboard,
     // 2026-09-03 — Growth/Fleet only, see lib/server/db/fleetDashboard.ts) ─
-    dashboard_title: 'Dashboard',
+    dashboard_title: 'VRM Fleet',
     dashboard_beta_badge: 'Beta',
     dashboard_intro: 'Live status, health scores, and AI-powered insights for your sites — updated every ~15 minutes.',
     dashboard_upsell_title: 'Available on Growth and Fleet',
     dashboard_upsell_body:
-      'The live dashboard — real-time PV/load/battery readings, health scores, and AI-powered anomaly detection across your sites — is included on the Growth and Fleet plans.',
+      'VRM Fleet — real-time PV/load/battery readings, health scores, and AI-powered anomaly detection across your sites — is included on the Growth and Fleet plans.',
     dashboard_upsell_cta: 'View plans',
     dashboard_no_sites: "You don't have any VRM-connected sites yet.",
     dashboard_ai_insights_title: 'AI Insights',
@@ -1988,7 +1988,7 @@ export const STRINGS = {
     help_nav_upload: 'Upload CSV',
     help_nav_sites: 'Getting started',
     help_nav_schedule: 'Scheduling',
-    help_nav_dashboard: 'Live dashboard',
+    help_nav_dashboard: 'VRM Fleet',
     help_nav_branding: 'Branding',
     help_nav_billing: 'Billing & plans',
     help_nav_account: 'Profile',
@@ -2051,7 +2051,7 @@ export const STRINGS = {
       'Every past upload for your account is listed below the form, so you can always see what was already processed.',
     help_upload_bullet_limit:
       "Adding a new site here still counts against your plan's site limit, the same as adding one from My Sites.",
-    help_section_dashboard_title: 'Reading the live dashboard',
+    help_section_dashboard_title: 'Reading VRM Fleet',
     help_section_dashboard_lead:
       'Available on Growth and Fleet: a live view of every connected site, refreshed every ~15 minutes.',
     help_dashboard_bullet_scores:
@@ -2059,7 +2059,7 @@ export const STRINGS = {
     help_dashboard_bullet_insights:
       "AI Insights are four deterministic checks against each site's own history, not a model: Unexpected silence, Quiet drift, Underperformance, and Incomplete charging.",
     help_dashboard_bullet_upgrade:
-      "On Starter? Reports still cover everything — Live dashboard and AI Insights are the one thing Growth and Fleet add on top.",
+      "On Starter? Reports still cover everything — VRM Fleet and AI Insights are the one thing Growth and Fleet add on top.",
     help_faq_title: 'Frequently asked questions',
     help_faq_q1: "What's the difference between a report generated automatically and one I upload a CSV for?",
     help_faq_a1:
@@ -2186,10 +2186,10 @@ export const STRINGS = {
 
     marketing_capabilities_eyebrow: "What's inside",
     marketing_capabilities_lede: "Two connected views of the same Victron system — watch it update in real time and get alerted when something needs attention, or get the story of the period in your inbox automatically.",
-    marketing_capabilities_title_a: 'Live dashboard.',
+    marketing_capabilities_title_a: 'VRM Fleet.',
     marketing_capabilities_title_b: "Scheduled reports.",
     marketing_capabilities_tag_now: 'Right now',
-    marketing_capabilities_dash_title: 'Live dashboard',
+    marketing_capabilities_dash_title: 'VRM Fleet',
     marketing_capabilities_dash_li1: "Live energy flow — solar, load, battery & grid, every ~15 minutes",
     marketing_capabilities_dash_li2: "System & Grid health scores, equipment included — with the arithmetic shown",
     marketing_capabilities_dash_li3: "AI Insights: a daily plain-language summary, tonight & tomorrow's forecast, and automatic checks",
@@ -2317,7 +2317,7 @@ export const STRINGS = {
     marketing_pricing_starter_li5: 'Spanish / English',
     marketing_pricing_starter_li6: 'Automatic email delivery',
     marketing_pricing_growth_carry: 'Everything in Starter, plus',
-    marketing_pricing_growth_li1: "Live dashboard — real-time energy flow, solar, load & battery",
+    marketing_pricing_growth_li1: "VRM Fleet — real-time energy flow, solar, load & battery",
     marketing_pricing_growth_li2: 'Health score updated continuously, not just weekly',
     marketing_pricing_growth_li3: "AI Insights (Beta) — daily summary, forecast, equipment & anomaly checks",
     marketing_pricing_growth_li_alerts: "Alerts by email & phone push — offline, grid, battery, equipment",
@@ -2381,7 +2381,7 @@ export const STRINGS = {
     marketing_whatsinside_meta_description: "Every report section and every live-dashboard signal, alert and equipment check VRM Monitor computes, in detail — plus what a Victron Recommended Software Integrator actually is.",
     marketing_whatsinside_h1: "What's inside VRM Monitor.",
     marketing_whatsinside_intro_1: 'VRM Monitor is two connected views of one Victron system: a ',
-    marketing_whatsinside_intro_live_dashboard: 'live dashboard',
+    marketing_whatsinside_intro_live_dashboard: 'VRM Fleet',
     marketing_whatsinside_intro_2: ' and an automated, AI-narrated ',
     marketing_whatsinside_intro_pdf_report: 'PDF report',
     marketing_whatsinside_intro_3: ' delivered on its own schedule — personalized to each site, built by Pauly & Co., a ',
@@ -2390,7 +2390,7 @@ export const STRINGS = {
     marketing_whatsinside_live_eyebrow: 'Live, right now',
     marketing_whatsinside_live_lede:
       'Refreshed every ~15 minutes, straight from the VRM API — the same feed your Cerbo GX already reports to.',
-    marketing_whatsinside_live_title: 'The live dashboard, in detail.',
+    marketing_whatsinside_live_title: 'VRM Fleet, in detail.',
     marketing_whatsinside_signal1_title: 'System score',
     marketing_whatsinside_signal1_body: "Alarms, SOC, cycling, temperature, voltage and equipment faults — one number, always current, with every point it cost spelled out.",
     marketing_whatsinside_signal2_title: 'Grid score',
@@ -2425,13 +2425,13 @@ export const STRINGS = {
     marketing_whatsinside_faq_q3: 'Do I need to change my Node-RED setup or reflash my Cerbo GX?',
     marketing_whatsinside_faq_a3:
       'No. VRM Monitor reads data your equipment is already generating and sending to the VRM Portal — no changes to an existing Node-RED flow, and no re-flashing a Cerbo GX.',
-    marketing_whatsinside_faq_q4: 'How often does the live dashboard update?',
+    marketing_whatsinside_faq_q4: 'How often does VRM Fleet update?',
     marketing_whatsinside_faq_a4:
       "Every ~15 minutes, pulled from the same VRM API your Cerbo GX already reports to — the same live power readings and battery state of charge you'd see in the VRM Portal itself, alongside a health score that's always current instead of only refreshed once a week.",
-    marketing_whatsinside_faq_q5: "What's the difference between the live dashboard and the reports?",
-    marketing_whatsinside_faq_a5: "The live dashboard shows you right now: real-time solar, load, battery, and grid power, refreshed every ~15 minutes, with alerts when something needs attention. The report tells the story of the period that just ended — a branded PDF with an AI-written narrative, delivered automatically by email every day, week or month. Same underlying data, two different jobs.",
+    marketing_whatsinside_faq_q5: "What's the difference between VRM Fleet and the reports?",
+    marketing_whatsinside_faq_a5: "VRM Fleet shows you right now: real-time solar, load, battery, and grid power, refreshed every ~15 minutes, with alerts when something needs attention. The report tells the story of the period that just ended — a branded PDF with an AI-written narrative, delivered automatically by email every day, week or month. Same underlying data, two different jobs.",
     marketing_whatsinside_faq_q6: 'Can I use this for a single home, or a whole installer fleet?',
-    marketing_whatsinside_faq_a6: "Both. Starter is built around the scheduled report for a single system. Growth and Fleet add the live dashboard, alerts, AI Insights, and per-site report customization for an installer managing a whole customer fleet from one account.",
+    marketing_whatsinside_faq_a6: "Both. Starter is built around the scheduled report for a single system. Growth and Fleet add VRM Fleet, alerts, AI Insights, and per-site report customization for an installer managing a whole customer fleet from one account.",
     marketing_whatsinside_faq_q7: "Will it tell me when something breaks?",
     marketing_whatsinside_faq_a7: "Yes, on Growth and Fleet. VRM Monitor sends an email and a phone push notification when a site goes silent, the grid drops, the battery runs low, a system alarm fires, a battery, inverter or solar charger needs attention, or the VRM link breaks — and again when it's resolved. You choose which alerts you get, per type, and whether by email, push or both.",
     marketing_whatsinside_faq_q8: "What does it check on my equipment?",
@@ -2639,7 +2639,7 @@ export const STRINGS = {
     nav_reports: 'Reportes',
     nav_upload: 'Cargar CSV',
     nav_my_sites: 'Mis sitios',
-    nav_dashboard: 'Panel',
+    nav_dashboard: 'Flota VRM',
     nav_branding: 'Marca',
     nav_profile: 'Perfil',
     nav_billing: 'Facturación',
@@ -3858,8 +3858,8 @@ export const STRINGS = {
     admin_help_link_new_installation: 'Vincular una nueva instalación',
     help_diagram_aria:
       'Diagrama: una conexión de API de VRM sincroniza automáticamente cada ~15 minutos hacia datos en vivo, ' +
-      'alimentando tanto reportes programados o bajo demanda como el dashboard en vivo (solo Growth y Fleet). Una ' +
-      'exportación CSV es una carga única que solo produce un reporte único, sin dashboard en vivo y sin programación.',
+      'alimentando tanto reportes programados o bajo demanda como Flota VRM (solo Growth y Fleet). Una ' +
+      'exportación CSV es una carga única que solo produce un reporte único, sin Flota VRM y sin programación.',
     help_diagram_vrm_api: 'API de VRM',
     help_diagram_connect_once: 'conectar una vez',
     help_diagram_15min: '~15 min',
@@ -3867,13 +3867,13 @@ export const STRINGS = {
     help_diagram_synced_ongoing: 'sincronizado, continuo',
     help_diagram_reports: 'Reportes',
     help_diagram_scheduled_or_ondemand: 'programado o bajo demanda',
-    help_diagram_plus_live_dashboard: '+ Dashboard en vivo*',
+    help_diagram_plus_live_dashboard: '+ Flota VRM*',
     help_diagram_csv_export: 'Exportación CSV',
     help_diagram_from_vrm_by_hand: 'desde VRM, a mano',
     help_diagram_one_time: 'una vez',
     help_diagram_one_off_report: 'Reporte único',
-    help_diagram_no_schedule_no_live: 'sin programación, sin dashboard en vivo',
-    help_diagram_footnote: '* Dashboard en vivo disponible en Growth y Fleet.',
+    help_diagram_no_schedule_no_live: 'sin programación, sin Flota VRM',
+    help_diagram_footnote: '* Flota VRM disponible en Growth y Fleet.',
     help_legend_aria: 'Bandas de puntaje: 90 a 100 es Excelente, 80 a 89 es Bueno, 70 a 79 es Atención, y menos de 70 es Alerta.',
     help_legend_excellent: 'Excelente',
     help_legend_good: 'Bueno',
@@ -4300,7 +4300,7 @@ export const STRINGS = {
     billing_past_due_banner_link: 'Actualizar método de pago',
     billing_beta_free_lifetime: 'Tenés acceso gratuito a VRM Monitor como probador beta — sin vencimiento.',
     billing_beta_free_until: 'Tenés acceso gratuito a VRM Monitor como probador beta, hasta el {date}.',
-    billing_beta_ending_banner: 'Tu acceso beta gratuito termina en {days} día(s) — los reportes y el panel se pausarán hasta que te suscribas.',
+    billing_beta_ending_banner: 'Tu acceso beta gratuito termina en {days} día(s) — los reportes y Flota VRM se pausarán hasta que te suscribas.',
     billing_sites_used_label: 'Sitios usados',
     billing_sites_unlimited: 'ilimitado',
     billing_status_trialing: 'Prueba',
@@ -4438,12 +4438,12 @@ export const STRINGS = {
     branding_preview_powered_by: 'Monitoreo por',
 
     // ── Dashboard (Fleet Dashboard para clientes, /app/dashboard) ───────
-    dashboard_title: 'Panel',
+    dashboard_title: 'Flota VRM',
     dashboard_beta_badge: 'Beta',
     dashboard_intro: 'Estado en vivo, puntajes de salud e insights con IA para tus sitios — actualizado cada ~15 minutos.',
     dashboard_upsell_title: 'Disponible en Growth y Fleet',
     dashboard_upsell_body:
-      'El panel en vivo — lecturas de PV/consumo/batería en tiempo real, puntajes de salud y detección de anomalías con IA en todos tus sitios — está incluido en los planes Growth y Fleet.',
+      'Flota VRM — lecturas de PV/consumo/batería en tiempo real, puntajes de salud y detección de anomalías con IA en todos tus sitios — está incluido en los planes Growth y Fleet.',
     dashboard_upsell_cta: 'Ver planes',
     dashboard_no_sites: 'Todavía no tenés sitios conectados por VRM.',
     dashboard_ai_insights_title: 'Insights de IA',
@@ -4463,7 +4463,7 @@ export const STRINGS = {
     help_nav_upload: 'Cargar CSV',
     help_nav_sites: 'Primeros pasos',
     help_nav_schedule: 'Programación',
-    help_nav_dashboard: 'Panel en vivo',
+    help_nav_dashboard: 'Flota VRM',
     help_nav_branding: 'Marca',
     help_nav_billing: 'Facturación y planes',
     help_nav_account: 'Perfil',
@@ -4526,7 +4526,7 @@ export const STRINGS = {
       'Todas las cargas anteriores de tu cuenta aparecen abajo del formulario, para que siempre puedas ver qué ya se procesó.',
     help_upload_bullet_limit:
       'Agregar un sitio nuevo acá también cuenta contra el límite de sitios de tu plan, igual que agregarlo desde Mis sitios.',
-    help_section_dashboard_title: 'Cómo leer el panel en vivo',
+    help_section_dashboard_title: 'Cómo leer Flota VRM',
     help_section_dashboard_lead:
       'Disponible en Growth y Fleet: una vista en vivo de cada sitio conectado, actualizada cada ~15 minutos.',
     help_dashboard_bullet_scores:
@@ -4534,7 +4534,7 @@ export const STRINGS = {
     help_dashboard_bullet_insights:
       'Los AI Insights son cuatro chequeos determinísticos contra el propio historial de cada sitio, no un modelo: Silencio inesperado, Caída sostenida, Bajo rendimiento y Carga incompleta.',
     help_dashboard_bullet_upgrade:
-      '¿Estás en Starter? Los reportes ya cubren todo — Panel en vivo y AI Insights son lo único que suman Growth y Fleet.',
+      '¿Estás en Starter? Los reportes ya cubren todo — Flota VRM y AI Insights son lo único que suman Growth y Fleet.',
     help_faq_title: 'Preguntas frecuentes',
     help_faq_q1: '¿Cuál es la diferencia entre un reporte generado automáticamente y uno que subo por CSV?',
     help_faq_a1:
@@ -4653,10 +4653,10 @@ export const STRINGS = {
 
     marketing_capabilities_eyebrow: 'Qué incluye',
     marketing_capabilities_lede: "Dos vistas conectadas del mismo sistema Victron — mirá cómo se actualiza en tiempo real y recibí una alerta cuando algo necesite atención, o recibí la historia del período en tu bandeja automáticamente.",
-    marketing_capabilities_title_a: 'Panel en vivo.',
+    marketing_capabilities_title_a: 'Flota VRM.',
     marketing_capabilities_title_b: "Reportes programados.",
     marketing_capabilities_tag_now: 'Ahora mismo',
-    marketing_capabilities_dash_title: 'Panel en vivo',
+    marketing_capabilities_dash_title: 'Flota VRM',
     marketing_capabilities_dash_li1: "Flujo de energía en vivo — solar, carga, batería y red, cada ~15 minutos",
     marketing_capabilities_dash_li2: "Puntajes de salud de Sistema y Red, equipos incluidos — con el cálculo a la vista",
     marketing_capabilities_dash_li3: "AI Insights: un resumen diario en lenguaje claro, el pronóstico de esta noche y mañana, y verificaciones automáticas",
@@ -4779,7 +4779,7 @@ export const STRINGS = {
     marketing_pricing_starter_li5: 'Español / Inglés',
     marketing_pricing_starter_li6: 'Entrega automática por correo',
     marketing_pricing_growth_carry: 'Todo lo de Starter, más',
-    marketing_pricing_growth_li1: "Panel en vivo — flujo de energía, solar, carga y batería en tiempo real",
+    marketing_pricing_growth_li1: "Flota VRM — flujo de energía, solar, carga y batería en tiempo real",
     marketing_pricing_growth_li2: 'Puntaje de salud actualizado continuamente, no solo semanal',
     marketing_pricing_growth_li3: "AI Insights (Beta) — resumen diario, pronóstico, equipos y verificaciones de anomalías",
     marketing_pricing_growth_li_alerts: "Alertas por correo y notificación al teléfono — sitio, red, batería, equipos",
@@ -4844,7 +4844,7 @@ export const STRINGS = {
       'Cada sección del reporte y cada señal del panel en vivo que calcula VRM Monitor, en detalle — además de qué es realmente un Integrador de Software Recomendado por Victron.',
     marketing_whatsinside_h1: 'Qué incluye VRM Monitor.',
     marketing_whatsinside_intro_1: 'VRM Monitor son dos vistas conectadas de un mismo sistema Victron: un ',
-    marketing_whatsinside_intro_live_dashboard: 'panel en vivo',
+    marketing_whatsinside_intro_live_dashboard: 'Flota VRM',
     marketing_whatsinside_intro_2: ' y un ',
     marketing_whatsinside_intro_pdf_report: 'reporte en PDF',
     marketing_whatsinside_intro_3: ' automático narrado por IA, entregado en su propio horario — personalizado para cada sitio, construido por Pauly & Co., un ',
@@ -4852,7 +4852,7 @@ export const STRINGS = {
     marketing_whatsinside_intro_4: '. Ambos leen datos que tu equipo ya genera — sin cambios en Node-RED, sin reflashear el Cerbo.',
     marketing_whatsinside_live_eyebrow: 'En vivo, ahora mismo',
     marketing_whatsinside_live_lede: 'Actualizado cada ~15 minutos, directo desde la API de VRM — el mismo feed al que ya reporta tu Cerbo GX.',
-    marketing_whatsinside_live_title: 'El panel en vivo, en detalle.',
+    marketing_whatsinside_live_title: 'Flota VRM, en detalle.',
     marketing_whatsinside_signal1_title: 'Puntaje de sistema',
     marketing_whatsinside_signal1_body: "Alarmas, SOC, ciclado, temperatura, voltaje y fallas de equipos — un solo número, siempre actual, con cada punto descontado explicado.",
     marketing_whatsinside_signal2_title: 'Puntaje de red',
@@ -4887,13 +4887,13 @@ export const STRINGS = {
     marketing_whatsinside_faq_q3: '¿Necesito cambiar mi configuración de Node-RED o reflashear mi Cerbo GX?',
     marketing_whatsinside_faq_a3:
       'No. VRM Monitor lee datos que tu equipo ya está generando y enviando al Portal VRM — sin cambios a un flujo de Node-RED existente, y sin reflashear un Cerbo GX.',
-    marketing_whatsinside_faq_q4: '¿Con qué frecuencia se actualiza el panel en vivo?',
+    marketing_whatsinside_faq_q4: '¿Con qué frecuencia se actualiza Flota VRM?',
     marketing_whatsinside_faq_a4:
       'Cada ~15 minutos, extraído de la misma API de VRM a la que ya reporta tu Cerbo GX — las mismas lecturas de potencia en vivo y estado de carga de batería que verías en el propio Portal VRM, junto con un puntaje de salud siempre actual en vez de refrescarse solo una vez por semana.',
-    marketing_whatsinside_faq_q5: "¿Cuál es la diferencia entre el panel en vivo y los reportes?",
-    marketing_whatsinside_faq_a5: "El panel en vivo te muestra el ahora: solar, carga, batería y potencia de red en tiempo real, actualizados cada ~15 minutos, con alertas cuando algo necesita atención. El reporte cuenta la historia del período que acaba de terminar — un PDF con tu marca y una narrativa escrita por IA, entregado automáticamente por correo cada día, semana o mes. Los mismos datos de base, dos funciones distintas.",
+    marketing_whatsinside_faq_q5: "¿Cuál es la diferencia entre Flota VRM y los reportes?",
+    marketing_whatsinside_faq_a5: "Flota VRM te muestra el ahora: solar, carga, batería y potencia de red en tiempo real, actualizados cada ~15 minutos, con alertas cuando algo necesita atención. El reporte cuenta la historia del período que acaba de terminar — un PDF con tu marca y una narrativa escrita por IA, entregado automáticamente por correo cada día, semana o mes. Los mismos datos de base, dos funciones distintas.",
     marketing_whatsinside_faq_q6: '¿Puedo usar esto para una sola casa, o para toda una flota de instalador?',
-    marketing_whatsinside_faq_a6: "Ambos. Starter está pensado para el reporte programado de un solo sistema. Growth y Fleet agregan el panel en vivo, las alertas, AI Insights, y personalización del reporte por sitio para un instalador que administra toda una flota de clientes desde una sola cuenta.",
+    marketing_whatsinside_faq_a6: "Ambos. Starter está pensado para el reporte programado de un solo sistema. Growth y Fleet agregan Flota VRM, las alertas, AI Insights, y personalización del reporte por sitio para un instalador que administra toda una flota de clientes desde una sola cuenta.",
     marketing_whatsinside_faq_q7: "¿Me avisa cuando algo falla?",
     marketing_whatsinside_faq_a7: "Sí, en Growth y Fleet. VRM Monitor envía un correo y una notificación al teléfono cuando un sitio deja de reportar, cae la red, la batería baja, salta una alarma del sistema, una batería, inversor o cargador solar necesita atención, o se rompe el enlace con VRM — y otra vez cuando se resuelve. Vos elegís qué alertas recibir, por tipo, y si por correo, notificación o ambos.",
     marketing_whatsinside_faq_q8: "¿Qué revisa de mis equipos?",

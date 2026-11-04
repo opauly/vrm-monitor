@@ -23,7 +23,7 @@ import styles from './site.module.css';
 // site, since both ultimately read the same shared core.
 export async function generateMetadata({ params }: { params: Promise<{ site_id: string }> }): Promise<Metadata> {
   const { site_id } = await params;
-  return { title: `Dashboard — ${site_id}` };
+  return { title: `VRM Fleet — ${site_id}` };
 }
 
 function formatWatts(w: number | null): string {

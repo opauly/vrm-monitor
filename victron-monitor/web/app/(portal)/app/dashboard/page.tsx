@@ -14,7 +14,7 @@ import { ShapeChart } from '../../../(admin)/admin/fleet/ShapeChart';
 import styles from './dashboard.module.css';
 
 export const metadata: Metadata = {
-  title: 'Dashboard',
+  title: 'VRM Fleet',
 };
 
 // `/app/dashboard` — the customer-facing counterpart of the admin-only
