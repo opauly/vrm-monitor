@@ -105,6 +105,8 @@ export const STRINGS = {
     login_forgot_password: 'Forgot your password?',
     login_no_account: "Don't have an account yet?",
     login_sign_up_link: 'Sign up',
+    inactive_account_error:
+      'This account is deactivated. Contact proyectos@paulyco.com to reactivate it.',
     not_linked_error:
       "There's no VRM Monitor account for this email yet. Create one to get started.",
     please_log_in: 'Please log in to continue.',
@@ -2625,6 +2627,8 @@ export const STRINGS = {
     login_forgot_password: '¿Olvidaste tu contraseña?',
     login_no_account: '¿Todavía no tenés una cuenta?',
     login_sign_up_link: 'Registrate',
+    inactive_account_error:
+      'Esta cuenta está desactivada. Contactá a proyectos@paulyco.com para reactivarla.',
     not_linked_error:
       'Todavía no hay una cuenta de VRM Monitor con este correo. Creá una para empezar.',
     please_log_in: 'Iniciá sesión para continuar.',

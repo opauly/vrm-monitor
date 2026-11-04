@@ -32,10 +32,18 @@ import type { Lang } from '@/lib/i18n/strings';
  * `vrm.customers` row and isn't flagged as admin via `app_metadata` — the
  * exact condition `vrm_portal/auth.py:resolve_role()` raises `NotLinked`
  * for. An inactive customer hits this same branch (§1.5's "same clean
- * rejection" rule): from the outside, "never linked" and "deactivated" must
- * be indistinguishable to the person being rejected.
+ * rejection" rule), with `reason: 'inactive'` so the sign-in action — which
+ * only runs this after the password was accepted — can say "deactivated"
+ * rather than "no account".
  */
-export class NotLinked extends Error {}
+export class NotLinked extends Error {
+  // Only the sign-in action reads this, and only after the password was
+  // accepted — so telling "deactivated" from "no customer record" reveals
+  // nothing to someone who doesn't already hold valid credentials.
+  constructor(public readonly reason: 'unlinked' | 'inactive' = 'unlinked') {
+    super(`NotLinked: ${reason}`);
+  }
+}
 
 /** Admin has no `vrm.customers` row to persist a language choice on, so
  * this comes from the `admin_lang` cookie instead (`getSessionContext`
@@ -124,7 +132,7 @@ export async function resolveRole(user: User): Promise<RoleResolution> {
       provisioningState: row.provisioning_state === 'pending_subscription' ? 'pending_subscription' : 'active',
     };
   }
-  throw new NotLinked();
+  throw new NotLinked(row ? 'inactive' : 'unlinked');
 }
 
 /**

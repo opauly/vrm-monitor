@@ -45,7 +45,7 @@ import { t } from '@/lib/i18n/strings';
 // about the account: Supabase itself can't tell "unknown email" from
 // "wrong password" apart, and `not_linked` only happens after the
 // credentials were accepted.
-export type LoginFormState = { error?: string; kind?: 'credentials' | 'not_linked' | 'missing' };
+export type LoginFormState = { error?: string; kind?: 'credentials' | 'not_linked' | 'inactive' | 'missing' };
 
 export async function signInAction(_prevState: LoginFormState, formData: FormData): Promise<LoginFormState> {
   // Same `auth_lang` cookie `(auth)/layout.tsx`/every (auth) page.tsx reads
@@ -75,7 +75,9 @@ export async function signInAction(_prevState: LoginFormState, formData: FormDat
   } catch (err) {
     if (err instanceof NotLinked) {
       await supabase.auth.signOut();
-      return { error: t(lang, 'not_linked_error'), kind: 'not_linked' };
+      return err.reason === 'inactive'
+        ? { error: t(lang, 'inactive_account_error'), kind: 'inactive' }
+        : { error: t(lang, 'not_linked_error'), kind: 'not_linked' };
     }
     throw err;
   }
