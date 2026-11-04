@@ -37,6 +37,18 @@ export function LoginForm({ lang }: { lang: Lang }) {
       {state.error && (
         <p role="alert" className={styles.error}>
           {state.error}
+          {state.kind === 'credentials' && (
+            <span className={styles.errorLinks}>
+              <Link href="/forgot">{t(lang, 'login_error_reset_link')}</Link>
+              {' · '}
+              <Link href="/signup">{t(lang, 'login_error_signup_link')}</Link>
+            </span>
+          )}
+          {state.kind === 'not_linked' && (
+            <span className={styles.errorLinks}>
+              <Link href="/signup">{t(lang, 'login_error_signup_cta')}</Link>
+            </span>
+          )}
         </p>
       )}
 

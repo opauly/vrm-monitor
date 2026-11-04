@@ -8,7 +8,9 @@ import 'server-only';
 // exactly as the Python original does:
 //
 //   1. Every credential failure — wrong password, no such account, a
-//      rate limit — surfaces the SAME generic copy. Distinguishing "no
+//      rate limit — surfaces the SAME copy (it offers both "reset your
+//      password" and "create an account", so it helps either way without
+//      revealing which one applies). Distinguishing "no
 //      such user" from "wrong password" is precisely what an account-
 //      enumeration attack goes looking for, and there's no legitimate UI
 //      need to tell them apart here. (PLAN_PHASE16.md §8 Step 5.5: this
@@ -38,7 +40,12 @@ import { NotLinked, resolveRole } from '@/lib/server/auth';
 import { getAuthLang } from '@/lib/server/authLang';
 import { t } from '@/lib/i18n/strings';
 
-export type LoginFormState = { error?: string };
+// `kind` tells the form which recovery links to show under the message
+// (reset password / create an account). It carries no extra information
+// about the account: Supabase itself can't tell "unknown email" from
+// "wrong password" apart, and `not_linked` only happens after the
+// credentials were accepted.
+export type LoginFormState = { error?: string; kind?: 'credentials' | 'not_linked' | 'missing' };
 
 export async function signInAction(_prevState: LoginFormState, formData: FormData): Promise<LoginFormState> {
   // Same `auth_lang` cookie `(auth)/layout.tsx`/every (auth) page.tsx reads
@@ -51,14 +58,14 @@ export async function signInAction(_prevState: LoginFormState, formData: FormDat
   const password = String(formData.get('password') ?? '');
 
   if (!email || !password) {
-    return { error: t(lang, 'login_missing_fields') };
+    return { error: t(lang, 'login_missing_fields'), kind: 'missing' };
   }
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error || !data.user) {
-    return { error: t(lang, 'login_error') };
+    return { error: t(lang, 'login_error'), kind: 'credentials' };
   }
 
   let redirectTo: '/admin' | '/app';
@@ -68,7 +75,7 @@ export async function signInAction(_prevState: LoginFormState, formData: FormDat
   } catch (err) {
     if (err instanceof NotLinked) {
       await supabase.auth.signOut();
-      return { error: t(lang, 'not_linked_error') };
+      return { error: t(lang, 'not_linked_error'), kind: 'not_linked' };
     }
     throw err;
   }

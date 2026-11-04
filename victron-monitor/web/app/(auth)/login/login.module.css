@@ -34,6 +34,18 @@
   margin-bottom: 16px;
 }
 
+.errorLinks {
+  display: block;
+  margin-top: 8px;
+  font-weight: 600;
+}
+
+.errorLinks a {
+  color: var(--signal);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .forgot {
   background: none;
   border: none;
