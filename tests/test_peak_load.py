@@ -87,7 +87,7 @@ def test_a_tie_keeps_the_earliest_sample_and_an_incomplete_day_has_no_time():
 def _report(**over):
     from victron import report_i18n
     d = {"t": report_i18n.get("en", 1), "isDaily": True, "peakLoadW": 6240.0, "peakLoadDate": "2026-10-15",
-         "peakLoadAt": "2026-10-15T14:15:00", "inverterKw": 8}
+         "peakLoadAt": "2026-10-15T14:15:00"}
     d.update(over)
     return d
 
@@ -98,23 +98,22 @@ def test_report_picks_the_highest_day_and_its_time():
             {"date": "2026-10-14", "peak_load_w": None},
             {"date": "2026-10-15", "peak_load_w": 6240, "peak_load_at": "2026-10-15T14:15:00"},
             {"date": "2026-10-16", "peak_load_w": 6240, "peak_load_at": "2026-10-16T09:00:00"}]
-    got = _peak_load(days, {"inverter_nominal_kw": 8})
+    got = _peak_load(days)
     assert got["peakLoadW"] == 6240.0 and got["peakLoadDate"] == "2026-10-15" and got["peakLoadAt"].endswith("14:15:00")
-    assert _peak_load([{"date": "2026-10-14", "peak_load_w": None}], {})["peakLoadW"] is None
+    assert _peak_load([{"date": "2026-10-14", "peak_load_w": None}])["peakLoadW"] is None
 
 
 def test_one_day_report_shows_just_the_time_and_a_week_shows_day_date_and_time():
     from victron.weekly_report import _peak_load_row
     day = _peak_load_row(_report())
-    assert day[0] == {"label": "Peak load", "value": "6.2 kW · 14:15"}
-    assert day[1]["value"] == "78% of 8 kW"
+    assert day == [{"label": "Peak load", "value": "6.2 kW · 14:15"}]
     week = _peak_load_row(_report(isDaily=False))
     assert week[0]["value"] == "6.2 kW · Thu 15/10, 14:15"
 
 
-def test_report_degrades_cleanly_without_time_inverter_or_data():
+def test_report_degrades_cleanly_without_time_or_data():
     from victron.weekly_report import _peak_load_row
-    no_time = _peak_load_row(_report(isDaily=False, peakLoadAt=None, inverterKw=None))
+    no_time = _peak_load_row(_report(isDaily=False, peakLoadAt=None))
     assert no_time == [{"label": "Peak load", "value": "6.2 kW · Thu 15/10"}]
     assert _peak_load_row(_report(peakLoadW=None)) == []
-    assert _peak_load_row(_report(peakLoadW=850.0, inverterKw=None))[0]["value"] == "850 W · 14:15"
+    assert _peak_load_row(_report(peakLoadW=850.0))[0]["value"] == "850 W · 14:15"

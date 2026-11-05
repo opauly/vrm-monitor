@@ -499,7 +499,7 @@ def _pattern_findings(patterns: list[dict]) -> list[str]:
             for p in patterns[:3]]
 
 
-def _peak_load(days: list[dict], site: dict) -> dict:
+def _peak_load(days: list[dict]) -> dict:
     """The highest AC load of the window and when it happened, from the stored daily peaks.
 
     `peakLoadW` is None when no day in the window has one (an incomplete day or a day that predates the column), in
@@ -514,13 +514,13 @@ def _peak_load(days: list[dict], site: dict) -> dict:
         if best is None or float(w) > float(best["peak_load_w"]):
             best = r
     if best is None:
-        return {"peakLoadW": None, "peakLoadDate": None, "peakLoadAt": None, "inverterKw": site.get("inverter_nominal_kw")}
+        return {"peakLoadW": None, "peakLoadDate": None, "peakLoadAt": None}
     return {"peakLoadW": float(best["peak_load_w"]), "peakLoadDate": str(best["date"])[:10],
-            "peakLoadAt": best.get("peak_load_at"), "inverterKw": site.get("inverter_nominal_kw")}
+            "peakLoadAt": best.get("peak_load_at")}
 
 
 def _peak_load_row(d: dict) -> list[dict]:
-    """Events rows for the peak load: the value plus when it happened, and its share of the inverter when that is known."""
+    """The Events row for the peak load: the value plus when it happened."""
     w = d.get("peakLoadW")
     if w is None:
         return []
@@ -533,12 +533,7 @@ def _peak_load_row(d: dict) -> list[dict]:
         when_txt = clock
     else:
         when_txt = f"{S.day_abbr(d['peakLoadDate'], t)} {day.day:02d}/{day.month:02d}" + (f", {clock}" if clock else "")
-    rows = [{"label": t["peakLoad"], "value": f"{value} · {when_txt}" if when_txt else value}]
-    kw = d.get("inverterKw")
-    if kw and float(kw) > 0:
-        rows.append({"label": t["peakLoadInverter"],
-                     "value": t["peakLoadInverterValue"].format(pct=round(w / 1000 / float(kw) * 100), kw=f"{float(kw):g}")})
-    return rows
+    return [{"label": t["peakLoad"], "value": f"{value} · {when_txt}" if when_txt else value}]
 
 
 def build_report_data(site_id: str, start: str | date, end: str | date, schema: str,
@@ -1017,7 +1012,7 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
         "alarmPatterns": window.get("alarm_patterns") or [],
         "propertySites": property_sites,
         "isDaily": len(days) == 1 and not window["is_overview"],
-        **_peak_load(days, site),
+        **_peak_load(days),
         "briefDropoutMinutes": brief_dropout_minutes,
         "periodStartIso": str(window["period_start"]),
         "periodEndIso": str(window["period_end"]),

@@ -91,7 +91,6 @@ export type FleetOverviewRow = {
   system_type: SiteRecord['system_type'];
   pv_kwp: number | null;
   battery_usable_kwh: number | null;
-  inverter_nominal_kw: number | null;
   // The site's own configured timezone (its Cerbo's local time), same
   // field `victron/vrm_live.py`/`vrm_shape.py` already pass to VRM — a
   // live reading is timestamped in THIS, not the app-wide
@@ -258,7 +257,7 @@ export type FleetOverview = {
  * select — kept here so a field added to one caller's query is never
  * silently missing from the other's. */
 export const FLEET_SITE_SELECT_FIELDS =
-  'site_id, display_name, customer_id, system_type, pv_kwp, battery_usable_kwh, inverter_nominal_kw, timezone, vrm_last_synced_at';
+  'site_id, display_name, customer_id, system_type, pv_kwp, battery_usable_kwh, timezone, vrm_last_synced_at';
 
 export type FleetSiteInput = {
   site_id: string;
@@ -267,8 +266,6 @@ export type FleetSiteInput = {
   system_type: SiteRecord['system_type'];
   pv_kwp: number | null;
   battery_usable_kwh: number | null;
-  /** Total continuous AC power of the inverter/charger units (kW), filled by hand. */
-  inverter_nominal_kw: number | null;
   timezone: string | null;
   vrm_last_synced_at: string | null;
 };
@@ -740,7 +737,6 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
       system_type: s.system_type,
       pv_kwp: s.pv_kwp,
       battery_usable_kwh: s.battery_usable_kwh,
-      inverter_nominal_kw: s.inverter_nominal_kw ?? null,
       timezone: s.timezone,
       vrm_last_synced_at: s.vrm_last_synced_at,
       connection_status: _connectionStatus(snapshot?.captured_at ?? null, now),
