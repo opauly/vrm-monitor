@@ -189,6 +189,8 @@ export type SiteRecord = {
   reserve_soc_pct: number | null;
   battery_nominal_kwh: number | null;
   battery_dod_pct: number | null;
+  /** Total continuous AC power of all inverter/charger units at 25 °C (kW), from the datasheet. Filled by hand. */
+  inverter_nominal_kw: number | null;
   /** GENERATED ALWAYS AS (nominal * dod / 100) STORED (migration 019) —
    * read-only everywhere in this app. Postgres recomputes it the instant
    * `battery_nominal_kwh`/`battery_dod_pct` change; there is no code path

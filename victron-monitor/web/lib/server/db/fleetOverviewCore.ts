@@ -91,6 +91,7 @@ export type FleetOverviewRow = {
   system_type: SiteRecord['system_type'];
   pv_kwp: number | null;
   battery_usable_kwh: number | null;
+  inverter_nominal_kw: number | null;
   // The site's own configured timezone (its Cerbo's local time), same
   // field `victron/vrm_live.py`/`vrm_shape.py` already pass to VRM — a
   // live reading is timestamped in THIS, not the app-wide
@@ -223,6 +224,9 @@ export type PeriodSummary = {
   load_kwh: number | null;
   grid_import_kwh: number | null;
   grid_export_kwh: number | null;
+  /** Highest daily peak load in the window (W), and the day it happened. A lower bound: see vrm_daily.peak_power(). */
+  peak_load_w: number | null;
+  peak_load_date: string | null;
   self_sufficiency_pct: number | null;
   self_consumption_pct: number | null;
   dod_pct: number | null;
@@ -254,7 +258,7 @@ export type FleetOverview = {
  * select — kept here so a field added to one caller's query is never
  * silently missing from the other's. */
 export const FLEET_SITE_SELECT_FIELDS =
-  'site_id, display_name, customer_id, system_type, pv_kwp, battery_usable_kwh, timezone, vrm_last_synced_at';
+  'site_id, display_name, customer_id, system_type, pv_kwp, battery_usable_kwh, inverter_nominal_kw, timezone, vrm_last_synced_at';
 
 export type FleetSiteInput = {
   site_id: string;
@@ -263,6 +267,8 @@ export type FleetSiteInput = {
   system_type: SiteRecord['system_type'];
   pv_kwp: number | null;
   battery_usable_kwh: number | null;
+  /** Total continuous AC power of the inverter/charger units (kW), filled by hand. */
+  inverter_nominal_kw: number | null;
   timezone: string | null;
   vrm_last_synced_at: string | null;
 };
@@ -528,7 +534,7 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
     // rather than trusting `vrm.daily_health.battery_cycles`, which still
     // fabricates a 0.0 for exactly this case (migration 012, unfixed).
     admin.schema('vrm').from('energy_daily')
-      .select('site_id, date, pv_kwh, load_kwh, grid_kwh, grid_export_kwh, pv_kwp_snapshot, min_soc, max_soc, avg_soc, outage_count, outage_minutes, battery_charge_kwh, battery_discharge_kwh')
+      .select('site_id, date, pv_kwh, load_kwh, grid_kwh, grid_export_kwh, pv_kwp_snapshot, min_soc, max_soc, avg_soc, outage_count, outage_minutes, battery_charge_kwh, battery_discharge_kwh, peak_load_w')
       .in('site_id', siteIds).gte('date', lookback30Date),
     // Fleet Dashboard Phase 3b (migration 038) — every OPEN anomaly across
     // every site in one query, same "no bulk vrm_api endpoint exists for
@@ -651,6 +657,7 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
     outage_minutes: number | null;
     battery_charge_kwh: number | null;
     battery_discharge_kwh: number | null;
+    peak_load_w: number | null;
   };
   const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const last7dEnergyBySite = new Map<string, EnergyRowPeriod[]>();
@@ -669,6 +676,7 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
       outage_minutes: row.outage_minutes,
       battery_charge_kwh: row.battery_charge_kwh,
       battery_discharge_kwh: row.battery_discharge_kwh,
+      peak_load_w: row.peak_load_w ?? null,
     };
     // `lookback30Date` already bounds `energyDaily` to 30 days, so every
     // row here belongs in the month map; only the more recent ones also
@@ -696,12 +704,16 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
     const consumed = Math.max(pv - exported, 0);
     const totalLoad = consumed + imported;
     const healthDays = (healthRowsBySite.get(siteId) ?? []).filter((r) => r.date >= sinceDate && !isPartialDay(r.system_notes));
+    let peak: { w: number; date: string } | null = null;
+    for (const r of energyRows) if (r.peak_load_w !== null && (peak === null || r.peak_load_w > peak.w)) peak = { w: r.peak_load_w, date: r.date };
     return {
       energy_days: energyRows.length,
       pv_kwh: meanOf(energyRows.map((r) => r.pv_kwh)),
       load_kwh: meanOf(energyRows.map((r) => r.load_kwh)),
       grid_import_kwh: meanOf(energyRows.map((r) => r.grid_kwh)),
       grid_export_kwh: meanOf(energyRows.map((r) => r.grid_export_kwh)),
+      peak_load_w: peak ? Math.round(peak.w) : null,
+      peak_load_date: peak ? peak.date : null,
       self_sufficiency_pct: energyRows.length > 0 && totalLoad > 0 ? Math.round((1 - imported / totalLoad) * 1000) / 10 : null,
       self_consumption_pct: energyRows.length > 0 && pv > 0 ? Math.round((consumed / pv) * 1000) / 10 : null,
       dod_pct: meanOf(energyRows.map((r) => (r.min_soc === null ? null : 100 - r.min_soc))),
@@ -728,6 +740,7 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
       system_type: s.system_type,
       pv_kwp: s.pv_kwp,
       battery_usable_kwh: s.battery_usable_kwh,
+      inverter_nominal_kw: s.inverter_nominal_kw ?? null,
       timezone: s.timezone,
       vrm_last_synced_at: s.vrm_last_synced_at,
       connection_status: _connectionStatus(snapshot?.captured_at ?? null, now),

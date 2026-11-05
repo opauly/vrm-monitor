@@ -40,6 +40,11 @@ EN = {
     # says "alarm episodes", so repeating "Alarm" on every row is noise.
     "alarmCategoryLowBattery": "Low battery",
     "alarmCategoryOverload": "Overload",
+    # Highest load of the period and when it happened (Events section). One day: the time; longer: weekday, date and time.
+    "peakLoad": "Peak load",
+    "peakLoadInverter": "— Share of inverter capacity",
+    "peakLoadInverterValue": "{pct}% of {kw} kW",
+    "peakLoadNote": "Peak load is the highest logged reading, so a very brief spike can be higher.",
     "outages": "Grid Outages",
     "noOutagesShort": "No outages",
     # Outages come only from the device's own Grid alarm flag — a brief
@@ -266,6 +271,10 @@ ES = dict(EN, **{
     "alarmEpisodes": "Total de Episodios de Alarma",
     "alarmCategoryLowBattery": "Batería baja",
     "alarmCategoryOverload": "Sobrecarga",
+    "peakLoad": "Carga máxima",
+    "peakLoadInverter": "— Uso de la capacidad del inversor",
+    "peakLoadInverterValue": "{pct}% de {kw} kW",
+    "peakLoadNote": "La carga máxima es la lectura más alta registrada; un pico muy breve puede ser mayor.",
     "outages": "Cortes de Red",
     "noOutagesShort": "Sin cortes",
     "outagesGridQualityNote": "Ver Calidad de Red",

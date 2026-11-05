@@ -105,7 +105,7 @@ def get_or_create_admin_portfolio_customer() -> dict:
 # Ingest
 # ──────────────────────────────────────────────────────────────────
 # Columns that arrived after the table did (sql/vrm_grid_dropouts.sql) — ingestion survives them being absent.
-_OPTIONAL_ENERGY_COLUMNS = ("grid_dropout_minutes", "ac_in_minutes")
+_OPTIONAL_ENERGY_COLUMNS = ("grid_dropout_minutes", "ac_in_minutes", "peak_load_w", "peak_load_at")
 
 
 def _chunks(seq: list, size: int = _CHUNK):

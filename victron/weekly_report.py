@@ -499,6 +499,48 @@ def _pattern_findings(patterns: list[dict]) -> list[str]:
             for p in patterns[:3]]
 
 
+def _peak_load(days: list[dict], site: dict) -> dict:
+    """The highest AC load of the window and when it happened, from the stored daily peaks.
+
+    `peakLoadW` is None when no day in the window has one (an incomplete day or a day that predates the column), in
+    which case the report shows no peak row at all. `peakLoadAt` is the site-local wall-clock time of that reading
+    (ISO), or None for a day whose time was not stored — then only the date is known. The earliest day wins a tie.
+    """
+    best = None
+    for r in days:
+        w = r.get("peak_load_w")
+        if w is None:
+            continue
+        if best is None or float(w) > float(best["peak_load_w"]):
+            best = r
+    if best is None:
+        return {"peakLoadW": None, "peakLoadDate": None, "peakLoadAt": None, "inverterKw": site.get("inverter_nominal_kw")}
+    return {"peakLoadW": float(best["peak_load_w"]), "peakLoadDate": str(best["date"])[:10],
+            "peakLoadAt": best.get("peak_load_at"), "inverterKw": site.get("inverter_nominal_kw")}
+
+
+def _peak_load_row(d: dict) -> list[dict]:
+    """Events rows for the peak load: the value plus when it happened, and its share of the inverter when that is known."""
+    w = d.get("peakLoadW")
+    if w is None:
+        return []
+    t = d["t"]
+    value = f"{w / 1000:.1f} kW" if w >= 1000 else f"{w:.0f} W"
+    when = d.get("peakLoadAt")
+    day = date.fromisoformat(d["peakLoadDate"])
+    clock = str(when)[11:16] if when else None
+    if d.get("isDaily"):
+        when_txt = clock
+    else:
+        when_txt = f"{S.day_abbr(d['peakLoadDate'], t)} {day.day:02d}/{day.month:02d}" + (f", {clock}" if clock else "")
+    rows = [{"label": t["peakLoad"], "value": f"{value} · {when_txt}" if when_txt else value}]
+    kw = d.get("inverterKw")
+    if kw and float(kw) > 0:
+        rows.append({"label": t["peakLoadInverter"],
+                     "value": t["peakLoadInverterValue"].format(pct=round(w / 1000 / float(kw) * 100), kw=f"{float(kw):g}")})
+    return rows
+
+
 def build_report_data(site_id: str, start: str | date, end: str | date, schema: str,
                       with_narrative: bool = True,
                       with_weather: bool = True,
@@ -975,6 +1017,7 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
         "alarmPatterns": window.get("alarm_patterns") or [],
         "propertySites": property_sites,
         "isDaily": len(days) == 1 and not window["is_overview"],
+        **_peak_load(days, site),
         "briefDropoutMinutes": brief_dropout_minutes,
         "periodStartIso": str(window["period_start"]),
         "periodEndIso": str(window["period_end"]),
@@ -1097,6 +1140,7 @@ def _rows(d: dict) -> tuple[list, list, list, list, list]:
         key = _ALARM_CATEGORY_LABEL_KEYS.get(alarm_label)
         display_label = t[key] if key else alarm_label
         events.append({"label": f"— {display_label}", "value": str(count)})
+    events.extend(_peak_load_row(d))
     # A poor Grid Quality score alongside a clean outage count is flagged on
     # the Grid Outages KPI card itself (report_svg.kpi_svg) rather than here —
     # that's the number a reader sees first, so the pointer belongs there,
@@ -1336,6 +1380,8 @@ def render_html(d: dict, selected: set[str] | None = None) -> str:
     want_savings = "savings" in selected
     events_sub = (t["subEventsOffGrid"] if d["systemType"] == "off_grid"
                  else t["subEvents"])
+    if d.get("peakLoadW") is not None:
+        events_sub = f"{events_sub} {t['peakLoadNote']}"
     savings_sub = (t["subSavingsOffGrid"] if d["systemType"] == "off_grid"
                   else t["subSavings"])
 

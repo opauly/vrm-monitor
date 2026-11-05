@@ -403,6 +403,7 @@ const ADMIN_SITE_WHITELIST = [
   'reserve_soc_pct',
   'battery_nominal_kwh',
   'battery_dod_pct',
+  'inverter_nominal_kw',
   'system_type',
   'report_language',
   'location',

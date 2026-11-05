@@ -9,6 +9,9 @@ import styles from './EnergyCard.module.css';
 // chart draws, so it loads on demand); 7 and 30 days are per-day averages from
 // the stored daily totals.
 
+/** Highest load (W) in a window, with the day it happened (stored days only; "today" has no date). */
+export type PeakLoad = { w: number | null; date?: string | null };
+
 export type EnergyTotals = { pv: number | null; load: number | null; gridImport: number | null; gridExport: number | null };
 
 const ROWS: { field: keyof EnergyTotals; label: StringKey }[] = [
@@ -42,7 +45,52 @@ function Totals({ lang, totals, generator }: { lang: Lang; totals: EnergyTotals;
   );
 }
 
-export function EnergyCard({ lang, week, month, generator = false }: { lang: Lang; week: EnergyTotals; month: EnergyTotals; generator?: boolean }) {
+function dayLabel(iso: string, lang: Lang): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(lang === 'es' ? 'es-CR' : 'en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+// The window's highest load, as kW, with how close it came to the inverters' rated power when that size is known.
+// It is the peak of 15-minute averages, so it can understate a short spike — the sub-line says so.
+function Peak({ lang, peak, inverterKw, today }: { lang: Lang; peak: PeakLoad; inverterKw: number | null; today?: boolean }) {
+  if (peak.w === null) return null;
+  const kw = peak.w / 1000;
+  const parts = [
+    today || !peak.date
+      ? t(lang, 'site_live_energy_peak_sub_today')
+      : t(lang, 'site_live_energy_peak_sub_period').replace('{date}', dayLabel(peak.date, lang)),
+  ];
+  if (inverterKw && inverterKw > 0) {
+    parts.push(t(lang, 'site_live_energy_peak_inverter').replace('{pct}', String(Math.round((kw / inverterKw) * 100))).replace('{kw}', String(inverterKw)));
+  }
+  return (
+    <div className={styles.peak}>
+      <div className={styles.value}>
+        {kw.toFixed(1)} <span className={styles.unit}>kW</span>
+      </div>
+      <div className={styles.note}>{t(lang, 'site_live_energy_peak')}</div>
+      <div className={styles.note}>{parts.join(' · ')}</div>
+    </div>
+  );
+}
+
+export function EnergyCard({
+  lang,
+  week,
+  month,
+  generator = false,
+  weekPeak = { w: null },
+  monthPeak = { w: null },
+  inverterKw = null,
+}: {
+  lang: Lang;
+  week: EnergyTotals;
+  month: EnergyTotals;
+  generator?: boolean;
+  weekPeak?: PeakLoad;
+  monthPeak?: PeakLoad;
+  inverterKw?: number | null;
+}) {
   const today = useToday();
   return (
     <div className={styles.card}>
@@ -57,16 +105,21 @@ export function EnergyCard({ lang, week, month, generator = false }: { lang: Lan
         ) : today.status === 'error' ? (
           <div className={styles.note}>{t(lang, 'site_energy_unavailable')}</div>
         ) : (
-          <Totals lang={lang} totals={today.totals} generator={generator} />
+          <>
+            <Totals lang={lang} totals={today.totals} generator={generator} />
+            <Peak lang={lang} peak={{ w: today.totals.peakLoadW }} inverterKw={inverterKw} today />
+          </>
         )}
       </PeriodPane>
       <PeriodPane period="week">
         <div className={styles.note}>{t(lang, 'site_energy_sub_week')}</div>
         <Totals lang={lang} totals={week} generator={generator} />
+        <Peak lang={lang} peak={weekPeak} inverterKw={inverterKw} />
       </PeriodPane>
       <PeriodPane period="month">
         <div className={styles.note}>{t(lang, 'site_energy_sub_month')}</div>
         <Totals lang={lang} totals={month} generator={generator} />
+        <Peak lang={lang} peak={monthPeak} inverterKw={inverterKw} />
       </PeriodPane>
     </div>
   );

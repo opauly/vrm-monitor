@@ -341,6 +341,17 @@ export function SiteForm({ mode, lang, action, initial, moduleSelectionAllowed =
             disabled={pending}
           />
         </Field>
+        <Field label={<>{t(lang, 'sites_field_inverter_kw')} <InfoTooltip label={t(lang, 'sites_field_inverter_kw')}>{t(lang, 'sites_field_inverter_kw_hint')}</InfoTooltip></>} htmlFor="site-inverter-kw">
+          <Input
+            id="site-inverter-kw"
+            name="inverter_nominal_kw"
+            type="number"
+            step="0.1"
+            min="0"
+            defaultValue={initial?.inverter_nominal_kw ?? ''}
+            disabled={pending}
+          />
+        </Field>
       </div>
       {usableKwh !== null && (
         <p className={styles.caption}>{t(lang, 'sites_field_battery_usable_caption').replace('{value}', usableKwh.toFixed(2))}</p>

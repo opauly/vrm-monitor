@@ -74,6 +74,35 @@ def integrate(series: pd.Series, index: pd.DatetimeIndex, max_gap_s: int) -> flo
     return float(np.nansum(s.values * dt.values) / 3_600_000.0)
 
 
+def peak_power_at(series: pd.Series, index: pd.DatetimeIndex, max_gap_s: int) -> tuple[float, pd.Timestamp] | None:
+    """Highest power [W] of the day and WHEN it happened, never taken across a monitoring gap.
+
+    Only samples with a real reading are considered. A sample counts when the time since the previous real reading
+    is at most `max_gap_s` — the same rule `integrate()` applies — so a lone reading stranded after a long gap
+    (or after a stretch of NaN rows) can never set the peak. Returns `None` when no sample qualifies. On a tie the
+    earliest sample wins. The timestamp is the sample's own (site-local, naive) time.
+
+    Known limitation: this is the peak of the SAMPLES, not of the instantaneous load. A 15-minute average (VRM API)
+    smooths short spikes, so it understates the real peak; a 1-minute CSV day reads higher. Treat it as a lower bound.
+    """
+    s = pd.to_numeric(series.reindex(index), errors="coerce").dropna()
+    if len(s) < 2:
+        return None
+    dt = s.index.to_series().diff().dt.total_seconds()
+    ok = (dt <= max_gap_s).values
+    if not ok.any():
+        return None
+    qualifying = s[ok]
+    when = qualifying.idxmax()
+    return float(qualifying.loc[when]), when
+
+
+def peak_power(series: pd.Series, index: pd.DatetimeIndex, max_gap_s: int) -> float | None:
+    """The value half of `peak_power_at()`."""
+    found = peak_power_at(series, index, max_gap_s)
+    return found[0] if found else None
+
+
 def _min_max_nonzero(series: pd.Series) -> tuple[float | None, float | None]:
     """Day min/max, excluding zeros.
 
@@ -473,6 +502,12 @@ def to_energy_daily_rows(tidied: pd.DataFrame, site_id: str, *, max_gap_s: int,
         tank_status = _tank_last("status", numeric=False)
         tank_level_pct = _tank_last("level_pct", numeric=True)
 
+        # Highest AC load of the day (W) — only for a complete day, so a monitoring outage can never leave a fake low
+        # peak. A lower bound, see `peak_power()`.
+        complete_day = hours >= 23.0
+        peak = peak_power_at(g["load_w"], idx, max_gap_s) if complete_day else None
+        peak_load, peak_at = peak if peak else (None, None)
+
         rows.append({
             "site_id": site_id,
             "date": day.isoformat() if isinstance(day, date) else str(day),
@@ -484,6 +519,10 @@ def to_energy_daily_rows(tidied: pd.DataFrame, site_id: str, *, max_gap_s: int,
             "grid_export_kwh": round(integrate(g["grid_export_w"], idx, max_gap_s), 3),
             "battery_charge_kwh": round(integrate(g["batt_charge_w"], idx, max_gap_s), 2),
             "battery_discharge_kwh": round(integrate(g["batt_discharge_w"], idx, max_gap_s), 2),
+            # Highest AC load seen that day (W); NULL on an incomplete day or when no usable reading exists.
+            "peak_load_w": round(peak_load, 1) if peak_load is not None else None,
+            # When it happened: site-local wall-clock time of that sample (NULL together with the value).
+            "peak_load_at": peak_at.strftime("%Y-%m-%dT%H:%M:%S") if peak_at is not None else None,
 
             "min_soc": round(float(soc.min()), 1) if not soc.empty else None,
             "max_soc": round(max_soc, 1) if max_soc is not None else None,
@@ -533,6 +572,6 @@ def to_energy_daily_rows(tidied: pd.DataFrame, site_id: str, *, max_gap_s: int,
 
             # Not columns on energy_daily — carried for the caller's UI/filtering.
             "hours_covered": round(hours, 1),
-            "complete_day": hours >= 23.0,
+            "complete_day": complete_day,
         })
     return rows

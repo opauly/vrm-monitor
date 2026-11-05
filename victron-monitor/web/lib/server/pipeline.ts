@@ -359,6 +359,7 @@ export type SiteShapeOut = {
   load: (number | null)[];
   battery: (number | null)[];
   grid: (number | null)[];
+  peak_load_w?: number | null;
 };
 
 export async function getSiteShape(siteId: string, range: SiteShapeRange): Promise<SiteShapeOut> {

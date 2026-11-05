@@ -208,6 +208,9 @@ export function AdminSiteEditForm({ site, lang, onDone }: { site: SiteRecord; la
             disabled={pending}
           />
         </Field>
+        <Field label={<>{t(lang, 'sites_field_inverter_kw')} <InfoTooltip label={t(lang, 'sites_field_inverter_kw')}>{t(lang, 'sites_field_inverter_kw_hint')}</InfoTooltip></>} htmlFor={`as-inverter-${site.site_id}`}>
+          <Input id={`as-inverter-${site.site_id}`} name="inverter_nominal_kw" type="number" step="0.1" min="0" defaultValue={site.inverter_nominal_kw ?? ''} disabled={pending} />
+        </Field>
       </div>
       {usableKwh !== null && (
         <p className={styles.caption}>{t(lang, 'sites_field_battery_usable_caption').replace('{value}', usableKwh.toFixed(2))}</p>

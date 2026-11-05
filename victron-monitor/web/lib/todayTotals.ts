@@ -13,6 +13,8 @@ export type ShapeToday = {
   load: (number | null)[];
   grid: (number | null)[];
   soc_min?: number | null;
+  /** Highest 15-minute load reading so far (W). */
+  peak_load_w?: number | null;
 };
 
 export type TodayTotals = {
@@ -25,6 +27,8 @@ export type TodayTotals = {
   /** Lowest battery charge (%) so far today, and 100 minus it. */
   lowestSocPct: number | null;
   dodPct: number | null;
+  /** Highest 15-minute load reading so far today (W). */
+  peakLoadW: number | null;
 };
 
 const kwh = (values: (number | null)[], pick: (v: number) => number = (v) => v): number | null => {
@@ -57,5 +61,6 @@ export function todayTotals(shape: ShapeToday): TodayTotals {
     selfConsumptionPct,
     lowestSocPct: lowest,
     dodPct: lowest === null ? null : round1(100 - lowest),
+    peakLoadW: typeof shape.peak_load_w === 'number' ? shape.peak_load_w : null,
   };
 }

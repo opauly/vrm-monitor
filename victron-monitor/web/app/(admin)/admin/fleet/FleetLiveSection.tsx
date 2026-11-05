@@ -291,6 +291,9 @@ export function FleetLiveSection({
             <EnergyCard
               lang={lang}
               generator={sites[0].system_type === 'off_grid'}
+              inverterKw={sites[0].inverter_nominal_kw}
+              weekPeak={{ w: sites[0].summary_week.peak_load_w, date: sites[0].summary_week.peak_load_date }}
+              monthPeak={{ w: sites[0].summary_month.peak_load_w, date: sites[0].summary_month.peak_load_date }}
               week={{ pv: sites[0].summary_week.pv_kwh, load: sites[0].summary_week.load_kwh, gridImport: sites[0].summary_week.grid_import_kwh, gridExport: sites[0].summary_week.grid_export_kwh }}
               month={{ pv: sites[0].summary_month.pv_kwh, load: sites[0].summary_month.load_kwh, gridImport: sites[0].summary_month.grid_import_kwh, gridExport: sites[0].summary_month.grid_export_kwh }}
             />

@@ -275,6 +275,10 @@ TANK_LEVEL_CODE = "tl"  # speculative — see comment above
 # as a zero contribution to that flow, same as the CSV path's own
 # `grid_export_kwh` naturally reads 0 on such a site.
 ENERGY_CODES = ("Pb", "Pc", "Pg", "Gb", "Gc", "Bc", "Bg")
+# The three flows that feed the consumers (PV, grid, battery -> load). Their sum is the load's energy per interval,
+# so at a 15-minute interval it is also a load-power series: kWh * 3.6e6 / interval_seconds = W. Used for the day's
+# peak load (`peak_load_w`); the daily totals still come from the `days` call below.
+CONSUMPTION_CODES = ("Pc", "Gc", "Bc")
 
 
 class VrmSeriesError(ValueError):
@@ -438,8 +442,10 @@ def fetch_and_map(client, id_site, site_id: str, start, end, *,
         tank_codes_present["level_pct"] = TANK_LEVEL_CODE
 
     # ── Fine-grained series (state columns + alarm booleans) ───────────────
+    consumption_codes_present = [c for c in CONSUMPTION_CODES if c in available]
     requested_codes = sorted(
         set(state_code_of.values())
+        | set(consumption_codes_present)
         | {c for codes in alarm_codes_present.values() for c in codes}
         | {c for codes in critical_codes_present.values() for c in codes}
         | ({generator_code} if generator_code else set())
@@ -458,7 +464,10 @@ def fetch_and_map(client, id_site, site_id: str, start, end, *,
             series_by_code[code] = _series_to_pandas(
                 records.get(code, False) if isinstance(records, dict) else False, zone
             )
-        non_empty = [s.index for s in series_by_code.values() if not s.empty]
+        # The consumption flows are read only for the load-power series below; they must not add timestamps to the
+        # index every other figure is computed on.
+        non_empty = [s.index for code, s in series_by_code.items()
+                     if not s.empty and code not in consumption_codes_present]
         if non_empty:
             raw_index = pd.DatetimeIndex(sorted(set().union(*non_empty)))
 
@@ -481,6 +490,11 @@ def fetch_and_map(client, id_site, site_id: str, start, end, *,
     for column in ("pv_w", "load_w", "grid_import_w", "grid_export_w",
                    "batt_charge_w", "batt_discharge_w", "grid_w"):
         tidied[column] = np.nan
+    # Load power from the consumption flows (PV + grid + battery to consumers, per interval). It only feeds the day's
+    # peak load: `load_kwh` is still replaced by Victron's own daily total below.
+    flows = [series_by_code[c].reindex(raw_index) for c in consumption_codes_present if not series_by_code[c].empty]
+    if flows:
+        tidied["load_w"] = pd.concat(flows, axis=1).sum(axis=1, min_count=1) * 3_600_000.0 / interval_seconds
     # The battery's own power reading, split by direction, is the real battery energy (it is what the CSV path
     # integrates too). Without it the columns stay empty rather than a number nobody should trust.
     if battery_power_code and not series_by_code[battery_power_code].empty:

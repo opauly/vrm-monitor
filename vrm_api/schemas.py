@@ -475,6 +475,8 @@ class SiteShapeOut(BaseModel):
     # 15-minute readings — filled for range="today" only (None otherwise, and
     # where the site has no SOC reading). Additive: older callers ignore it.
     soc_min: float | None = None
+    # Highest 15-minute load reading in the window (W); None when the site publishes no load. A lower bound.
+    peak_load_w: float | None = None
 
 
 class SiteSavingsOut(BaseModel):
