@@ -367,6 +367,7 @@ export function VrmLinkPanel({ status, sites, lang, canAdd, siteLimit }: VrmLink
         </p>
 
         <h3 className={styles.installationName}>{t(lang, 'vrm_link_connected_sites_title')}</h3>
+        {status.sites.length > 0 && <p className={styles.linkedSiteMeta}>{t(lang, 'vrm_link_connected_sites_hint')}</p>}
         {status.sites.length === 0 ? (
           <p className={styles.status}>—</p>
         ) : (
