@@ -367,11 +367,16 @@ export function VrmLinkPanel({ status, sites, lang, canAdd, siteLimit }: VrmLink
         </p>
 
         <h3 className={styles.installationName}>{t(lang, 'vrm_link_connected_sites_title')}</h3>
-        {status.sites.length > 0 && <p className={styles.linkedSiteMeta}>{t(lang, 'vrm_link_connected_sites_hint')}</p>}
         {status.sites.length === 0 ? (
           <p className={styles.status}>—</p>
         ) : (
           <div>
+            <div className={styles.linkedSiteHead}>
+              <div className={styles.linkedSiteHeadCol}>
+                <div className={styles.linkedSiteHeadTitle}>{t(lang, 'vrm_link_connected_sync_col_title')}</div>
+                <div>{t(lang, 'vrm_link_connected_sync_col_hint')}</div>
+              </div>
+            </div>
             {status.sites.map((site) => (
               <div key={site.site_id} className={styles.linkedSiteRow}>
                 <div>

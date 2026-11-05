@@ -1606,8 +1606,9 @@ export const STRINGS = {
     vrm_link_connected_account_label: 'Connected account',
     vrm_link_connected_since_label: 'Connected since',
     vrm_link_connected_sites_title: 'Linked sites',
-    vrm_link_connected_sites_hint:
-      'Sync now imports each site\'s daily history from Victron VRM (energy, battery, alarms) so reports and charts include the latest days. The live view in VRM Fleet refreshes by itself every ~15 minutes.',
+    vrm_link_connected_sync_col_title: 'Import history',
+    vrm_link_connected_sync_col_hint:
+      'Pulls daily energy, battery and alarm history from VRM so reports include the latest days. Live data updates on its own.',
     vrm_link_connected_last_synced_label: 'Last synced',
     vrm_link_connected_never_synced: 'Never synced yet',
     vrm_link_connected_sync_now_button: 'Sync now',
@@ -4113,8 +4114,9 @@ export const STRINGS = {
     vrm_link_connected_account_label: 'Cuenta conectada',
     vrm_link_connected_since_label: 'Conectado desde',
     vrm_link_connected_sites_title: 'Sitios vinculados',
-    vrm_link_connected_sites_hint:
-      'Sincronizar ahora importa el historial diario de cada sitio desde Victron VRM (energía, batería, alarmas) para que los reportes y gráficos incluyan los días más recientes. La vista en vivo de Flota VRM se actualiza sola cada ~15 minutos.',
+    vrm_link_connected_sync_col_title: 'Importar historial',
+    vrm_link_connected_sync_col_hint:
+      'Trae el historial diario de energía, batería y alarmas desde VRM para que los reportes incluyan los días más recientes. Los datos en vivo se actualizan solos.',
     vrm_link_connected_last_synced_label: 'Última sincronización',
     vrm_link_connected_never_synced: 'Todavía no se sincronizó',
     vrm_link_connected_sync_now_button: 'Sincronizar ahora',

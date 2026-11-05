@@ -299,6 +299,26 @@
 .linkedSiteRow:first-of-type {
   border-top: none;
 }
+.linkedSiteHead {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 0 8px;
+}
+.linkedSiteHeadCol {
+  max-width: 260px;
+  text-align: right;
+  color: var(--mute);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.linkedSiteHeadTitle {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+  margin-bottom: 2px;
+}
 .linkedSiteMeta {
   color: var(--mute);
   font-size: 13px;
