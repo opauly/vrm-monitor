@@ -360,6 +360,7 @@ export type SiteShapeOut = {
   battery: (number | null)[];
   grid: (number | null)[];
   peak_load_w?: number | null;
+  peak_load_at?: string | null;
 };
 
 export async function getSiteShape(siteId: string, range: SiteShapeRange): Promise<SiteShapeOut> {

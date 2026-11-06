@@ -15,6 +15,8 @@ export type ShapeToday = {
   soc_min?: number | null;
   /** Highest 15-minute load reading so far (W). */
   peak_load_w?: number | null;
+  /** Site-local start of the 15-minute slot holding that peak. */
+  peak_load_at?: string | null;
 };
 
 export type TodayTotals = {
@@ -29,6 +31,8 @@ export type TodayTotals = {
   dodPct: number | null;
   /** Highest 15-minute load reading so far today (W). */
   peakLoadW: number | null;
+  /** When that slot started (site-local, ISO without zone). */
+  peakLoadAt: string | null;
 };
 
 const kwh = (values: (number | null)[], pick: (v: number) => number = (v) => v): number | null => {
@@ -62,5 +66,6 @@ export function todayTotals(shape: ShapeToday): TodayTotals {
     lowestSocPct: lowest,
     dodPct: lowest === null ? null : round1(100 - lowest),
     peakLoadW: typeof shape.peak_load_w === 'number' ? shape.peak_load_w : null,
+    peakLoadAt: typeof shape.peak_load_at === 'string' ? shape.peak_load_at : null,
   };
 }

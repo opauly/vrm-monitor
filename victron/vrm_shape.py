@@ -44,7 +44,7 @@ logger = logging.getLogger("victron.vrm_shape")
 RANGE_DAYS = {"today": 1, "week": 7, "month": 30}
 
 _EMPTY_SHAPE = {"solar": [None] * 24, "load": [None] * 24, "battery": [None] * 24, "grid": [None] * 24, "soc_min": None,
-                "peak_load_w": None}
+                "peak_load_w": None, "peak_load_at": None}
 
 
 def _hourly_average(series: pd.Series) -> list[float | None]:
@@ -155,8 +155,9 @@ def fetch_site_shape(client, id_site, *, range_key: str, tz: str = DEFAULT_TZ_NA
     soc_min = round(float(soc_series.min()), 1) if range_key == "today" and not soc_series.empty else None
 
     # Highest 15-minute load reading in the window (a lower bound on the true peak — see vrm_daily.peak_power()).
-    peak_load = (vrm_daily.peak_power(load_series, load_series.index, max_gap_s=1800)
-                 if not load_series.empty else None)
+    peak = (vrm_daily.peak_power_at(load_series, load_series.index, max_gap_s=1800)
+            if not load_series.empty else None)
+    peak_load, peak_at = peak if peak else (None, None)
 
     return {
         "solar": _hourly_average(solar_series),
@@ -169,4 +170,6 @@ def fetch_site_shape(client, id_site, *, range_key: str, tz: str = DEFAULT_TZ_NA
         "grid": _hourly_average(grid_series) if grid_parts else [None] * 24,
         "soc_min": soc_min,
         "peak_load_w": round(peak_load, 1) if peak_load is not None else None,
+        # Start of the 15-minute slot that peak belongs to, site-local ("YYYY-MM-DDTHH:MM:SS").
+        "peak_load_at": peak_at.strftime("%Y-%m-%dT%H:%M:%S") if peak_at is not None else None,
     }

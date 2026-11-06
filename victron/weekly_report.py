@@ -514,9 +514,11 @@ def _peak_load(days: list[dict]) -> dict:
         if best is None or float(w) > float(best["peak_load_w"]):
             best = r
     if best is None:
-        return {"peakLoadW": None, "peakLoadDate": None, "peakLoadAt": None}
+        return {"peakLoadW": None, "peakLoadDate": None, "peakLoadAt": None, "peakLoadSlot": False}
     return {"peakLoadW": float(best["peak_load_w"]), "peakLoadDate": str(best["date"])[:10],
-            "peakLoadAt": best.get("peak_load_at")}
+            "peakLoadAt": best.get("peak_load_at"),
+            # A VRM-synced day's peak is a 15-minute average stamped with its slot's start; a CSV day's is one reading.
+            "peakLoadSlot": best.get("dump_type") == "vrm_api"}
 
 
 def _peak_load_row(d: dict) -> list[dict]:
@@ -528,7 +530,11 @@ def _peak_load_row(d: dict) -> list[dict]:
     value = f"{w / 1000:.1f} kW" if w >= 1000 else f"{w:.0f} W"
     when = d.get("peakLoadAt")
     day = date.fromisoformat(d["peakLoadDate"])
-    clock = str(when)[11:16] if when else None
+    clock = None
+    if when:
+        start = int(str(when)[11:13]) * 60 + int(str(when)[14:16])
+        hhmm = lambda m: f"{m // 60:02d}:{m % 60:02d}"
+        clock = f"{hhmm(start)}–{hhmm((start + 15) % 1440)}" if d.get("peakLoadSlot") else hhmm(start)
     if d.get("isDaily"):
         when_txt = clock
     else:

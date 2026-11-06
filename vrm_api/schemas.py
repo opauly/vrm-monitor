@@ -477,6 +477,8 @@ class SiteShapeOut(BaseModel):
     soc_min: float | None = None
     # Highest 15-minute load reading in the window (W); None when the site publishes no load. A lower bound.
     peak_load_w: float | None = None
+    # Site-local start of the 15-minute slot holding that peak ("YYYY-MM-DDTHH:MM:SS").
+    peak_load_at: str | None = None
 
 
 class SiteSavingsOut(BaseModel):

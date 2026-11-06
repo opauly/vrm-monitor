@@ -226,6 +226,10 @@ export type PeriodSummary = {
   /** Highest daily peak load in the window (W), and the day it happened. A lower bound: see vrm_daily.peak_power(). */
   peak_load_w: number | null;
   peak_load_date: string | null;
+  /** Start of that day's peak 15-minute slot (site-local, ISO without zone); null when it was not stored. */
+  peak_load_at: string | null;
+  /** True when that peak is a VRM-synced 15-minute average (`peak_load_at` then starts a 15-minute slot); false for a single CSV reading. */
+  peak_load_slot: boolean;
   self_sufficiency_pct: number | null;
   self_consumption_pct: number | null;
   dod_pct: number | null;
@@ -531,7 +535,7 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
     // rather than trusting `vrm.daily_health.battery_cycles`, which still
     // fabricates a 0.0 for exactly this case (migration 012, unfixed).
     admin.schema('vrm').from('energy_daily')
-      .select('site_id, date, pv_kwh, load_kwh, grid_kwh, grid_export_kwh, pv_kwp_snapshot, min_soc, max_soc, avg_soc, outage_count, outage_minutes, battery_charge_kwh, battery_discharge_kwh, peak_load_w')
+      .select('site_id, date, pv_kwh, load_kwh, grid_kwh, grid_export_kwh, pv_kwp_snapshot, min_soc, max_soc, avg_soc, outage_count, outage_minutes, battery_charge_kwh, battery_discharge_kwh, peak_load_w, peak_load_at, dump_type')
       .in('site_id', siteIds).gte('date', lookback30Date),
     // Fleet Dashboard Phase 3b (migration 038) — every OPEN anomaly across
     // every site in one query, same "no bulk vrm_api endpoint exists for
@@ -655,6 +659,8 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
     battery_charge_kwh: number | null;
     battery_discharge_kwh: number | null;
     peak_load_w: number | null;
+    peak_load_at: string | null;
+    dump_type: string | null;
   };
   const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const last7dEnergyBySite = new Map<string, EnergyRowPeriod[]>();
@@ -674,6 +680,8 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
       battery_charge_kwh: row.battery_charge_kwh,
       battery_discharge_kwh: row.battery_discharge_kwh,
       peak_load_w: row.peak_load_w ?? null,
+      peak_load_at: row.peak_load_at ?? null,
+      dump_type: row.dump_type ?? null,
     };
     // `lookback30Date` already bounds `energyDaily` to 30 days, so every
     // row here belongs in the month map; only the more recent ones also
@@ -701,8 +709,8 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
     const consumed = Math.max(pv - exported, 0);
     const totalLoad = consumed + imported;
     const healthDays = (healthRowsBySite.get(siteId) ?? []).filter((r) => r.date >= sinceDate && !isPartialDay(r.system_notes));
-    let peak: { w: number; date: string } | null = null;
-    for (const r of energyRows) if (r.peak_load_w !== null && (peak === null || r.peak_load_w > peak.w)) peak = { w: r.peak_load_w, date: r.date };
+    let peak: { w: number; date: string; at: string | null; slot: boolean } | null = null;
+    for (const r of energyRows) if (r.peak_load_w !== null && (peak === null || r.peak_load_w > peak.w)) peak = { w: r.peak_load_w, date: r.date, at: r.peak_load_at, slot: r.dump_type === 'vrm_api' };
     return {
       energy_days: energyRows.length,
       pv_kwh: meanOf(energyRows.map((r) => r.pv_kwh)),
@@ -711,6 +719,8 @@ export async function buildFleetOverview(siteRows: FleetSiteInput[]): Promise<Fl
       grid_export_kwh: meanOf(energyRows.map((r) => r.grid_export_kwh)),
       peak_load_w: peak ? Math.round(peak.w) : null,
       peak_load_date: peak ? peak.date : null,
+      peak_load_at: peak ? peak.at : null,
+      peak_load_slot: peak ? peak.slot : false,
       self_sufficiency_pct: energyRows.length > 0 && totalLoad > 0 ? Math.round((1 - imported / totalLoad) * 1000) / 10 : null,
       self_consumption_pct: energyRows.length > 0 && pv > 0 ? Math.round((consumed / pv) * 1000) / 10 : null,
       dod_pct: meanOf(energyRows.map((r) => (r.min_soc === null ? null : 100 - r.min_soc))),

@@ -9,8 +9,8 @@ import styles from './EnergyCard.module.css';
 // chart draws, so it loads on demand); 7 and 30 days are per-day averages from
 // the stored daily totals.
 
-/** Highest load (W) in a window, with the day it happened (stored days only; "today" has no date). */
-export type PeakLoad = { w: number | null; date?: string | null };
+/** Highest load (W) in a window, the day it happened (not for "today") and the start of its 15-minute slot (site-local ISO, no zone) when known. */
+export type PeakLoad = { w: number | null; date?: string | null; at?: string | null; slot?: boolean };
 
 export type EnergyTotals = { pv: number | null; load: number | null; gridImport: number | null; gridExport: number | null };
 
@@ -50,15 +50,33 @@ function dayLabel(iso: string, lang: Lang): string {
   return new Date(y, m - 1, d).toLocaleDateString(lang === 'es' ? 'es-CR' : 'en-US', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
+// "13:45–14:00": the 15-minute slot that starts at `at` (site-local ISO, no zone). Null when the time is unknown.
+function slotLabel(at: string | null | undefined): { from: string; to: string } | null {
+  const m = at ? /T(\d{2}):(\d{2})/.exec(at) : null;
+  if (!m) return null;
+  const start = Number(m[1]) * 60 + Number(m[2]);
+  const end = (start + 15) % 1440;
+  const hhmm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+  return { from: hhmm(start), to: hhmm(end) };
+}
+
 // The window's highest load, as kW.
 // It is the peak of 15-minute averages, so it can understate a short spike — the sub-line says so.
 function Peak({ lang, peak, today }: { lang: Lang; peak: PeakLoad; today?: boolean }) {
   if (peak.w === null) return null;
   const kw = peak.w / 1000;
+  const slot = slotLabel(peak.at);
+  // A single CSV reading has no 15-minute window: show its time only.
+  const single = !!slot && peak.slot === false;
+  const fill = (key: Parameters<typeof t>[1]) =>
+    t(lang, key)
+      .replace('{date}', peak.date ? dayLabel(peak.date, lang) : '')
+      .replace('{from}', slot?.from ?? '')
+      .replace('{to}', slot?.to ?? '');
   const sub =
     today || !peak.date
-      ? t(lang, 'site_live_energy_peak_sub_today')
-      : t(lang, 'site_live_energy_peak_sub_period').replace('{date}', dayLabel(peak.date, lang));
+      ? fill(slot ? 'site_live_energy_peak_sub_today_at' : 'site_live_energy_peak_sub_today')
+      : fill(single ? 'site_live_energy_peak_sub_period_time' : slot ? 'site_live_energy_peak_sub_period_at' : 'site_live_energy_peak_sub_period');
   return (
     <div className={styles.peak}>
       <div className={styles.value}>
@@ -101,7 +119,7 @@ export function EnergyCard({
         ) : (
           <>
             <Totals lang={lang} totals={today.totals} generator={generator} />
-            <Peak lang={lang} peak={{ w: today.totals.peakLoadW }} today />
+            <Peak lang={lang} peak={{ w: today.totals.peakLoadW, at: today.totals.peakLoadAt, slot: true }} today />
           </>
         )}
       </PeriodPane>
