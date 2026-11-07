@@ -7,6 +7,7 @@ before the tables existed. Needs migration 056. Safe to re-run: slots are upsert
   python -m tools.backfill_samples --days 90 --apply        writes
   python -m tools.backfill_samples --site <site_id> --apply
   python -m tools.backfill_samples --no-weather             readings only
+  python -m tools.backfill_samples --weather-only --apply   weather only (e.g. to redo a place that timed out)
 
 Also sets each complete day's peak load from the stored readings.
 Days Victron no longer returns stay empty — nothing is estimated. Today is left to the live top-up.
@@ -31,6 +32,7 @@ def main() -> None:
     ap.add_argument("--site")
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--no-weather", action="store_true")
+    ap.add_argument("--weather-only", action="store_true")
     args = ap.parse_args()
 
     db = get_client().schema("vrm")
@@ -43,7 +45,7 @@ def main() -> None:
     start = end - timedelta(days=args.days - 1)
 
     total = 0
-    for site in sites:
+    for site in ([] if args.weather_only else sites):
         client = fs._vrm_client(site)
         if client is None:
             print(f"{site['display_name']:36} skipped: no VRM token")
@@ -67,14 +69,21 @@ def main() -> None:
         print(f"{site['display_name']:36} {note}")
         total += count
 
-    print(f"\n{total} slot(s) {'written' if args.apply else 'would be written'}.")
+    if not args.weather_only:
+        print(f"\n{total} slot(s) {'written' if args.apply else 'would be written'}.")
 
     if not args.no_weather:
         places = {weather_store.place(s["latitude"], s["longitude"]) for s in sites
                   if s.get("latitude") is not None and s.get("longitude") is not None}
         written = 0
         for lat, lon in sorted(places):
-            weather = weather_store.open_meteo.fetch_weather(lat, lon, "UTC", past_days=min(args.days, 92), forecast_days=weather_store.FORECAST_DAYS)
+            weather = None
+            for _attempt in range(3):      # a 90-day request is large; Open-Meteo sometimes needs more than one try
+                weather = weather_store.open_meteo.fetch_weather(lat, lon, "UTC", past_days=min(args.days, 92), forecast_days=weather_store.FORECAST_DAYS)
+                if weather is not None:
+                    break
+            if weather is None:
+                print(f"  weather for {lat},{lon}: Open-Meteo did not answer — run again with --weather-only")
             rows = weather_store.hourly_rows(weather, lat, lon) if weather else []
             written += len(rows)
             if args.apply and rows:
