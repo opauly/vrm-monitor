@@ -386,3 +386,68 @@ def test_one_sites_failure_does_not_stop_the_sweeps_storing_step(monkeypatch):
              {"site_id": "no-install", "customer_id": "c", "vrm_installation_id": None}]
     F._keep_samples_fresh(sites, None, {})
     assert sorted(calls) == ["bad", "good"]
+
+
+# ── the sweep answers the scheduler at once ──────────────────────────────────
+
+def _sweep_setup(monkeypatch):
+    from fastapi import BackgroundTasks
+    from vrm_api.routers import vrm_fleet as F
+    F._release_sweep()
+    ran = []
+    result = F.FleetSnapshotsRefreshOut(status="done", checked=3, refreshed=2, skipped=1, failed=0)
+
+    def sweep():
+        ran.append("sweep")
+        return result, lambda: ran.append("samples")
+    monkeypatch.setattr(F, "_run_sweep", sweep)
+    return F, BackgroundTasks(), ran
+
+
+def test_the_sweep_is_started_after_the_response_not_inside_it(monkeypatch):
+    F, tasks, ran = _sweep_setup(monkeypatch)
+    out = F.post_refresh_snapshots(tasks, wait=False)
+    assert out.status == "started" and (out.checked, out.refreshed) == (0, 0)
+    assert ran == []                                   # nothing ran while the scheduler was waiting
+    for task in tasks.tasks:                           # what the framework does once the response is sent
+        task.func(*task.args, **task.kwargs)
+    assert ran == ["sweep", "samples"]
+    assert F._claim_sweep()                            # and it freed the guard
+    F._release_sweep()
+
+
+def test_a_second_sweep_while_one_runs_does_nothing(monkeypatch):
+    F, tasks, ran = _sweep_setup(monkeypatch)
+    assert F.post_refresh_snapshots(tasks, wait=False).status == "started"
+    again = F.post_refresh_snapshots(type(tasks)(), wait=False)
+    assert again.status == "busy" and ran == []
+    F._release_sweep()
+
+
+def test_a_sweep_that_never_finished_does_not_block_the_next_one(monkeypatch):
+    F, tasks, ran = _sweep_setup(monkeypatch)
+    assert F._claim_sweep()
+    F._SWEEP_STARTED -= F._SWEEP_STALE_S + 1           # "running" for over 10 minutes: assumed dead
+    assert F.post_refresh_snapshots(tasks, wait=False).status == "started"
+    F._release_sweep()
+
+
+def test_wait_runs_the_sweep_in_the_request_and_returns_the_counts(monkeypatch):
+    F, tasks, ran = _sweep_setup(monkeypatch)
+    out = F.post_refresh_snapshots(tasks, wait=True)
+    assert (out.status, out.checked, out.refreshed, out.skipped) == ("done", 3, 2, 1)
+    assert ran == ["sweep"]                            # the samples step still waits for after the response
+    assert len(tasks.tasks) == 1
+    assert F._claim_sweep()
+    F._release_sweep()
+
+
+def test_a_failing_sweep_is_logged_and_frees_the_guard(monkeypatch):
+    F, tasks, ran = _sweep_setup(monkeypatch)
+    def boom():
+        raise RuntimeError("Victron down")
+    monkeypatch.setattr(F, "_run_sweep", boom)
+    assert F._claim_sweep()
+    F._sweep_after_response()                          # must not raise
+    assert F._claim_sweep()
+    F._release_sweep()

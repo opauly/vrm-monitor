@@ -61,10 +61,11 @@ and `tab_upload()`'s CSV path already use) are called directly, matching
 import logging
 import os
 import re
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
-from typing import Literal
+from typing import Callable, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import ValidationError
@@ -496,8 +497,59 @@ def _sweep_sites() -> list[dict]:
     return [r for r in rows if not r.get("is_shared")]
 
 
+# The sweep takes 30-40 s (29 sites, 2-3 Victron calls each), and the external scheduler gives up on a response after 30 s,
+# so it reported "Failed (timeout)" on every run although the sweep finished. The endpoint now answers at once and runs the
+# sweep after the response; this guard keeps two sweeps from overlapping (a scheduler retry, a manual `?wait=true`).
+_SWEEP_LOCK = threading.Lock()
+_SWEEP_STARTED: float | None = None
+_SWEEP_STALE_S = 10 * 60        # a sweep "running" for longer than this is assumed dead, not busy
+
+
+def _claim_sweep() -> bool:
+    global _SWEEP_STARTED
+    with _SWEEP_LOCK:
+        if _SWEEP_STARTED is not None and time.monotonic() - _SWEEP_STARTED < _SWEEP_STALE_S:
+            return False
+        _SWEEP_STARTED = time.monotonic()
+        return True
+
+
+def _release_sweep() -> None:
+    global _SWEEP_STARTED
+    with _SWEEP_LOCK:
+        _SWEEP_STARTED = None
+
+
+def _sweep_after_response() -> None:
+    """The whole sweep, run after the scheduler already has its answer. Never raises (a background task has nobody to tell)."""
+    try:
+        _, keep_samples = _run_sweep()
+        keep_samples()
+    except Exception:  # noqa: BLE001
+        logger.exception("vrm-fleet refresh-snapshots: the sweep failed")
+    finally:
+        _release_sweep()
+
+
 @router.post("/refresh-snapshots", response_model=FleetSnapshotsRefreshOut)
-def post_refresh_snapshots(background_tasks: BackgroundTasks) -> FleetSnapshotsRefreshOut:
+def post_refresh_snapshots(background_tasks: BackgroundTasks, wait: bool = Query(False)) -> FleetSnapshotsRefreshOut:
+    """Start the live-snapshot sweep. By default it answers at once (`status: "started"`) and the sweep runs after the response;
+    `status: "busy"` means the previous sweep is still running, so this call did nothing. `?wait=true` runs it inside the request and
+    returns the counts (`status: "done"`) — for manual runs where the numbers matter. The sweep itself is described in `_run_sweep`."""
+    if not _claim_sweep():
+        return FleetSnapshotsRefreshOut(status="busy", checked=0, refreshed=0, skipped=0, failed=0)
+    if not wait:
+        background_tasks.add_task(_sweep_after_response)
+        return FleetSnapshotsRefreshOut(status="started", checked=0, refreshed=0, skipped=0, failed=0)
+    try:
+        out, keep_samples = _run_sweep()
+    finally:
+        _release_sweep()
+    background_tasks.add_task(keep_samples)
+    return out
+
+
+def _run_sweep() -> tuple[FleetSnapshotsRefreshOut, Callable[[], None]]:
     """Fleet Dashboard Phase 2's live-snapshot sweep (2026-08-30) — meant
     to run every ~15 minutes via a GitHub Actions `cron:`, same shape as
     `billing-reconcile.yml`'s daily sweep. Synchronous, not a `vrm.jobs`
@@ -692,8 +744,8 @@ def post_refresh_snapshots(background_tasks: BackgroundTasks) -> FleetSnapshotsR
                 len(sites), refreshed, skipped, failed, time.monotonic() - started)
     # Keep the stored 15-minute copy current — after the response, so the extra Victron calls never count against the
     # scheduler's 30-second limit. Pages then read the copy instead of asking Victron.
-    background_tasks.add_task(_keep_samples_fresh, sites, admin_token, diagnostics_by_site)
-    return FleetSnapshotsRefreshOut(checked=len(sites), refreshed=refreshed, skipped=skipped, failed=failed)
+    return (FleetSnapshotsRefreshOut(status="done", checked=len(sites), refreshed=refreshed, skipped=skipped, failed=failed),
+            lambda: _keep_samples_fresh(sites, admin_token, diagnostics_by_site))
 
 
 @router.post("/detect-anomalies-daily", response_model=FleetAnomalyDetectDailyOut)

@@ -421,8 +421,13 @@ class FleetSnapshotsRefreshOut(BaseModel):
     Dashboard Phase 2 (2026-08-30) live-snapshot sweep. Counts only, same
     reasoning `BillingTrialRemindersOut`/`BillingPruneSignupsOut` give for
     their own shape: a cron log line that says how much it did is the only
-    visibility this job gets."""
+    visibility this job gets.
 
+    `status`: "started" — the sweep was accepted and runs after this response (the default, so the scheduler is not held
+    past its 30-second limit; the counts are then 0); "busy" — the previous sweep is still running and this call did nothing;
+    "done" — it ran inside the request (`?wait=true`) and the counts are real."""
+
+    status: Literal["started", "busy", "done"] = "done"
     checked: int
     refreshed: int
     skipped: int
