@@ -176,6 +176,17 @@ def fetch_weather(lat: float, lng: float, start: str, end: str,
     }
 
 
+def _stored_weather(lat, lng, start, end, timezone: str) -> dict | None:
+    """The same weather block, from the stored hourly copy (`victron/weather_store.py`). None when the copy cannot answer
+    — tables not created, or the period is not in it — so the caller falls back to the archive service."""
+    try:
+        from victron import weather_store
+        return weather_store.period_summary(lat, lng, start, end, timezone)
+    except Exception:  # noqa: BLE001
+        _log.warning("Stored weather unavailable for (%.4f, %.4f), using the archive service", lat, lng, exc_info=True)
+        return None
+
+
 # ══════════════════════════════════════════════════════════════════
 # Narrative
 # ══════════════════════════════════════════════════════════════════
@@ -831,10 +842,13 @@ def build_report_data(site_id: str, start: str | date, end: str | date, schema: 
     weather = None
     weather_errors: list[str] = []
     if with_weather and site.get("latitude") is not None:
-        weather = fetch_weather(site["latitude"], site["longitude"],
-                                window["period_start"], window["period_end"],
-                                site.get("timezone") or "America/Costa_Rica",
-                                errors=weather_errors)
+        weather = _stored_weather(site["latitude"], site["longitude"], window["period_start"], window["period_end"],
+                                  site.get("timezone") or "America/Costa_Rica")
+        if weather is None:   # not in the stored copy (e.g. a period older than it holds): ask the archive service
+            weather = fetch_weather(site["latitude"], site["longitude"],
+                                    window["period_start"], window["period_end"],
+                                    site.get("timezone") or "America/Costa_Rica",
+                                    errors=weather_errors)
 
     pv_kwp = _num(site.get("pv_kwp"), 0)
     if weather and weather["totalIrradianceKwh"] > 0:

@@ -19,11 +19,10 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from database.supabase_client import get_client
-from victron import forecast, open_meteo
+from victron import forecast, open_meteo, weather_store
 from victron.vrm_remote import VrmRemoteClient
 from victron.vrm_series import DEFAULT_TZ_NAME
-from victron.vrm_shape import fetch_site_shape
-from vrm_api import secrets
+from vrm_api import samples_service, secrets
 
 logger = logging.getLogger("vrm_api.forecast")
 
@@ -68,6 +67,12 @@ def _local_now(tz_name: str | None, now_utc: datetime) -> datetime:
 
 
 def _weather_for(site: dict, tz: str, now: datetime, *, force: bool = False) -> dict | None:
+    # From the stored copy (refreshed from Open-Meteo when it is over an hour old); asking Open-Meteo directly, as before
+    # the copy existed, only when the copy cannot be used at all.
+    try:
+        return weather_store.forecast_weather(site["latitude"], site["longitude"], tz, now, force=force)
+    except Exception:  # noqa: BLE001
+        logger.warning("forecast: the stored weather could not be used, asking Open-Meteo directly", exc_info=True)
     key = (round(float(site["latitude"]), 2), round(float(site["longitude"]), 2), tz)
     hit = _WEATHER.get(key)
     if hit and not force and now - hit[0] < TTL:
@@ -89,12 +94,12 @@ def _vrm_client(site: dict) -> VrmRemoteClient | None:
 
 
 def usual_load_profile(site: dict) -> list[float] | None:
-    """The site's usual load by hour of day (24 W figures), from last week's VRM data."""
-    client = _vrm_client(site)
-    if client is None or site.get("vrm_installation_id") is None:
+    """The site's usual load by hour of day (24 W figures), from last week's readings in the stored copy (the VRM token, if
+    there is one, only lets a copy that is behind be topped up)."""
+    if site.get("vrm_installation_id") is None:
         return None
     try:
-        shape = fetch_site_shape(client, site["vrm_installation_id"], range_key="week", tz=site.get("timezone") or DEFAULT_TZ_NAME)
+        shape = samples_service.site_shape(_vrm_client(site), site, "week")
     except Exception:  # noqa: BLE001
         logger.warning("forecast: could not read the load profile for %s", site["site_id"])
         return None

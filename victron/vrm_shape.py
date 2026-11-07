@@ -150,26 +150,53 @@ def fetch_site_shape(client, id_site, *, range_key: str, tz: str = DEFAULT_TZ_NA
                     if has_pv else pd.Series(dtype=float))
     battery_series = series_by_code.get(BATTERY_POWER_CODE, pd.Series(dtype=float))
     soc_series = series_by_code.get(SOC_CODE, pd.Series(dtype=float))
+    return shape_from_series(range_key, solar=solar_series, load=load_series, battery=battery_series,
+                             grid=grid_series, grid_present=bool(grid_parts), soc=soc_series)
+
+
+def shape_from_series(range_key: str, *, solar: pd.Series, load: pd.Series, battery: pd.Series, grid: pd.Series,
+                      grid_present: bool, soc: pd.Series) -> dict:
+    """The shape dict from 15-minute series indexed by SITE-LOCAL naive time — whether they came live from VRM or out of
+    the stored copy (`shape_from_frame`)."""
     # The lowest 15-minute reading, not the lowest hourly average — a dip
     # inside an hour would otherwise be smoothed away. Only for "today".
-    soc_min = round(float(soc_series.min()), 1) if range_key == "today" and not soc_series.empty else None
+    soc_min = round(float(soc.min()), 1) if range_key == "today" and not soc.empty else None
 
     # Highest 15-minute load reading in the window (a lower bound on the true peak — see vrm_daily.peak_power()).
-    peak = (vrm_daily.peak_power_at(load_series, load_series.index, max_gap_s=1800)
-            if not load_series.empty else None)
+    peak = (vrm_daily.peak_power_at(load, load.index, max_gap_s=1800)
+            if not load.empty else None)
     peak_load, peak_at = peak if peak else (None, None)
 
     return {
-        "solar": _hourly_average(solar_series),
-        "load": _hourly_average(load_series),
-        "battery": _hourly_average(battery_series),
+        "solar": _hourly_average(solar),
+        "load": _hourly_average(load),
+        "battery": _hourly_average(battery),
         # `None` for every hour (not just empty) when this site has no grid
         # meter at all — the caller/frontend already treats an all-`None`
         # series as "unavailable," same convention `grid_power_w: None`
         # already uses on the live-snapshot path.
-        "grid": _hourly_average(grid_series) if grid_parts else [None] * 24,
+        "grid": _hourly_average(grid) if grid_present else [None] * 24,
         "soc_min": soc_min,
         "peak_load_w": round(peak_load, 1) if peak_load is not None else None,
         # Start of the 15-minute slot that peak belongs to, site-local ("YYYY-MM-DDTHH:MM:SS").
         "peak_load_at": peak_at.strftime("%Y-%m-%dT%H:%M:%S") if peak_at is not None else None,
     }
+
+
+def shape_from_frame(frame: pd.DataFrame, range_key: str, tz: str = DEFAULT_TZ_NAME) -> dict:
+    """The same shape from stored 15-minute rows (`samples_store.load_samples`: naive-UTC index). Hours are the site's own."""
+    try:
+        zone = ZoneInfo(tz)
+    except ZoneInfoNotFoundError:
+        zone = ZoneInfo(DEFAULT_TZ_NAME)
+    if frame.empty:
+        return dict(_EMPTY_SHAPE)
+    local = frame.copy()
+    local.index = local.index.tz_localize("UTC").tz_convert(zone).tz_localize(None)
+
+    def col(name: str) -> pd.Series:
+        return pd.to_numeric(local[name], errors="coerce").dropna()
+
+    grid = col("grid_w")
+    return shape_from_series(range_key, solar=col("pv_w"), load=col("load_w"), battery=col("battery_w"), grid=grid,
+                             grid_present=not grid.empty, soc=col("soc_pct"))

@@ -9,6 +9,7 @@ expect), as hourly figures in the SITE's local time:
   temperature_2m       °C
   precipitation_probability %, precipitation mm
   weather_code         WMO code (95-99 = thunderstorm)
+  sunshine_duration    seconds of sunshine in the hour
 
 plus each day's sunrise and sunset.
 
@@ -31,7 +32,7 @@ logger = logging.getLogger("victron.open_meteo")
 
 FREE_URL = "https://api.open-meteo.com/v1/forecast"
 PAID_URL = "https://customer-api.open-meteo.com/v1/forecast"
-HOURLY = ("shortwave_radiation", "cloud_cover", "temperature_2m", "precipitation_probability", "precipitation", "weather_code")
+HOURLY = ("shortwave_radiation", "cloud_cover", "temperature_2m", "precipitation_probability", "precipitation", "weather_code", "sunshine_duration")
 DAILY = ("sunrise", "sunset")
 TIMEOUT_S = 10
 
@@ -73,8 +74,9 @@ def normalise(body: dict) -> dict:
         return list(values) + [None] * (len(times) - len(values))
 
     ghi, cloud, temp = col("shortwave_radiation"), col("cloud_cover"), col("temperature_2m")
-    prob, mm, code = col("precipitation_probability"), col("precipitation"), col("weather_code")
-    rows = [{"time": times[i], "ghi": ghi[i], "cloud": cloud[i], "temp": temp[i], "rain_prob": prob[i], "rain_mm": mm[i], "code": code[i]}
+    prob, mm, code, sun = col("precipitation_probability"), col("precipitation"), col("weather_code"), col("sunshine_duration")
+    rows = [{"time": times[i], "ghi": ghi[i], "cloud": cloud[i], "temp": temp[i], "rain_prob": prob[i], "rain_mm": mm[i], "code": code[i],
+             "sunshine_s": sun[i]}
             for i in range(len(times))]
     daily = body.get("daily") or {}
     days = [{"date": d, "sunrise": (daily.get("sunrise") or [None] * len(daily.get("time", [])))[i],

@@ -80,7 +80,8 @@ from victron.vrm_live import fetch_live_snapshot
 from victron.vrm_remote import VrmRemoteAuthError, VrmRemoteClient
 from victron.vrm_series import DEFAULT_TZ_NAME
 from victron.vrm_savings import fetch_site_savings
-from victron.vrm_shape import RANGE_DAYS, fetch_site_shape
+from victron.vrm_shape import RANGE_DAYS
+from vrm_api import samples_service
 
 from vrm_api import jobs, secrets, tenancy
 from vrm_api.deps import require_pipeline_key
@@ -457,6 +458,32 @@ def _fetch_site_snapshot(site: dict, admin_token: str | None, diagnostics_out: d
     return ("ok", snapshot) if snapshot is not None else ("skipped", None)
 
 
+def _keep_site_samples(site: dict, admin_token: str | None, diagnostics: dict | None) -> bool:
+    """Store one site's newest 15-minute readings. Never raises (one site must not stop the rest)."""
+    try:
+        token = None
+        try:
+            token = secrets.read_customer_vrm_token(site["customer_id"])
+        except Exception:  # noqa: BLE001
+            logger.warning("vrm-fleet samples: could not read customer token for customer_id=%s", site["customer_id"])
+        token = token or admin_token
+        if not token or site.get("vrm_installation_id") is None:
+            return False
+        samples_service.keep_fresh(VrmRemoteClient(token), site, diagnostics)
+        return True
+    except Exception:  # noqa: BLE001
+        logger.warning("vrm-fleet samples: could not store the readings for site %s", site.get("site_id"), exc_info=True)
+        return False
+
+
+def _keep_samples_fresh(sites: list[dict], admin_token: str | None, diagnostics_by_site: dict[str, dict]) -> None:
+    """Background step of the sweep: store every site's newest 15-minute readings, a few sites at a time."""
+    started = time.monotonic()
+    with ThreadPoolExecutor(max_workers=_SNAPSHOT_FETCH_WORKERS) as pool:
+        done = list(pool.map(lambda s: _keep_site_samples(s, admin_token, diagnostics_by_site.get(s["site_id"])), sites))
+    logger.info("vrm-fleet samples: stored for %d of %d sites in %.1fs", sum(done), len(sites), time.monotonic() - started)
+
+
 def _sweep_sites() -> list[dict]:
     """The sites the live sweep covers: active VRM-API sites, EXCEPT shared ones. A shared site is an installation another account
     registered first (`vrm.sites.is_shared`, vrm_shared_sites.sql): that account already gets its live data and its alerts, so
@@ -470,7 +497,7 @@ def _sweep_sites() -> list[dict]:
 
 
 @router.post("/refresh-snapshots", response_model=FleetSnapshotsRefreshOut)
-def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
+def post_refresh_snapshots(background_tasks: BackgroundTasks) -> FleetSnapshotsRefreshOut:
     """Fleet Dashboard Phase 2's live-snapshot sweep (2026-08-30) — meant
     to run every ~15 minutes via a GitHub Actions `cron:`, same shape as
     `billing-reconcile.yml`'s daily sweep. Synchronous, not a `vrm.jobs`
@@ -663,6 +690,9 @@ def post_refresh_snapshots() -> FleetSnapshotsRefreshOut:
 
     logger.info("vrm-fleet refresh-snapshots: checked=%d refreshed=%d skipped=%d failed=%d in %.1fs",
                 len(sites), refreshed, skipped, failed, time.monotonic() - started)
+    # Keep the stored 15-minute copy current — after the response, so the extra Victron calls never count against the
+    # scheduler's 30-second limit. Pages then read the copy instead of asking Victron.
+    background_tasks.add_task(_keep_samples_fresh, sites, admin_token, diagnostics_by_site)
     return FleetSnapshotsRefreshOut(checked=len(sites), refreshed=refreshed, skipped=skipped, failed=failed)
 
 
@@ -817,12 +847,12 @@ def get_site_shape(
         logger.warning("vrm-fleet site-shape: could not read customer token for customer_id=%s",
                       site["customer_id"])
     token = token or os.environ.get("VRM_ADMIN_TOKEN")
-    if not token:
-        raise HTTPException(status_code=409, detail={"code": "no_vrm_token_available"})
 
-    client = VrmRemoteClient(token)
-    shape = fetch_site_shape(client, site["vrm_installation_id"], range_key=range,
-                            tz=site.get("timezone") or DEFAULT_TZ_NAME)
+    # Read from the stored 15-minute copy, which the sweep keeps fresh. A token only lets a copy that is clearly behind be
+    # topped up (or read live if there is no copy); without one the stored readings are served as they are.
+    shape = samples_service.site_shape(VrmRemoteClient(token) if token else None, site, range)
+    if not token and all(v is None for v in shape["load"]) and all(v is None for v in shape["solar"]):
+        raise HTTPException(status_code=409, detail={"code": "no_vrm_token_available"})
     return SiteShapeOut(**shape)
 
 

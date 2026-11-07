@@ -98,7 +98,8 @@ from victron.vrm_remote import (
 )
 from victron.vrm_series import VrmSeriesError
 
-from vrm_api import jobs, secrets, tenancy
+from vrm_api import jobs, samples_service, secrets, tenancy
+from victron import weather_store
 from vrm_api.deps import require_pipeline_key
 from vrm_api.schemas import JobCreated, VrmSyncRequest, VrmSyncRunDueOut, VrmSyncSiteResult
 
@@ -304,6 +305,8 @@ def _do_sync(customer_id: str, site: dict, start: str, end: str,
     summary = victron_ingest.ingest_parsed(
         parsed, site_id, source="vrm_api", triggered_by=triggered_by,
     )
+    # Keep the 15-minute readings of the days just re-read (best effort: the daily totals above never depend on it).
+    summary["samples_stored"] = samples_service.sync_window(client, site, start, end)
     _t("sites").update({
         "vrm_last_synced_at": _now(),
         "vrm_last_sync_error": None,
@@ -415,5 +418,8 @@ def post_run_due() -> VrmSyncRunDueOut:
             # site's failure must not block the rest of the run.
             logger.exception("vrm_sync/run-due: site %s failed", site_id)
             results.append(VrmSyncSiteResult(site_id=site_id, status="failed", error=str(exc)))
+
+    # Hourly weather for the places these sites are in (one request per place, at most every few hours; best effort).
+    weather_store.refresh_sites(due_sites)
 
     return VrmSyncRunDueOut(sites_checked=len(due_sites), results=results)
