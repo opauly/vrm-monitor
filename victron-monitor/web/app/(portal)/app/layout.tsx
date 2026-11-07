@@ -42,21 +42,24 @@ export default async function PortalLayout({ children }: { children: ReactNode }
   const badge = customer.billing_status === 'beta' ? t(session.uiLanguage, 'nav_beta_badge') : undefined;
   const feedbackSites = sites.map((s) => ({ site_id: s.site_id, display_name: s.display_name }));
 
-  // One entry per job: Reports also holds Import CSV and Branding (tabs under it); Billing and Profile live in the avatar menu.
+  // One entry per job: Reports also holds Import CSV and Branding (tabs under it); Billing, Help and Profile live in the avatar menu.
+  // My Sites and Reports sit on the left; the live-monitoring pair (VRM Fleet, Alerts) is floated to the right, as on /admin.
   const navItems: AppNavItem[] = [
-    { href: '/app', label: t(session.uiLanguage, 'nav_reports'), exact: true, match: ['/app/upload', '/app/branding'] },
     { href: '/app/sites', label: t(session.uiLanguage, 'nav_my_sites') },
+    { href: '/app', label: t(session.uiLanguage, 'nav_reports'), exact: true, match: ['/app/upload', '/app/branding'] },
     // Shown to every customer regardless of tier — navigation-level gating is UX, never the control; the page itself
     // (requireCustomerAllowPending() + getDashboardAccess()) decides real content vs. one of two upsells.
-    { href: '/app/dashboard', label: t(session.uiLanguage, 'nav_dashboard') },
+    { href: '/app/dashboard', label: t(session.uiLanguage, 'nav_dashboard'), personal: true },
     // Open-alert count in a pill; a customer without live monitoring never has open alerts (the sweep doesn't raise them).
-    { href: '/app/alerts', label: t(session.uiLanguage, 'nav_alerts'), count: openAlerts || undefined },
-    { href: '/app/help', label: t(session.uiLanguage, 'nav_help') },
+    { href: '/app/alerts', label: t(session.uiLanguage, 'nav_alerts'), personal: true, child: true, count: openAlerts || undefined },
   ];
 
   return (
     <AppShell role="customer" email={session.email} navItems={navItems} lang={session.uiLanguage} badge={badge} feedbackSites={feedbackSites}
-      accountItems={[{ href: '/app/billing', label: t(session.uiLanguage, 'nav_billing') }]}
+      accountItems={[
+        { href: '/app/billing', label: t(session.uiLanguage, 'nav_billing') },
+        { href: '/app/help', label: t(session.uiLanguage, 'nav_help') },
+      ]}
       profile={<ProfileModalContent customer={customer} email={session.email} siteCount={sites.length} lang={session.uiLanguage} />}>
       {children}
     </AppShell>

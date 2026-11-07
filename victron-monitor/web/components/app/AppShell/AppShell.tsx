@@ -114,10 +114,12 @@ export function AppShell({ role, email, navItems, lang, badge, feedbackSites, pr
                   <NavLink key={item.href} href={item.href} exact={item.exact} match={item.match} className={styles.navLinkChild} activeClassName={styles.navLinkChildActive}>
                     <span className={styles.childArrow} aria-hidden="true">↳</span>
                     {item.label}
+                    {item.count ? <span className={styles.navCount}>{item.count > 99 ? '99+' : item.count}</span> : null}
                   </NavLink>
                 ) : (
                   <NavLink key={item.href} href={item.href} exact={item.exact} match={item.match} className={styles.navLinkPersonal} activeClassName={styles.navLinkPersonalActive}>
                     {item.label}
+                    {item.count ? <span className={styles.navCount}>{item.count > 99 ? '99+' : item.count}</span> : null}
                   </NavLink>
                 ),
               )}
