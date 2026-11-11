@@ -112,11 +112,12 @@
 .insightWarn {
   border-left-color: var(--signal);
 }
+/* chevron | title | date. A long title wraps inside its own column, beside the chevron; on a phone the date drops under the title. */
 .insightSummary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 16px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 2px 12px;
   cursor: pointer;
   list-style: none;
 }
@@ -126,15 +127,13 @@ summary.insightSummary::-webkit-details-marker {
 /* The same chevron as the Resolved list: it turns down when the row is open. */
 summary.insightSummary::before {
   content: '';
-  flex: none;
-  align-self: center;
   width: 7px;
   height: 7px;
   border-right: 2px solid var(--victron-glow);
   border-bottom: 2px solid var(--victron-glow);
   transform: rotate(-45deg);
   transition: transform 0.15s ease;
-  margin: 0 4px 0 2px;
+  margin: 7px 4px 0 2px;
 }
 details[open] > summary.insightSummary::before {
   transform: rotate(45deg);
@@ -142,13 +141,32 @@ details[open] > summary.insightSummary::before {
 .insightTitle {
   font-weight: 600;
   font-size: 14px;
+  line-height: 1.4;
   color: var(--paper);
+  overflow-wrap: anywhere;
 }
 .insightWhen {
-  margin-left: auto;
   font-size: 12px;
+  line-height: 1.8;
   color: var(--mute);
   white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .insightWhen {
+    grid-column: 2;
+  }
+}
+.insightGroup {
+  margin: 10px 0 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.insightGroup:first-child {
+  margin-top: 0;
 }
 .insightBody {
   padding: 8px 0 2px;

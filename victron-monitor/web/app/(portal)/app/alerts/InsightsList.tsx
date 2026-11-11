@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Input, Select } from '@/components/ui';
 import { t, type Lang, type StringKey } from '@/lib/i18n/strings';
 import styles from './alerts.module.css';
 
 // The Insights tab's list: each insight is a row that opens to its full text, with a search box and a kind filter for when
 // there are many, and the oldest hidden behind "Show more". All filtering happens here, on what the server already sent.
+// What was sent in the last 24 hours is what a notification points at, so it opens by itself, expanded, above the earlier ones.
 
 export type InsightItem = {
   id: number;
@@ -17,6 +18,7 @@ export type InsightItem = {
   body: string;
   when: string;
   site: string;
+  fresh: boolean; // sent in the last 24 hours
   href: string | null;
   linkLabel: string;
 };
@@ -27,7 +29,9 @@ export function InsightsList({ lang, items }: { lang: Lang; items: InsightItem[]
   const [query, setQuery] = useState('');
   const [kind, setKind] = useState('all');
   const [shown, setShown] = useState(PAGE);
-  const [open, setOpen] = useState<Record<number, boolean>>({});
+  const fresh = useMemo(() => items.filter((i) => i.fresh), [items]);
+  const [blockOpen, setBlockOpen] = useState(fresh.length > 0);
+  const [open, setOpen] = useState<Record<number, boolean>>(() => Object.fromEntries(fresh.map((i) => [i.id, true])));
 
   const kinds = useMemo(() => [...new Set(items.map((i) => i.kind))], [items]);
   const needle = query.trim().toLowerCase();
@@ -40,10 +44,14 @@ export function InsightsList({ lang, items }: { lang: Lang; items: InsightItem[]
 
   return (
     // Closed until asked for, like the resolved alerts: the list can run to dozens, the count says what is inside.
-    <details className={`${styles.resolvedBlock} ${styles.insightsBlock}`}>
+    <details className={`${styles.resolvedBlock} ${styles.insightsBlock}`} open={blockOpen} onToggle={(e) => setBlockOpen(e.currentTarget.open)}>
       <summary className={styles.resolvedHead}>
         <span className={styles.sectionLabelInline}>{t(lang, 'insights_title')}</span>
-        <span className={styles.resolvedCount}>{t(lang, 'insights_sent_count').replace('{n}', String(items.length))}</span>
+        <span className={styles.resolvedCount}>
+          {fresh.length > 0
+            ? t(lang, 'insights_sent_count_new').replace('{n}', String(items.length)).replace('{f}', String(fresh.length))
+            : t(lang, 'insights_sent_count').replace('{n}', String(items.length))}
+        </span>
       </summary>
       <div className={styles.insightControls}>
         <Input
@@ -72,9 +80,12 @@ export function InsightsList({ lang, items }: { lang: Lang; items: InsightItem[]
         <p className={styles.empty}>{t(lang, 'insights_no_match')}</p>
       ) : (
         <div className={styles.insightList}>
-          {visible.map((i) => (
+          {visible.map((i, index) => (
+            <Fragment key={i.id}>
+            {fresh.length > 0 && fresh.length < items.length && (index === 0 || visible[index - 1].fresh !== i.fresh) && (
+              <p className={styles.insightGroup}>{t(lang, i.fresh ? 'insights_group_recent' : 'insights_group_earlier')}</p>
+            )}
             <details
-              key={i.id}
               className={`${styles.insightRow} ${i.severity === 'warning' ? styles.insightWarn : styles.insightOk}`}
               open={!!open[i.id]}
               onToggle={(e) => {
@@ -95,6 +106,7 @@ export function InsightsList({ lang, items }: { lang: Lang; items: InsightItem[]
                 )}
               </div>
             </details>
+            </Fragment>
           ))}
         </div>
       )}

@@ -179,6 +179,7 @@ function toInsightItem(notice: InsightNoticeRecord, lang: Lang, links: AlertLink
     body: stored?.body ?? '',
     when: formatDateTimeInZone(notice.created_at, notice.site_timezone, 'en-US'),
     site: (typeof notice.detail.name === 'string' ? notice.detail.name : notice.site_name) ?? '',
+    fresh: Date.now() - Date.parse(notice.created_at) < 24 * 3600 * 1000,
     href: propertyId && links.property ? links.property(propertyId) : notice.site_id ? links.site(notice.site_id) : null,
     linkLabel: t(lang, propertyId ? 'insights_view_property' : 'alerts_view_site'),
   };
