@@ -463,32 +463,17 @@ def test_the_outlook_tip_uses_the_sunniest_hours_too():
     assert "The sunniest hours are 09:00 to 14:00" in card(R.DAILY_BRIEFING, d)["body"]
 
 
-def test_the_summary_push_groups_the_places_by_kind_and_says_what_each_one_expects():
-    items = [({"id": i}, {"push_title": "Today's outlook", "site": name, "short": short, "body": "b", "path": "/x", "severity": "ok"})
-             for i, (name, short) in enumerate([("Vista Atenas", "42 kWh"), ("Emtec CR", "18 kWh"), ("Ukiyo", "9.5 kWh, storm 15:00-18:00")])]
-    items.append(({"id": 9}, {"push_title": "Storm ahead, battery at 35%", "head": "Storm ahead", "site": "El Encino", "short": "storm 14:00-16:00, battery 35%",
-                              "body": "b", "path": "/x", "severity": "warning"}))
-    body = svc._push_payloads(items, email_i18n.get("en"), admin=False)[0]["body"]
-    assert body == ("Today's outlook: Vista Atenas 42 kWh, Emtec CR 18 kWh, Ukiyo 9.5 kWh, storm 15:00-18:00"
-                    " · Storm ahead: El Encino storm 14:00-16:00, battery 35%")
+def test_the_summary_push_counts_each_kind_and_says_to_tap():
+    items = [({"id": i}, {"push_title": "Today's outlook", "site": f"Site {i}", "body": "b", "path": "/x", "severity": "ok"}) for i in range(3)]
+    items += [({"id": 10 + i}, {"push_title": "Storm ahead, battery at 35%", "head": "Storm ahead", "site": f"Storm {i}", "body": "b", "path": "/x",
+                                "severity": "warning"}) for i in range(2)]
+    push = svc._push_payloads(items, email_i18n.get("en"), admin=False)[0]
+    assert push["title"] == "5 insights about your systems"
+    assert push["body"] == "Today's outlook (3) · Storm ahead (2). Tap to see them."
+    assert svc._push_payloads(items, email_i18n.get("es"), admin=False)[0]["body"].endswith("Toca para verlos.")
 
 
-def test_a_long_summary_is_cut_to_fit_a_phone_and_never_empty():
-    items = [({"id": i}, {"push_title": "Today's outlook", "site": f"A rather long site name {i}", "short": "123 kWh, storm 15:00-18:00", "body": "b",
-                          "path": "/x", "severity": "ok"}) for i in range(12)]
-    body = svc._push_payloads(items, email_i18n.get("en"), admin=False)[0]["body"]
-    assert body.startswith("Today's outlook: A rather long site name 0 123 kWh") and body.endswith("…") and len(body) <= svc.SUMMARY_BODY_MAX
-
-
-def test_describe_gives_each_kind_its_few_words():
-    en, es = email_i18n.get("en"), email_i18n.get("es")
-    def short(kind, detail, strings=en):
-        return svc.describe({"kind": kind, "site_id": "s", "detail": detail, "severity": "ok"}, site_name="S", strings=strings, lang="en", site_url=None)
-    briefing = short(R.DAILY_BRIEFING, {"kwh": 42.37, "windows": [{"day": "tomorrow", "from": "14:00", "to": "16:00"}, {"day": "today", "from": "15:00", "to": "18:00"}]})
-    assert briefing["short"] == "42 kWh, storm 15:00-18:00" and briefing["head"] == "Today's outlook"
-    assert short(R.DAILY_BRIEFING, {"kwh": 8.5})["short"] == "8.5 kWh"
-    storm = short(R.STORM_BATTERY, {"soc_pct": 35, "windows": [{"day": "today", "from": "14:00", "to": "16:00"}]})
-    assert storm["short"] == "storm 14:00-16:00, battery 35%" and storm["head"] == "Storm ahead"
-    assert short(R.HIGH_USAGE, {"kw": 3.24, "factor": 2, "usual_kw": 1.5})["short"] == "3.2 kW"
-    assert short(R.USAGE_DAY, {"kwh": 31.0})["short"] == "31 kWh"
-    assert short(R.STORM_BATTERY, {"soc_pct": 35, "windows": [{"day": "today", "from": "14:00", "to": "16:00"}]}, es)["short"] == "tormenta 14:00-16:00, batería 35%"
+def test_the_summary_push_stays_the_same_size_with_forty_sites():
+    items = [({"id": i}, {"push_title": "Today's outlook", "site": f"A rather long site name {i}", "body": "b", "path": "/x", "severity": "ok"}) for i in range(40)]
+    push = svc._push_payloads(items, email_i18n.get("en"), admin=False)[0]
+    assert push["title"] == "40 insights about your systems" and push["body"] == "Today's outlook (40). Tap to see them."

@@ -8,7 +8,7 @@ import styles from './alerts.module.css';
 
 // The Insights tab's list: each insight is a row that opens to its full text, with a search box and a kind filter for when
 // there are many, and the oldest hidden behind "Show more". All filtering happens here, on what the server already sent.
-// What was sent in the last 24 hours is what a notification points at, so it opens by itself, expanded, above the earlier ones.
+// What was sent in the last 24 hours is what a notification points at, so it opens by itself above the earlier ones (expanded, when there are only a few).
 
 export type InsightItem = {
   id: number;
@@ -24,6 +24,7 @@ export type InsightItem = {
 };
 
 const PAGE = 15;
+const EXPAND_FRESH_UP_TO = 5;
 
 export function InsightsList({ lang, items }: { lang: Lang; items: InsightItem[] }) {
   const [query, setQuery] = useState('');
@@ -31,7 +32,10 @@ export function InsightsList({ lang, items }: { lang: Lang; items: InsightItem[]
   const [shown, setShown] = useState(PAGE);
   const fresh = useMemo(() => items.filter((i) => i.fresh), [items]);
   const [blockOpen, setBlockOpen] = useState(fresh.length > 0);
-  const [open, setOpen] = useState<Record<number, boolean>>(() => Object.fromEntries(fresh.map((i) => [i.id, true])));
+  // Expanded on arrival only while there are few: with dozens, one tap on a row is better than a page-long scroll.
+  const [open, setOpen] = useState<Record<number, boolean>>(() =>
+    fresh.length <= EXPAND_FRESH_UP_TO ? Object.fromEntries(fresh.map((i) => [i.id, true])) : {},
+  );
 
   const kinds = useMemo(() => [...new Set(items.map((i) => i.kind))], [items]);
   const needle = query.trim().toLowerCase();

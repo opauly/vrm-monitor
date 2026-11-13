@@ -260,31 +260,6 @@ def _briefing_body(d: dict, t: dict, lang: str) -> str:
     return " ".join(parts)
 
 
-def _num(value) -> str:
-    """A figure as a phone notification wants it: whole numbers from 10 up, one decimal below ("42", "8.5")."""
-    try:
-        v = float(value)
-    except (TypeError, ValueError):
-        return ""
-    return str(round(v)) if abs(v) >= 10 else f"{v:.1f}".rstrip("0").rstrip(".")
-
-
-def _short(kind: str, d: dict, strings: dict) -> str:
-    """What a notice says about its place in a few words, for the summary notification ("42 kWh, storm 15:00-18:00")."""
-    bits = []
-    if kind in (rules.DAILY_BRIEFING, rules.SOLAR_DAY, rules.USAGE_DAY) and _num(d.get("kwh")):
-        bits.append(f"{_num(d['kwh'])} kWh")
-    if kind == rules.HIGH_USAGE and _num(d.get("kw")):
-        bits.append(f"{_num(d['kw'])} kW")
-    if kind in (rules.DAILY_BRIEFING, rules.STORM_BATTERY):
-        windows = [w for w in (d.get("windows") or []) if w.get("day") in (None, "today")]
-        if windows:
-            bits.append(_fill(strings["insight_short_storm"], from_=windows[0].get("from"), to=windows[0].get("to")))
-    if kind == rules.STORM_BATTERY and d.get("soc_pct") is not None:
-        bits.append(_fill(strings["insight_short_battery"], soc=_num(d["soc_pct"])))
-    return ", ".join(bits)
-
-
 def _low_list(low: list[dict], limit: int = 3) -> str:
     shown = ", ".join(f"{x['name']} {x['soc']}%" for x in low[:limit])
     return shown + (f" (+{len(low) - limit})" if len(low) > limit else "")
@@ -328,28 +303,19 @@ def describe(notice: dict, *, site_name: str, strings: dict, lang: str, site_url
     severity = notice.get("severity") if notice.get("severity") in ("ok", "warning") else "ok"
     head = strings["insight_storm_battery_head"] if kind == rules.STORM_BATTERY else push   # the kind, without one site's battery level
     return {"title": title, "body": body, "severity": severity, "severity_label": "", "url": f"{base}{path}" if base else None,
-            "path": path, "button_label": strings["alert_view_site"], "site": name, "push_title": push,
-            "head": head, "short": _short(kind, d, strings)}
-
-
-SUMMARY_BODY_MAX = 170      # a phone shows about four lines of a notification body
+            "path": path, "button_label": strings["alert_view_site"], "site": name, "push_title": push, "head": head}
 
 
 def _push_payloads(items: list[tuple[dict, dict]], strings: dict, *, admin: bool) -> list[dict]:
     if len(items) > MAX_INDIVIDUAL_PUSHES:
-        # "Today's outlook: Vista Atenas 42 kWh, El Encino 18 kWh, storm 15:00-18:00 · High energy use: Emtec CR 3.2 kW": the kind said
-        # once, then each place with the few words that matter about it, so the notification itself carries the news.
-        by_kind: dict[str, dict[str, str]] = {}
+        # A fixed-size message, however many sites there are: "Today's outlook (5) · Storm ahead (2). Tap to see them." A phone fits a
+        # few lines, so the places and figures stay in the app, one tap away, instead of being listed (and cut off) here.
+        counts: dict[str, int] = {}
         for _, c in items:
-            places = by_kind.setdefault(c.get("head") or c["push_title"], {})
-            if c["site"] and c["site"] not in places:
-                places[c["site"]] = c.get("short") or ""
-        body = " · ".join(
-            f"{kind}: {', '.join(f'{site} {short}'.strip() for site, short in places.items())}" if places else kind
-            for kind, places in by_kind.items())
-        if len(body) > SUMMARY_BODY_MAX:
-            body = body[:SUMMARY_BODY_MAX - 1].rstrip(" ,·") + "…"
-        return [{"title": _fill(strings["insight_multi_subject"], n=len(items)), "body": body,
+            head = c.get("head") or c["push_title"]
+            counts[head] = counts.get(head, 0) + 1
+        kinds = " · ".join(f"{head} ({n})" for head, n in counts.items())
+        return [{"title": _fill(strings["insight_multi_subject"], n=len(items)), "body": f"{kinds}. {strings['insight_summary_tap']}",
                  # The summary opens the list of what it summarises: today's insights, on the Insights tab.
                  "url": "/admin/fleet/alerts?tab=insights" if admin else "/app/alerts?tab=insights", "tag": "insights-summary", "severity": "warning"}]
     return [{"title": c["push_title"], "body": f"{c['site']} — {c['body']}" if c["site"] and c["body"] else (c["site"] or c["body"]),
