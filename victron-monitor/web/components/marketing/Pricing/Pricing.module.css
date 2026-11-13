@@ -235,3 +235,12 @@
     margin-top: 8px;
   }
 }
+
+/* One muted line under a card's feature list: what the plan does NOT include, said plainly. */
+.planNote {
+  margin: -4px 0 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--mute);
+}

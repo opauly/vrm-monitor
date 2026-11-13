@@ -6,6 +6,7 @@ import {
   Hero,
   IntegratorSection,
   Nav,
+  PhoneAlerts,
   Pricing,
   StatsBanner,
 } from '@/components/marketing';
@@ -43,7 +44,7 @@ const SOFTWARE_JSON_LD = {
   operatingSystem: 'Web',
   url: `${SITE_URL}/es`,
   description:
-    'Un panel en vivo, alertas por correo y al teléfono, y un reporte en PDF diario, semanal o mensual narrado por IA para cualquier sistema solar o híbrido de Victron Energy, construido por Pauly & Co., un Integrador de Software Recomendado por Victron.',
+    'Un panel en vivo, notificaciones al teléfono y alertas por correo, avisos diarios, y un reporte en PDF diario, semanal o mensual narrado por IA para cualquier sistema solar o híbrido de Victron Energy, construido por Pauly & Co., un Integrador de Software Recomendado por Victron.',
   provider: {
     '@type': 'Organization',
     name: 'Pauly & Co.',
@@ -51,7 +52,7 @@ const SOFTWARE_JSON_LD = {
   },
   offers: [
     { '@type': 'Offer', name: 'Starter', price: '29.99', priceCurrency: 'USD', description: 'Hasta 10 sitios, reportes diarios, semanales y de resumen automáticos.' },
-    { '@type': 'Offer', name: 'Growth', price: '99.99', priceCurrency: 'USD', description: 'Hasta 50 sitios, agrega el panel en vivo, las alertas y AI Insights.' },
+    { '@type': 'Offer', name: 'Growth', price: '99.99', priceCurrency: 'USD', description: 'Hasta 50 sitios, agrega el panel en vivo, las notificaciones al teléfono y alertas por correo, los avisos diarios y AI Insights.' },
   ],
 };
 
@@ -76,6 +77,7 @@ export default async function MarketingPageEs() {
       <Hero lang={lang} />
       <IntegratorSection lang={lang} />
       <FlowSteps lang={lang} />
+      <PhoneAlerts lang={lang} />
       <CapabilitiesTeaser lang={lang} />
       <Pricing starterPlanId={featuredPlans.starter} growthPlanId={featuredPlans.growth} lang={lang} />
       <Footer lang={lang} />

@@ -13,16 +13,16 @@ import { SITE_URL } from '@/lib/site';
 export async function GET() {
   const body = `# VRM Monitor
 
-> A live dashboard and a weekly, AI-narrated PDF report for any Victron Energy solar or hybrid system — built by Pauly & Co., a Victron Recommended Software Integrator.
+> A live dashboard, phone push and email alerts, and a daily, weekly or monthly AI-narrated PDF report for any Victron Energy solar or hybrid system — built by Pauly & Co., a Victron Recommended Software Integrator.
 
-VRM Monitor reads data a Victron Cerbo GX is already generating and already sending to Victron's own VRM Portal — via CSV export or the VRM API — with no changes to an existing Node-RED flow and no re-flashing the Cerbo GX. It turns that data into two things: a live dashboard that refreshes every ~15 minutes, and a branded report delivered automatically by email every week (or every month, for a range past 31 days), with a short AI-written narrative instead of a wall of numbers. One homeowner watching a single system and an installer managing a hundred customer sites read the exact same numbers, computed the exact same way, just at different scale.
+VRM Monitor reads data a Victron Cerbo GX is already generating and already sending to Victron's own VRM Portal — via CSV export or the VRM API — with no changes to an existing Node-RED flow and no re-flashing the Cerbo GX. It turns that data into three things: a live dashboard that refreshes every ~15 minutes; phone push and email alerts the moment a site goes quiet, the grid drops, the battery runs low or equipment needs attention, plus optional daily heads-ups (today's outlook, a storm with a low battery, a great solar day, unusually high use); and a branded report delivered automatically by email every day, week or month, with a short AI-written narrative instead of a wall of numbers. The live dashboard, alerts and push notifications are on the Growth and Fleet plans; Starter is the scheduled report. One homeowner watching a single system and an installer managing a hundred customer sites read the exact same numbers, computed the exact same way, just at different scale.
 
 Pauly & Co. is a solar design and engineering firm based in Atenas, Costa Rica. It was accepted into Victron Energy's Recommended Software Integrator Program in September 2026 — Victron's own invite-only network of software experts it vets directly to build on the VRM API, Node-RED, and Venus OS.
 
 ## Product
 
 - [Home](${SITE_URL}/): Overview, live-dashboard preview, sample report, and pricing (Starter, Growth, Fleet).
-- [What's inside](${SITE_URL}/whats-inside): Every report section and live-dashboard signal in detail — health scoring (System and Grid, scored separately), the four AI Insights checks, and frequently asked questions, including what a Victron Recommended Software Integrator is.
+- [What's inside](${SITE_URL}/whats-inside): Every report section and live-dashboard signal in detail — health scoring (System and Grid, scored separately), the AI Insights checks, alerts and daily heads-ups on your phone, and frequently asked questions, including how phone notifications work and what a Victron Recommended Software Integrator is.
 
 ## Company
 

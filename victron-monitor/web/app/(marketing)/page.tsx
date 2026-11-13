@@ -6,6 +6,7 @@ import {
   Hero,
   IntegratorSection,
   Nav,
+  PhoneAlerts,
   Pricing,
   StatsBanner,
 } from '@/components/marketing';
@@ -21,9 +22,9 @@ import { SITE_URL } from '@/lib/site';
 // template — the home page's title already reads as a full sentence, not a
 // page name that wants "VRM Monitor" appended a second time.
 export const metadata: Metadata = {
-  title: { absolute: 'VRM Monitor — Live dashboard, alerts and reports for your Victron system' },
+  title: { absolute: 'VRM Monitor — Live dashboard, phone alerts and reports for your Victron system' },
   description:
-    'Watch your Victron system live, get alerted when something needs attention, and receive a branded, AI-narrated report daily, weekly or monthly — for your own home, or every customer on an installer fleet.',
+    'Get a phone alert the moment your Victron system needs attention, watch it live, and receive a branded, AI-narrated report daily, weekly or monthly — for your own home, or every customer on an installer fleet.',
   // Explicit now that `metadataBase` (app/layout.tsx) resolves it to a
   // real absolute URL — matters once the real domain and the Vercel
   // preview URL both serve this same deployment, so search engines
@@ -36,9 +37,9 @@ export const metadata: Metadata = {
   // matches neither tag explicitly.
   alternates: { canonical: '/', languages: { 'en-US': '/', 'es-CR': '/es', 'x-default': '/' } },
   openGraph: {
-    title: 'VRM Monitor — Live dashboard, alerts and reports for your Victron system',
+    title: 'VRM Monitor — Live dashboard, phone alerts and reports for your Victron system',
     description:
-      'Watch your Victron system live, get alerted when something needs attention, and receive a branded, AI-narrated report daily, weekly or monthly — for your own home, or every customer on an installer fleet.',
+      'Get a phone alert the moment your Victron system needs attention, watch it live, and receive a branded, AI-narrated report daily, weekly or monthly — for your own home, or every customer on an installer fleet.',
     images: [{ url: '/sample_report.png', width: 1819, height: 2573, alt: 'A sample VRM Monitor weekly report' }],
   },
 };
@@ -73,7 +74,7 @@ const SOFTWARE_JSON_LD = {
   operatingSystem: 'Web',
   url: SITE_URL,
   description:
-    'A live dashboard, email and phone alerts, and a daily, weekly or monthly AI-narrated PDF report for any Victron Energy solar or hybrid system, built by Pauly & Co., a Victron Recommended Software Integrator.',
+    'A live dashboard, phone push and email alerts, daily heads-ups, and a daily, weekly or monthly AI-narrated PDF report for any Victron Energy solar or hybrid system, built by Pauly & Co., a Victron Recommended Software Integrator.',
   provider: {
     '@type': 'Organization',
     name: 'Pauly & Co.',
@@ -81,7 +82,7 @@ const SOFTWARE_JSON_LD = {
   },
   offers: [
     { '@type': 'Offer', name: 'Starter', price: '29.99', priceCurrency: 'USD', description: 'Up to 10 sites, automatic daily, weekly & overview reports.' },
-    { '@type': 'Offer', name: 'Growth', price: '99.99', priceCurrency: 'USD', description: 'Up to 50 sites, adds VRM Fleet, alerts and AI Insights.' },
+    { '@type': 'Offer', name: 'Growth', price: '99.99', priceCurrency: 'USD', description: 'Up to 50 sites, adds VRM Fleet, phone push and email alerts, daily heads-ups and AI Insights.' },
   ],
 };
 
@@ -119,6 +120,7 @@ export default async function MarketingPage() {
       <Hero lang="en" />
       <IntegratorSection lang="en" />
       <FlowSteps lang="en" />
+      <PhoneAlerts lang="en" />
       <CapabilitiesTeaser lang="en" />
       <Pricing starterPlanId={featuredPlans.starter} growthPlanId={featuredPlans.growth} lang="en" />
       <Footer lang="en" />

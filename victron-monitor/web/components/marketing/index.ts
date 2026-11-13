@@ -5,6 +5,7 @@ export { StatsBanner } from './StatsBanner/StatsBanner';
 export { IntegratorBadge } from './IntegratorBadge/IntegratorBadge';
 export { IntegratorSection } from './IntegratorSection/IntegratorSection';
 export { FlowSteps } from './FlowSteps/FlowSteps';
+export { PhoneAlerts } from './PhoneAlerts/PhoneAlerts';
 export { ModuleGrid } from './ModuleGrid/ModuleGrid';
 export { CapabilitiesTeaser } from './CapabilitiesTeaser/CapabilitiesTeaser';
 export { ReportPreview } from './ReportPreview/ReportPreview';

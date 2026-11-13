@@ -76,6 +76,7 @@ const FAQS = [
   { q: t(lang, 'marketing_whatsinside_faq_q6'), a: t(lang, 'marketing_whatsinside_faq_a6') },
   { q: t(lang, 'marketing_whatsinside_faq_q7'), a: t(lang, 'marketing_whatsinside_faq_a7') },
   { q: t(lang, 'marketing_whatsinside_faq_q8'), a: t(lang, 'marketing_whatsinside_faq_a8') },
+  { q: t(lang, 'marketing_whatsinside_faq_q9'), a: t(lang, 'marketing_whatsinside_faq_a9') },
 ];
 
 export default function WhatsInsidePage() {
@@ -199,6 +200,12 @@ export default function WhatsInsidePage() {
               <span className={styles.signalTag}>{t(lang, 'marketing_tag_live')}</span>
               <h3>{t(lang, 'marketing_whatsinside_signal12_title')}</h3>
               <p className={styles.signalBody}>{t(lang, 'marketing_whatsinside_signal12_body')}</p>
+            </Panel>
+            <Panel className={styles.signalCard} variant="card" interactive led>
+              <span className={styles.signalIcon} aria-hidden="true">{REPORT_MODULE_ICONS.critical_alerts}</span>
+              <span className={styles.signalTag}>{t(lang, 'marketing_tag_alerts')}</span>
+              <h3>{t(lang, 'marketing_whatsinside_signal13_title')}</h3>
+              <p className={styles.signalBody}>{t(lang, 'marketing_whatsinside_signal13_body')}</p>
             </Panel>
           </div>
 

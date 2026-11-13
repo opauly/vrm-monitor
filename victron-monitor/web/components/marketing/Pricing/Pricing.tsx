@@ -112,6 +112,7 @@ export function Pricing({ starterPlanId, growthPlanId, lang }: PricingProps) {
                   {t(lang, 'marketing_pricing_starter_li6')}
                 </li>
               </ul>
+              <p className={styles.planNote}>{t(lang, 'marketing_pricing_starter_note')}</p>
               <Button href={signupHref(starterPlanId)} variant="ghost" style={{ justifyContent: 'center' }}>
                 {t(lang, 'marketing_cta_get_started')}
               </Button>
@@ -133,6 +134,14 @@ export function Pricing({ starterPlanId, growthPlanId, lang }: PricingProps) {
                 <li className={styles.carry}>{t(lang, 'marketing_pricing_growth_carry')}</li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
+                  {t(lang, 'marketing_pricing_growth_li_alerts')}
+                </li>
+                <li>
+                  <span className={styles.dot} aria-hidden="true" />
+                  {t(lang, 'marketing_pricing_growth_li_headsup')}
+                </li>
+                <li>
+                  <span className={styles.dot} aria-hidden="true" />
                   {t(lang, 'marketing_pricing_growth_li1')}
                 </li>
                 <li>
@@ -142,10 +151,6 @@ export function Pricing({ starterPlanId, growthPlanId, lang }: PricingProps) {
                 <li>
                   <span className={styles.dot} aria-hidden="true" />
                   {t(lang, 'marketing_pricing_growth_li3')}
-                </li>
-                <li>
-                  <span className={styles.dot} aria-hidden="true" />
-                  {t(lang, 'marketing_pricing_growth_li_alerts')}
                 </li>
                 <li>
                   <span className={styles.dot} aria-hidden="true" />

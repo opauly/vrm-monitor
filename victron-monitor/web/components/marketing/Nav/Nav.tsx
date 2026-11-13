@@ -102,6 +102,7 @@ export function Nav({ lang, toggle }: { lang: Lang; toggle: NavLangToggle }) {
             <div className={styles.dropdownMenu}>
               <Link href={`${base}/#how`}>{t(lang, 'marketing_nav_how_overview')}</Link>
               <Link href={`${base}/#integrator`}>{t(lang, 'marketing_nav_how_integrator')}</Link>
+              <Link href={`${base}/#phone`}>{t(lang, 'marketing_nav_how_phone')}</Link>
               <Link href={`${base}/#capabilities`}>{t(lang, 'marketing_nav_how_capabilities')}</Link>
             </div>
           </div>

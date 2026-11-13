@@ -67,6 +67,9 @@ export function MobileMenu({ lang, toggle }: { lang: Lang; toggle: NavLangToggle
           <Link href={`${base}/#integrator`} role="menuitem" onClick={close}>
             {t(lang, 'marketing_nav_how_integrator')}
           </Link>
+          <Link href={`${base}/#phone`} role="menuitem" onClick={close}>
+            {t(lang, 'marketing_nav_how_phone')}
+          </Link>
           <Link href={`${base}/#capabilities`} role="menuitem" onClick={close}>
             {t(lang, 'marketing_nav_how_capabilities')}
           </Link>
