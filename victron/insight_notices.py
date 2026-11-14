@@ -31,6 +31,7 @@ KINDS = (DAILY_BRIEFING, SOLAR_DAY, STORM_BATTERY, HIGH_USAGE, USAGE_DAY)
 
 # Local-time windows [from, to) a kind may be generated in.
 BRIEFING_HOURS = (7, 11)
+BRIEFING_REFRESH_UNTIL = 20              # once said, the day's outlook is kept up to date until this hour (no new push)
 USAGE_DAY_HOURS = (7, 11)
 SOLAR_DAY_HOURS = (18, 21)
 AWAKE_HOURS = (7, 21)                    # storms and high use: never overnight
@@ -71,6 +72,21 @@ def _solar(card: dict | None) -> dict | None:
 
 def _direction(pct: float) -> str:
     return "above" if pct >= 5 else "below" if pct <= -5 else "near"
+
+
+def _backup(lows: list) -> str:
+    """What the batteries that are low are for, so the advice fits: "off_grid" (solar is the only source: a storm means less sun),
+    "grid" (utility power is there and a storm can cut it: the battery is the backup) or "mixed" (a property with both)."""
+    off = [m.site.get("system_type") == "off_grid" for m in lows]
+    return "off_grid" if off and all(off) else "mixed" if any(off) else "grid"
+
+
+def _window_ahead(window: dict | None, hour: int) -> dict | None:
+    """A "sunniest hours" window that has not already passed (a morning tip read in the afternoon would be wrong)."""
+    try:
+        return window if window and int(str(window["to"])[:2]) > hour else None
+    except (KeyError, ValueError):
+        return None
 
 
 def _storm_in_reach(forecast: dict | None, now_local: datetime) -> dict | None:
@@ -137,8 +153,10 @@ def _windows(members: list[Member], day: str | None = None) -> list[dict]:
 
 
 def evaluate_group(*, key: str, name: str, members: list[Member], now_local: datetime, kinds: set[str] | None = None,
-                   property_id: str | None = None) -> list[Notice]:
-    """The weather-driven notices for one group of sites (a property, or the sites that share a place)."""
+                   property_id: str | None = None, refresh: bool = False) -> list[Notice]:
+    """The weather-driven notices for one group of sites (a property, or the sites that share a place). `refresh`: today's outlook
+    was already said, so it is worked out again (up to BRIEFING_REFRESH_UNTIL) to keep what it shows current: the battery now, the
+    storms still to come, the sunny hours still ahead."""
     want = set(KINDS) if kinds is None else set(kinds)
     hour, today = now_local.hour, now_local.date()
     usable = [m for m in members if m.forecast and m.forecast.get("available", True)]
@@ -147,7 +165,7 @@ def evaluate_group(*, key: str, name: str, members: list[Member], now_local: dat
     where = {"name": name, "group": key, "sites": len(members), **({"property_id": property_id} if property_id else {})}
     out: list[Notice] = []
 
-    if DAILY_BRIEFING in want and _in(hour, BRIEFING_HOURS) and usable:
+    if DAILY_BRIEFING in want and usable and (_in(hour, BRIEFING_HOURS) or (refresh and hour < BRIEFING_REFRESH_UNTIL)):
         total = _day_total(usable, "today")
         windows = [w for w in _windows(usable, "today") if int(str(w.get("from", "00"))[:2]) >= hour]
         if total or windows:
@@ -160,8 +178,11 @@ def evaluate_group(*, key: str, name: str, members: list[Member], now_local: dat
                 detail["windows"] = windows
             if socs:
                 detail.update(soc_min=min(v for _, v, _ in socs), soc_max=max(v for _, v, _ in socs))
-            detail["charge_first"] = bool(windows and socs and detail["soc_min"] < 80)
-            best = next((w for w in ((m.forecast or {}).get("today", {}).get("best_window") for m in usable) if w), None)
+            low = [m for _, v, m in socs if v < 80]
+            detail["charge_first"] = bool(windows and low)
+            if detail["charge_first"]:
+                detail["backup"] = _backup(low)
+            best = next((w for w in (_window_ahead((m.forecast or {}).get("today", {}).get("best_window"), hour) for m in usable) if w), None)
             if best:
                 detail["window"] = best
             out.append(Notice(DAILY_BRIEFING, f"briefing:{key}:{today}", "ok", detail))
@@ -180,12 +201,13 @@ def evaluate_group(*, key: str, name: str, members: list[Member], now_local: dat
     if STORM_BATTERY in want and _in(hour, AWAKE_HOURS) and usable and socs:
         window = next((w for w in _windows(usable) if _storm_in_reach({"storm_windows": [w]}, now_local)), None)
         if window:
-            low = [(n, v) for n, v, m in socs
+            low = [(n, v, m) for n, v, m in socs
                    if v < (STORM_SOC_LOW_OFF_GRID_PCT if m.site.get("system_type") == "off_grid" else STORM_SOC_LOW_PCT)]
             if low:
                 when = today + timedelta(days=1 if window.get("day") == "tomorrow" else 0)
                 out.append(Notice(STORM_BATTERY, f"storm:{key}:{when}:{window.get('from')}", "warning", {
-                    **where, "windows": [window], "soc_pct": min(v for _, v in low), "low": [{"name": n, "soc": v} for n, v in sorted(low, key=lambda x: x[1])]}))
+                    **where, "windows": [window], "soc_pct": min(v for _, v, _ in low), "backup": _backup([m for _, _, m in low]),
+                    "low": [{"name": n, "soc": v} for n, v, _ in sorted(low, key=lambda x: x[1])]}))
     return out
 
 

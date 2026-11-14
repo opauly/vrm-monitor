@@ -38,6 +38,7 @@ MAX_FORECAST_BUILDS = 4                  # per pass: a sweep must stay short
 MAX_NON_BRIEFING_PER_DAY = 3             # per customer
 MAX_AGE = timedelta(hours=3)             # an unsent notice older than this is dropped, not sent late
 MAX_INDIVIDUAL_PUSHES = 3
+REFRESH_EVERY = timedelta(minutes=55)    # today's outlook is rewritten at most about hourly, not on every sweep
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _PRIORITY = [rules.STORM_BATTERY, rules.HIGH_USAGE, rules.USAGE_DAY, rules.SOLAR_DAY, rules.DAILY_BRIEFING]
 
@@ -112,7 +113,7 @@ def _group_key(site: dict, info: dict | None) -> str:
 def run_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]], previous_by_site: dict[str, dict],
              now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
-    summary = {"stored": 0, "skipped_cap": 0}
+    summary = {"stored": 0, "skipped_cap": 0, "refreshed": 0}
     customer_ids = sorted({s["customer_id"] for s in sites})
     if not customer_ids:
         return summary
@@ -131,9 +132,12 @@ def run_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]], previ
         since = (now - timedelta(days=10)).date().isoformat()
         for r in _t("energy_daily").select("site_id, date, load_kwh, complete_day").in_("site_id", ids).gte("date", since).execute().data or []:
             energy.setdefault(r["site_id"], []).append(r)
-    recent = _t("insight_notices").select("customer_id, kind, dedupe_key, created_at").in_("customer_id", sorted(enabled)).gte(
+    recent = _t("insight_notices").select("id, customer_id, kind, dedupe_key, created_at, text, detail").in_("customer_id", sorted(enabled)).gte(
         "created_at", (now - timedelta(days=2)).isoformat()).execute().data or []
     seen = {(r["customer_id"], r["dedupe_key"]) for r in recent}
+    # Today's outlook, already said: kept current through the day (below) instead of left showing the morning's battery and storms.
+    said_outlook = {(r["customer_id"], r["dedupe_key"]): r for r in recent if r["kind"] == rules.DAILY_BRIEFING}
+    refreshes: list[tuple[dict, str, rules.Notice]] = []
     used_today = {}
     for r in recent:
         made = _parse(r["created_at"])
@@ -167,6 +171,8 @@ def run_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]], previ
         profile_of[site_id] = ((row or {}).get("load_profile") or {}).get("load_w")
 
     def add(customer_id: str, site_id: str, notice: rules.Notice) -> None:
+        if (customer_id, notice.key) in said_outlook:
+            refreshes.append((said_outlook[(customer_id, notice.key)], site_id, notice))
         if (customer_id, notice.key) not in seen:
             rows.append({"customer_id": customer_id, "site_id": site_id, "kind": notice.kind, "dedupe_key": notice.key,
                          "severity": notice.severity, "detail": notice.detail})
@@ -193,6 +199,7 @@ def run_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]], previ
         try:
             found = rules.evaluate_group(
                 key=key, name=name, now_local=_local(now, first.get("timezone")), kinds=enabled[customer_id], property_id=info.get("property_id"),
+                refresh=(customer_id, f"briefing:{key}:{_local(now, first.get('timezone')).date()}") in said_outlook,
                 members=[rules.Member(site={**m, "display_name": names[i]}, forecast=forecast_of.get(m["site_id"]), snapshot=snap)
                          for i, (m, snap) in enumerate(members)])
         except Exception:  # noqa: BLE001
@@ -220,7 +227,27 @@ def run_pass(*, sites: list[dict], fetched: list[tuple[str, dict | None]], previ
         except Exception:  # noqa: BLE001 — the `text` column does not exist yet (vrm_insight_notice_text.sql): store without it
             _t("insight_notices").upsert(keep, on_conflict="customer_id,dedupe_key", ignore_duplicates=True).execute()
         summary["stored"] = len(keep)
+    summary["refreshed"] = _refresh_outlooks(refreshes, details, now)
     return summary
+
+
+def _refresh_outlooks(refreshes: list[tuple[dict, str, rules.Notice]], details: dict[str, dict], now: datetime) -> int:
+    """Rewrite today's already-sent outlook where what it says has changed (the battery moved, a storm passed, the sunny hours are
+    over). The push is not sent again: the row keeps its `notified_at`, and says when it was last brought up to date (`detail.refreshed_at`)."""
+    done = 0
+    for row, site_id, notice in refreshes:
+        try:
+            last = _parse((row.get("detail") or {}).get("refreshed_at")) or _parse(row.get("created_at"))
+            if last and now - last < REFRESH_EVERY:
+                continue
+            text = _texts({"site_id": site_id, "kind": notice.kind, "detail": notice.detail}, details)
+            if text == row.get("text"):
+                continue
+            _t("insight_notices").update({"text": text, "detail": {**notice.detail, "refreshed_at": now.isoformat()}}).eq("id", row["id"]).execute()
+            done += 1
+        except Exception:  # noqa: BLE001 — best effort: the outlook as first written is still there
+            logger.warning("insight notices: could not refresh the outlook %s", row.get("id"))
+    return done
 
 
 def _texts(row: dict, details: dict[str, dict]) -> dict:
@@ -253,7 +280,7 @@ def _briefing_body(d: dict, t: dict, lang: str) -> str:
     if low is not None:
         parts.append(_fill(t["insight_brief_battery"], soc=low) if low == high else _fill(t["insight_brief_battery_range"], low=low, high=high))
     if d.get("charge_first"):
-        parts.append(t["insight_brief_tip_storm"])
+        parts.append(t[{"off_grid": "insight_brief_tip_storm_off_grid", "mixed": "insight_brief_tip_storm_mixed"}.get(d.get("backup"), "insight_brief_tip_storm")])
     elif d.get("direction") == "above":
         w = d.get("window")
         parts.append(_fill(t["insight_brief_tip_window"], from_=w["from"], to=w["to"]) if w else t["insight_brief_tip_midday"])
@@ -289,10 +316,12 @@ def describe(notice: dict, *, site_name: str, strings: dict, lang: str, site_url
         title, push = _fill(strings["insight_solar_day_title"], **values), strings["insight_solar_day_push"]
     elif kind == rules.STORM_BATTERY:
         when = insight_ai.storm_when(d.get("windows") or [], lang)
+        # The advice fits the kind of system: an off-grid site has no grid to lose, its battery rides out the missing sun.
+        tip = strings[{"off_grid": "insight_storm_tip_off_grid", "mixed": "insight_storm_tip_mixed"}.get(d.get("backup"), "insight_storm_tip")]
         if many and d.get("low"):
-            body = _fill(strings["insight_storm_battery_body_many"], when=when, low=_low_list(d["low"]))
+            body = _fill(strings["insight_storm_battery_body_many"], when=when, low=_low_list(d["low"]), tip=tip)
         else:
-            body = _fill(strings["insight_storm_battery_body"], when=when, soc=d.get("soc_pct"))
+            body = _fill(strings["insight_storm_battery_body"], when=when, soc=d.get("soc_pct"), tip=tip)
         title, push = _fill(strings["insight_storm_battery_title"], **values), _fill(strings["insight_storm_battery_push"], soc=d.get("soc_pct"))
     elif kind == rules.HIGH_USAGE:
         body = _fill(strings["insight_high_usage_body"], kw=d.get("kw"), factor=d.get("factor"), usual_kw=d.get("usual_kw"))

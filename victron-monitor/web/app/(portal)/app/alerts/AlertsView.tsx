@@ -167,10 +167,21 @@ function ResolvedRow({ group, lang, links }: { group: ResolvedGroup; lang: Lang;
 }
 
 // What a push or an email about an insight said: the wording stored with it (in the viewer's language), else just its kind and site.
+const DEFAULT_ZONE = 'America/Costa_Rica';
+
+function dayIn(date: Date, zone: string): string {
+  return date.toLocaleDateString('en-CA', { timeZone: zone }); // YYYY-MM-DD on the site's own calendar
+}
+
 function toInsightItem(notice: InsightNoticeRecord, lang: Lang, links: AlertLinks): InsightItem {
   const stored = notice.text?.[lang] ?? notice.text?.en;
   const kind = t(lang, `alerts_kind_${notice.kind}` as StringKey);
   const propertyId = typeof notice.detail.property_id === 'string' ? notice.detail.property_id : null;
+  const zone = notice.site_timezone ?? DEFAULT_ZONE;
+  const today = dayIn(new Date(), zone);
+  // Today's: said today, or about today (the evening "great solar day tomorrow" is about the day it then becomes).
+  const aboutDay = notice.kind === 'solar_day' && typeof notice.detail.date === 'string' ? notice.detail.date : null;
+  const refreshedAt = typeof notice.detail.refreshed_at === 'string' ? notice.detail.refreshed_at : null;
   return {
     id: notice.id,
     kind: notice.kind,
@@ -178,8 +189,9 @@ function toInsightItem(notice: InsightNoticeRecord, lang: Lang, links: AlertLink
     title: stored?.title ?? (notice.site_name ? `${kind} — ${notice.site_name}` : kind),
     body: stored?.body ?? '',
     when: formatDateTimeInZone(notice.created_at, notice.site_timezone, 'en-US'),
+    updated: refreshedAt ? new Date(refreshedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: zone }) : null,
     site: (typeof notice.detail.name === 'string' ? notice.detail.name : notice.site_name) ?? '',
-    fresh: Date.now() - Date.parse(notice.created_at) < 24 * 3600 * 1000,
+    today: dayIn(new Date(notice.created_at), zone) === today || aboutDay === today,
     href: propertyId && links.property ? links.property(propertyId) : notice.site_id ? links.site(notice.site_id) : null,
     linkLabel: t(lang, propertyId ? 'insights_view_property' : 'alerts_view_site'),
   };

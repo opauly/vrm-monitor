@@ -156,17 +156,32 @@ details[open] > summary.insightSummary::before {
     grid-column: 2;
   }
 }
-.insightGroup {
-  margin: 10px 0 2px;
+/* Today's insights: always open, its own block above the earlier ones. */
+.insightsToday {
+  margin: 0 0 24px;
+}
+.insightsTodayHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  margin: 0 0 10px;
+}
+.insightsTodayTitle {
+  margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--mute);
+  color: var(--victron-glow);
 }
-.insightGroup:first-child {
-  margin-top: 0;
+.insightsTodayToggle {
+  margin-left: auto;
+}
+.insightUpdated {
+  font-size: 12px;
+  color: var(--mute);
 }
 .insightBody {
   padding: 8px 0 2px;

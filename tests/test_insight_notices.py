@@ -477,3 +477,59 @@ def test_the_summary_push_stays_the_same_size_with_forty_sites():
     items = [({"id": i}, {"push_title": "Today's outlook", "site": f"A rather long site name {i}", "body": "b", "path": "/x", "severity": "ok"}) for i in range(40)]
     push = svc._push_payloads(items, email_i18n.get("en"), admin=False)[0]
     assert push["title"] == "40 insights about your systems" and push["body"] == "Today's outlook (40). Tap to see them."
+
+
+# ── the kind of system, and keeping today's outlook current ──────────────
+def test_an_off_grid_site_is_never_told_about_power_cuts():
+    off = [member(system_type="off_grid")]
+    brief = run(8, members=off)[R.DAILY_BRIEFING]
+    assert brief.detail["backup"] == "off_grid"
+    for lang in ("en", "es"):
+        body = card(R.DAILY_BRIEFING, brief.detail, lang)["body"]
+        assert "power cut" not in body and "corte" not in body and "se va la luz" not in body and "respaldo" not in body
+    storm = run(10, members=[member(soc=65.0, system_type="off_grid")])[R.STORM_BATTERY]
+    assert storm.detail["backup"] == "off_grid"
+    text = card(R.STORM_BATTERY, storm.detail)["body"]
+    assert "power cut" not in text and "backup" not in text and "heavy loads while the sun is out" in text
+
+
+def test_a_grid_connected_site_keeps_the_power_cut_advice_and_a_mixed_property_gets_neutral_words():
+    assert run(8)[R.DAILY_BRIEFING].detail["backup"] == "grid"
+    assert "power cuts out" in card(R.DAILY_BRIEFING, run(8)[R.DAILY_BRIEFING].detail)["body"]
+    mixed = run(8, members=[member("A"), member("B", system_type="off_grid")])[R.DAILY_BRIEFING]
+    assert mixed.detail["backup"] == "mixed" and "reserve" in card(R.DAILY_BRIEFING, mixed.detail)["body"]
+
+
+def test_a_full_battery_does_not_bring_any_storm_advice():
+    full = run(8, members=[member(soc=95.0, system_type="off_grid")])[R.DAILY_BRIEFING]
+    assert not full.detail["charge_first"] and "backup" not in full.detail
+
+
+def test_the_outlook_is_worked_out_again_after_the_morning_only_when_it_was_already_said():
+    assert R.DAILY_BRIEFING not in run(15)
+    assert R.DAILY_BRIEFING in run(15, refresh=True) and R.DAILY_BRIEFING not in run(20, refresh=True)
+
+
+def test_a_refreshed_outlook_drops_what_is_already_over():
+    forecast = {**FORECAST, "today": {**FORECAST["today"], "best_window": {"from": "10:00", "to": "13:00"}}}
+    morning = run(8, members=[member(forecast=forecast)])[R.DAILY_BRIEFING]
+    assert morning.detail["window"] == {"from": "10:00", "to": "13:00"}
+    later = run(16, members=[member(forecast=forecast)], refresh=True)[R.DAILY_BRIEFING]
+    assert "window" not in later.detail and "windows" not in later.detail and later.detail["charge_first"] is False
+
+
+def _said_today(monkeypatch, **extra):
+    said = [{"id": 7, "customer_id": "c1", "kind": "daily_briefing", "dedupe_key": "briefing:s:s1:2026-10-19",
+             "created_at": (NOW - timedelta(hours=3)).isoformat(), "text": {"en": {"title": "old", "body": "old"}}, "detail": {}, **extra}]
+    return pass_(monkeypatch, tables={"insight_notices": said})
+
+
+def test_todays_outlook_is_rewritten_in_place_without_a_second_push(monkeypatch):
+    out, rows = _said_today(monkeypatch)
+    assert out["stored"] == 0 and out["refreshed"] == 1 and len(rows) == 1
+    assert rows[0]["text"]["en"]["body"] != "old" and rows[0]["detail"]["refreshed_at"] == NOW.isoformat() and "notified_at" not in rows[0]
+
+
+def test_the_outlook_is_not_rewritten_again_within_the_hour(monkeypatch):
+    out, rows = _said_today(monkeypatch, detail={"refreshed_at": (NOW - timedelta(minutes=20)).isoformat()})
+    assert out["refreshed"] == 0 and rows[0]["text"]["en"]["body"] == "old"
