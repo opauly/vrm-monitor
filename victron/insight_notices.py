@@ -81,6 +81,20 @@ def _backup(lows: list) -> str:
     return "off_grid" if off and all(off) else "mixed" if any(off) else "grid"
 
 
+def _soc_at_storm(m: "Member", window: dict, soc: float, now_local: datetime) -> float | None:
+    """Where this site's battery is expected to stand when `window` starts: the forecast steps it forward with the day's sun and the
+    usual load, so a battery that is low at 7 a.m. but will be topped up by noon is not a storm worry. Without that projection the
+    battery of this minute stands in only when the storm is about to start (too soon for the sun to change much); otherwise None."""
+    for p in (m.forecast or {}).get("storm_battery") or []:
+        if p.get("day") == window.get("day") and p.get("from") == window.get("from") and _num(p.get("soc_pct")) is not None:
+            return round(p["soc_pct"])
+    try:
+        ahead = int(str(window["from"])[:2]) - now_local.hour + (24 if window.get("day") == "tomorrow" else 0)
+    except (KeyError, ValueError):
+        return None
+    return soc if 0 < ahead <= 2 else None
+
+
 def _window_ahead(window: dict | None, hour: int) -> dict | None:
     """A "sunniest hours" window that has not already passed (a morning tip read in the afternoon would be wrong)."""
     try:
@@ -178,7 +192,9 @@ def evaluate_group(*, key: str, name: str, members: list[Member], now_local: dat
                 detail["windows"] = windows
             if socs:
                 detail.update(soc_min=min(v for _, v, _ in socs), soc_max=max(v for _, v, _ in socs))
-            low = [m for _, v, m in socs if v < 80]
+            # Worth topping up first only if the battery is still expected to be low when the first storm arrives.
+            first = windows[0] if windows else None
+            low = [m for _, v, m in socs if first and (_soc_at_storm(m, first, v, now_local) or 100) < 80]
             detail["charge_first"] = bool(windows and low)
             if detail["charge_first"]:
                 detail["backup"] = _backup(low)
@@ -201,8 +217,10 @@ def evaluate_group(*, key: str, name: str, members: list[Member], now_local: dat
     if STORM_BATTERY in want and _in(hour, AWAKE_HOURS) and usable and socs:
         window = next((w for w in _windows(usable) if _storm_in_reach({"storm_windows": [w]}, now_local)), None)
         if window:
-            low = [(n, v, m) for n, v, m in socs
-                   if v < (STORM_SOC_LOW_OFF_GRID_PCT if m.site.get("system_type") == "off_grid" else STORM_SOC_LOW_PCT)]
+            # Judged on where the battery is expected to be when the storm starts, not where it is now.
+            expected = [(n, _soc_at_storm(m, window, v, now_local), m) for n, v, m in socs]
+            low = [(n, v, m) for n, v, m in expected
+                   if v is not None and v < (STORM_SOC_LOW_OFF_GRID_PCT if m.site.get("system_type") == "off_grid" else STORM_SOC_LOW_PCT)]
             if low:
                 when = today + timedelta(days=1 if window.get("day") == "tomorrow" else 0)
                 out.append(Notice(STORM_BATTERY, f"storm:{key}:{when}:{window.get('from')}", "warning", {

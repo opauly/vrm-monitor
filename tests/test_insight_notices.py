@@ -16,7 +16,10 @@ def at(hour, day=19):
     return datetime(2026, 10, day, hour, 5)
 
 
-def member(name="Casona", soc=52.0, forecast=FORECAST, system_type="hybrid"):
+def member(name="Casona", soc=52.0, forecast=FORECAST, system_type="hybrid", at_storm=None):
+    """`at_storm`: where the forecast expects the battery to stand when the storm starts (default: where it is now, i.e. no sun in between)."""
+    if forecast.get("storm_windows") and "storm_battery" not in forecast:
+        forecast = {**forecast, "storm_battery": [{"day": w["day"], "from": w["from"], "soc_pct": soc if at_storm is None else at_storm} for w in forecast["storm_windows"]]}
     return R.Member(site={**SITE, "display_name": name, "system_type": system_type}, forecast=forecast, snapshot={"soc_pct": soc, "load_power_w": 600})
 
 
@@ -130,13 +133,13 @@ def test_the_outlook_reads_as_plain_sentences_in_both_languages():
 
 
 def test_every_kind_has_a_card_without_unfilled_placeholders_in_both_languages():
-    details = {R.SOLAR_DAY: {"kwh": 31.0, "typical": 23.6, "pct": 31}, R.STORM_BATTERY: {"windows": [{"day": "tomorrow", "from": "06:00", "to": "08:00"}], "soc_pct": 40},
+    details = {R.SOLAR_DAY: {"kwh": 31.0, "typical": 23.6, "pct": 31}, R.STORM_BATTERY: {"windows": [{"day": "tomorrow", "from": "06:00", "to": "08:00"}], "soc_pct": 40, "backup": "grid"},
                R.HIGH_USAGE: {"kw": 2.6, "usual_kw": 0.5, "factor": 5.2}, R.USAGE_DAY: {"kwh": 31.0, "average_kwh": 20.0, "pct": 55}}
     for lang in ("en", "es"):
         for kind, detail in details.items():
             c = card(kind, detail, lang)
             assert c["title"] and c["body"] and c["push_title"] and "{" not in c["title"] + c["body"] + c["push_title"], (lang, kind)
-    assert card(R.STORM_BATTERY, details[R.STORM_BATTERY], admin=False)["push_title"] == "Storm ahead, battery at 40%"
+    assert card(R.STORM_BATTERY, details[R.STORM_BATTERY], admin=False)["push_title"] == "Storm ahead, battery may be low"
 
 
 # ── stored and delivered ─────────────────────────────────────────────────
@@ -533,3 +536,28 @@ def test_todays_outlook_is_rewritten_in_place_without_a_second_push(monkeypatch)
 def test_the_outlook_is_not_rewritten_again_within_the_hour(monkeypatch):
     out, rows = _said_today(monkeypatch, detail={"refreshed_at": (NOW - timedelta(minutes=20)).isoformat()})
     assert out["refreshed"] == 0 and rows[0]["text"]["en"]["body"] == "old"
+
+
+# ── a low battery at 7 a.m. is not a storm worry if the sun will top it up first ─────
+def test_a_battery_the_sun_will_top_up_before_the_storm_is_not_a_storm_warning():
+    assert R.STORM_BATTERY not in run(10, members=[member(soc=44.0, at_storm=95.0)])
+    assert R.STORM_BATTERY in run(10, members=[member(soc=44.0, at_storm=48.0)])
+
+
+def test_the_storm_warning_quotes_the_expected_level_not_the_current_one():
+    n = run(10, members=[member(soc=44.0, at_storm=48.0)])[R.STORM_BATTERY]
+    assert n.detail["soc_pct"] == 48
+    body = card(R.STORM_BATTERY, n.detail)["body"]
+    assert "expected to be at about 48% by then" in body and "44" not in body
+
+
+def test_the_outlook_only_says_to_charge_first_when_the_battery_is_still_expected_to_be_low_at_the_storm():
+    assert run(8, members=[member(soc=44.0, at_storm=95.0)])[R.DAILY_BRIEFING].detail["charge_first"] is False
+    assert run(8, members=[member(soc=44.0, at_storm=60.0)])[R.DAILY_BRIEFING].detail["charge_first"] is True
+
+
+def test_without_a_projection_the_battery_of_this_minute_counts_only_for_a_storm_that_is_about_to_start():
+    bare = {k: v for k, v in FORECAST.items()}                       # no storm_battery (a forecast made without history)
+    mem = R.Member(site={**SITE, "display_name": "Casona"}, forecast=bare, snapshot={"soc_pct": 44.0, "load_power_w": 600})
+    assert R.STORM_BATTERY not in run(8, members=[mem])             # 7 hours away: the sun has time to help, so say nothing
+    assert R.STORM_BATTERY in run(13, members=[mem])                # two hours away: nothing will change

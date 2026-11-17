@@ -191,3 +191,12 @@ def test_the_best_window_is_the_sunniest_hours_of_that_day():
     assert F.best_window(ghi, "2026-10-09") == {"from": "10:00", "to": "15:00"}       # hours at 75%+ of the 900 peak: 10:00 to 14:59
     assert F.best_window(ghi, "2026-10-10") is None and F.best_window({}, "2026-10-09") is None
     assert F.best_window({"2026-10-09T12": 0.0}, "2026-10-09") is None
+
+
+def test_the_battery_expected_at_a_storm_counts_the_suns_top_up_in_between():
+    low = run(weather(storm_on="2026-10-09"), soc=30.0, load=300.0)
+    assert low["storm_battery"] and low["storm_battery"][0]["day"] == "tomorrow" and low["storm_battery"][0]["soc_pct"] > 30     # tomorrow's sun comes first
+    tonight = run(weather(storm_on="2026-10-08", storm_hour=22), soc=30.0, load=300.0)
+    assert tonight["storm_battery"][0]["day"] == "today" and tonight["storm_battery"][0]["soc_pct"] <= 30                       # only the evening in between
+    assert run()["storm_battery"] == []
+    assert run(weather(storm_on="2026-10-09"), battery=None)["storm_battery"] == []

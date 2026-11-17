@@ -246,7 +246,7 @@ def build_forecast(*, weather: dict, now: datetime, pv_history: list[dict], load
         "generated_for": now.isoformat(timespec="minutes"),
         "calibration": {"source": calib["source"], "days": calib["days"], "typical_pv_kwh": typical},
         "tomorrow": day_card(tomorrow), "today": day_card(today),
-        "storm_ahead": storm, "storm_windows": storm_windows(weather, now) if storm else [], "backup": None, "tomorrow_battery": None, "advice": [],
+        "storm_ahead": storm, "storm_windows": storm_windows(weather, now) if storm else [], "backup": None, "tomorrow_battery": None, "storm_battery": [], "advice": [],
     }
 
     # Battery: only with a battery, a state of charge and a usual-load profile.
@@ -255,6 +255,14 @@ def build_forecast(*, weather: dict, now: datetime, pv_history: list[dict], load
         capacity = float(battery_kwh)
         energy0 = max(min(soc_pct, 100.0), 0.0) / 100 * capacity
         sunrise = next((_dt(d["sunrise"]) for d in weather.get("daily", []) if _dt(d.get("sunrise")) and _dt(d["sunrise"]) > now), None)
+        if k is not None:
+            # Where the battery is expected to stand when each storm starts: today's sun will have topped up a battery that is low at
+            # 7 a.m., so what is worth saying about a storm is the level it will meet, not the level of this minute.
+            for w in result["storm_windows"]:
+                start = datetime.combine(now.date() + timedelta(days=1 if w["day"] == "tomorrow" else 0), datetime.min.time()) + timedelta(hours=int(w["from"][:2]))
+                if start > now:
+                    sim = simulate(start=now, end=start, energy_kwh=energy0, capacity_kwh=capacity, k=k, ghi=ghi, load_w=load_profile_w)
+                    result["storm_battery"].append({"day": w["day"], "from": w["from"], "soc_pct": _r(sim["energy_kwh"] / capacity * 100, 0)})
         if sunrise is not None:
             night = simulate(start=now, end=sunrise, energy_kwh=energy0, capacity_kwh=capacity, k=k, ghi=ghi, load_w=load_profile_w)
             result["backup"] = {
