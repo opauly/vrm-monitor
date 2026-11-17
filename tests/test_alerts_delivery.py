@@ -695,3 +695,19 @@ def test_a_shared_outage_names_the_property_and_a_plain_one_is_unchanged(env):
     assert card["title"] == "Grid outage at El Encino (Casona)" and "Utility power is out at El Encino: the other 3 systems there lost it too" in card["body"]
     plain = {**shared, "detail": {"soc_pct": 60.0}}
     assert ad.describe(plain, resolved=False, site_name="X", tz_name=None, strings=en, site_url=None)["body"] == "Utility power is out. The system is running on its battery (charge: 60%)."
+
+
+def _card(kind_title, site):
+    return ({}, {"push_title": kind_title, "title": kind_title, "site": site, "severity": "warning"})
+
+
+def test_summary_push_says_each_kind_once_and_names_every_site():
+    items = [_card("Grid outage", f"El Encino ({u})") for u in ("Apartamento", "Casita", "Casona")] + [_card("Low battery", "Vista Atenas")]
+    body = ad.summary_body(items, "Tap to see them.")
+    assert body == "Grid outage: El Encino (Apartamento, Casita, Casona) · Low battery: Vista Atenas"
+    assert body.count("Grid outage") == 1
+
+
+def test_summary_push_falls_back_to_counts_when_too_long():
+    items = [_card("Grid outage", f"A Very Long Property Name {i}") for i in range(6)] + [_card("Low battery", "Other")]
+    assert ad.summary_body(items, "Tap to see them.") == "Grid outage (6) · Low battery (1). Tap to see them."

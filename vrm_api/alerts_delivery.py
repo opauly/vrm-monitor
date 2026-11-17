@@ -211,6 +211,39 @@ def _push_payload(alert: dict, card: dict) -> dict:
             "url": card["path"], "tag": f"alert-{alert['id']}", "severity": card["severity"]}
 
 
+_SITE_PARTS = re.compile(r"^(.*?) \((.+)\)$")
+SUMMARY_BODY_MAX = 120   # about three lines on a phone; past this the body falls back to counts
+
+
+def _site_list(sites: list[str]) -> str:
+    """Sites of one kind, each named once. Units of one property ("El Encino (Casita)", "El Encino (Casona)") share their
+    name: "El Encino (Casita, Casona)", not the property repeated for every unit."""
+    order: list[str] = []
+    units: dict[str, list[str]] = {}
+    for site in dict.fromkeys(s for s in sites if s):
+        m = _SITE_PARTS.match(site)
+        base, unit = (m.group(1), m.group(2)) if m else (site, "")
+        if base not in units:
+            order.append(base)
+            units[base] = []
+        if unit:
+            units[base].append(unit)
+    return ", ".join(f"{b} ({', '.join(units[b])})" if units[b] else b for b in order)
+
+
+def summary_body(items: list[tuple[dict, dict]], tap: str) -> str:
+    """One line per KIND of update, however many there are: "Grid outage: El Encino (Apartamento, Casita, Casona) · Low battery:
+    Vista Atenas". The kind is said once (it used to lead every site, and only the first three were listed, so "4 updates" named
+    three). When that no longer fits a phone, counts only: "Grid outage (4) · Low battery (2). Tap to see them."."""
+    groups: dict[str, list[str]] = {}
+    for _, c in items:
+        groups.setdefault(c.get("push_title") or c["title"], []).append(c.get("site") or "")
+    full = " · ".join(f"{head}: {_site_list(sites)}" if any(sites) else f"{head} ({len(sites)})" for head, sites in groups.items())
+    if len(full) <= SUMMARY_BODY_MAX:
+        return full
+    return " · ".join(f"{head} ({len(sites)})" for head, sites in groups.items()) + (f". {tap}" if tap else "")
+
+
 def _push_payloads(items: list[tuple[dict, dict]], strings: dict, *, admin: bool = False) -> list[dict]:
     """Notification payloads for `items` = [(alert row, card)]: one each, or a
     single summary when there are too many to show separately. The service
@@ -220,7 +253,7 @@ def _push_payloads(items: list[tuple[dict, dict]], strings: dict, *, admin: bool
     if len(items) > alerts_push.MAX_INDIVIDUAL_PUSHES:
         worst = rules.CRITICAL if any(c["severity"] == "critical" for _, c in items) else rules.WARNING
         return [{"title": _fill(strings["alert_multi_subject"], n=len(items)),
-                 "body": " · ".join(f"{c.get('push_title') or c['title']}: {c.get('site') or ''}".rstrip(": ") for _, c in items[:3]),
+                 "body": summary_body(items, strings.get("insight_summary_tap", "")),
                  "url": "/admin/fleet/alerts" if admin else "/app/alerts", "tag": "alerts-summary", "severity": worst}]
     return [_push_payload(a, c) for a, c in items]
 
