@@ -200,3 +200,12 @@ def test_the_battery_expected_at_a_storm_counts_the_suns_top_up_in_between():
     assert tonight["storm_battery"][0]["day"] == "today" and tonight["storm_battery"][0]["soc_pct"] <= 30                       # only the evening in between
     assert run()["storm_battery"] == []
     assert run(weather(storm_on="2026-10-09"), battery=None)["storm_battery"] == []
+
+
+def test_the_storm_advice_adds_a_battery_word_only_when_the_battery_is_expected_low_at_the_storm():
+    sunny = run(weather(storm_on="2026-10-09"), soc=30.0, load=300.0)                      # tomorrow's sun fills it before the storm
+    assert [a["code"] for a in sunny["advice"] if a["code"].startswith("storm")] == ["storm"]
+    tonight = run(weather(storm_on="2026-10-08", storm_hour=22), soc=30.0, load=300.0)    # only the evening in between
+    assert [a["code"] for a in tonight["advice"] if a["code"].startswith("storm")] == ["storm", "storm_low"]
+    off = run(weather(storm_on="2026-10-08", storm_hour=22), soc=30.0, load=300.0, system_type="off_grid")
+    assert [a["code"] for a in off["advice"] if a["code"].startswith("storm")] == ["storm", "storm_low_off_grid"]

@@ -32,6 +32,8 @@ MIN_GHI_KWH_M2 = 1.0          # ignore days too dark to calibrate against
 FALLBACK_PERFORMANCE = 0.75   # kWh per kWp per kWh/m² when there is no history yet
 FULL_PCT = 98.0
 STORM_CODES = {95, 96, 99}
+STORM_SOC_LOW_PCT = 60.0             # a battery expected below this when a storm starts is worth a word (grid-tied)
+STORM_SOC_LOW_OFF_GRID_PCT = 70.0    # off-grid, the battery is all there is when the sun goes
 
 
 def _dt(value) -> datetime | None:
@@ -172,6 +174,19 @@ def _ghi_by_hour(weather: dict) -> dict[str, float]:
 BEST_WINDOW_SHARE = 0.75       # the sunniest hours: at least this share of the day's peak sunlight
 
 
+def storm_soc_floor(system_type: str | None) -> float:
+    return STORM_SOC_LOW_OFF_GRID_PCT if system_type == "off_grid" else STORM_SOC_LOW_PCT
+
+
+def expected_soc_at_storm(storm_battery: list | None, window: dict | None) -> float | None:
+    """Where the forecast expects the battery to stand when `window` (a storm window) starts, or None without that projection.
+    The one reading both the push notices and the daily AI summary use, so they never disagree about a storm."""
+    for p in storm_battery or []:
+        if window and p.get("day") == window.get("day") and p.get("from") == window.get("from") and isinstance(p.get("soc_pct"), (int, float)):
+            return round(p["soc_pct"])
+    return None
+
+
 def best_window(ghi: dict[str, float], date: str) -> dict | None:
     """The stretch of `date` with the most sun, from the weather's own hourly sunlight: `{"from": "10:00", "to": "14:00"}`.
     The hours within BEST_WINDOW_SHARE of the day's peak, first to last. None without a usable day."""
@@ -285,14 +300,19 @@ def build_forecast(*, weather: dict, now: datetime, pv_history: list[dict], load
                     "show_peak": system_type == "off_grid" or usually_fills(pv_history, today=today),
                 }
 
-    result["advice"] = advice(result, typical=typical)
+    result["advice"] = advice(result, typical=typical, system_type=system_type)
     return result
 
 
-def advice(result: dict, *, typical: float | None) -> list[dict]:
+def advice(result: dict, *, typical: float | None, system_type: str | None = None) -> list[dict]:
     out: list[dict] = []
     if result.get("storm_ahead"):
-        out.append({"code": "storm", "params": {}})
+        out.append({"code": "storm", "params": {}})          # a heads-up on its own
+        first = (result.get("storm_windows") or [None])[0]
+        expected = expected_soc_at_storm(result.get("storm_battery"), first)
+        if expected is not None and expected < storm_soc_floor(system_type):
+            # ...and a word about the battery only when it is still expected to be low as the storm starts.
+            out.append({"code": "storm_low_off_grid" if system_type == "off_grid" else "storm_low", "params": {"soc": round(expected)}})
     backup = result.get("backup")
     if backup and not backup["reaches_sunrise"]:
         out.append({"code": "backup_short", "params": {"hours": backup["hours"]}})

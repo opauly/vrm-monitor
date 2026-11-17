@@ -155,8 +155,21 @@ def test_the_battery_not_filling_anomaly_replaces_the_plain_no_full_charge_note(
     rows = history()
     rows[-1]["battery_reached_float"] = False
     assert "no_float" in codes(build(rows))
+    for r in rows:
+        r["max_soc"] = 78.0                                  # peaking at 78%: a real "not filling"
     f = build(rows, anomalies=[{"anomaly_type": "incomplete_charging", "detected_at": "x"}])
     assert "no_float" not in codes(f) and "anomaly_incomplete_charging" in codes(f)
+    assert next(o for o in f["observations"] if o["code"] == "anomaly_incomplete_charging")["params"] == {"peak": 78}
+
+
+def test_a_battery_that_is_not_at_float_but_peaks_near_full_is_not_called_a_problem():
+    rows = history()
+    for r in rows:
+        r["battery_reached_float"] = False
+        r["max_soc"] = 92.0
+    f = build(rows, anomalies=[{"anomaly_type": "incomplete_charging", "detected_at": "x"}])
+    found = next(o for o in f["observations"] if o["code"] == "battery_not_full_peaks_high")
+    assert found["severity"] == "info" and found["params"] == {"peak": 92} and "anomaly_incomplete_charging" not in codes(f)
 
 
 # ── forecast ─────────────────────────────────────────────────────────────
@@ -187,7 +200,7 @@ def test_fleet_names_the_sites_with_a_storm_coming():
     a = site_facts("A", forecast={**AHEAD, "storm": True})
     b = site_facts("B", forecast=AHEAD)
     fleet = F.build_fleet_facts(site_facts=[a, b], name="All", now=NOW)
-    assert fleet["observations"][0] == {"code": "fleet_storm", "severity": "attention", "params": {"count": 1, "sites": ["A"]}}
+    assert fleet["observations"][0] == {"code": "fleet_storm", "severity": "info", "params": {"count": 1, "sites": ["A"]}}     # a heads-up, not an alarm
 
 
 def test_an_open_equipment_alert_names_the_device_in_the_summary():
@@ -260,3 +273,38 @@ def test_the_generator_becoming_a_habit_is_flagged_and_a_grid_site_never_gets_th
     text = insight_ai.render_template(f, "en", "site")["points"]
     assert any("generator was needed on 5 of the last 8 days" in p for p in text)
     assert insight_ai.render_template(build(rows=_gen_rows([0, 0, 0, 0, 0, 0, 0, 4.8]), site=off), "es", "site")["points"][0].startswith("Las baterías se recargaron con el generador: 4.8 kWh")
+
+
+# ── a storm is only a worry if the battery is still expected to be low when it starts ─────
+STORM = {**AHEAD, "storm": True, "storm_windows": [{"day": "today", "from": "14:00", "to": "15:00"}]}
+
+
+def storm_obs(system_type="hybrid", expected=None):
+    ahead = {**STORM, "storm_battery": [] if expected is None else [{"day": "today", "from": "14:00", "soc_pct": expected}]}
+    f = build(site={**SITE, "system_type": system_type}, forecast=ahead)
+    return [o for o in f["observations"] if o["code"].startswith("storm_ahead")]
+
+
+def test_a_storm_with_the_battery_expected_to_be_topped_up_is_a_heads_up_with_the_expected_level():
+    (o,) = storm_obs(expected=95)
+    assert o["code"] == "storm_ahead_charged" and o["severity"] == "info" and o["params"]["expected"] == 95
+
+
+def test_a_storm_with_the_battery_still_expected_low_is_a_warning_worded_for_the_system_type():
+    assert [(o["code"], o["severity"]) for o in storm_obs(expected=44)] == [("storm_ahead_low", "attention")]
+    assert [(o["code"], o["severity"]) for o in storm_obs("off_grid", expected=65)] == [("storm_ahead_low_off_grid", "attention")]
+    assert [o["code"] for o in storm_obs("off_grid", expected=65 + 6)] == ["storm_ahead_charged"]      # off-grid holds a higher bar (70%), not 60
+
+
+def test_without_a_projection_a_storm_is_only_mentioned():
+    (o,) = storm_obs(expected=None)
+    assert o["code"] == "storm_ahead" and o["severity"] == "info"
+
+
+def test_the_fleet_only_flags_the_sites_whose_battery_is_expected_low_at_the_storm():
+    low = build(forecast={**STORM, "storm_battery": [{"day": "today", "from": "14:00", "soc_pct": 40}]})
+    fine = build(forecast={**STORM, "storm_battery": [{"day": "today", "from": "14:00", "soc_pct": 90}]})
+    low["site"]["name"], fine["site"]["name"] = "Low", "Fine"
+    codes_ = {o["code"]: o for o in F.build_fleet_facts(site_facts=[low, fine], name="x", now=NOW)["observations"]}
+    assert codes_["fleet_storm_low"]["params"]["sites"] == ["Low"] and codes_["fleet_storm_low"]["severity"] == "attention"
+    assert codes_["fleet_storm"]["severity"] == "info" and codes_["fleet_storm"]["params"]["count"] == 2

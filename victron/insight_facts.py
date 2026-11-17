@@ -21,16 +21,19 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+from victron import forecast as forecast_rules
+
 OFFLINE_AFTER = timedelta(minutes=45)  # same freshness the dashboard and alerts use
 GENERATOR_MIN_KWH = 0.5      # AC-input energy in a day (off-grid) that counts as "the generator ran"
 GENERATOR_WINDOW_DAYS = 14
 GENERATOR_RELIANCE_DAYS = 4  # generator days within the window that make it a pattern worth saying
+BATTERY_PEAK_FINE_PCT = 90   # a battery whose daily peak averages this or more, though "not at float", is not a charging problem
 
 # Observation severities, most urgent first.
 ATTENTION, GOOD, INFO = "attention", "good", "info"
 
 _ORDER = [
-    "offline", "offline_days", "alert_", "storm_ahead", "outage_deep", "tonight_short", "tomorrow_solar_storm_", "anomaly_", "battery_low", "generator_reliance", "at_reserve", "generator_used", "solar_below",
+    "offline", "offline_days", "alert_", "storm_ahead_low", "storm_ahead_low_off_grid", "storm_ahead", "storm_ahead_charged", "outage_deep", "tonight_short", "tomorrow_solar_storm_", "anomaly_", "battery_not_full_", "battery_low", "generator_reliance", "at_reserve", "generator_used", "solar_below",
     "tomorrow_low_solar", "import_high", "outage_held", "load_above", "no_float", "export", "solar_above", "tomorrow_high_solar",
     "load_below", "self_sufficient",
 ]
@@ -132,6 +135,11 @@ def build_site_facts(*, site: dict, energy_rows: list[dict], health_row: dict | 
         if site.get("pv_kwp") and day["pv_kwh"] is not None and _num(site["pv_kwp"]):
             facts["day"]["yield_kwh_per_kwp"] = _r(day["pv_kwh"] / _num(site["pv_kwp"]), 2)
 
+    # How high the battery has been peaking lately (the latest complete days): a battery that "did not reach float" but peaks at 91% is
+    # not the problem the bare flag sounds like.
+    recent = sorted((r for r in energy_rows if r.get("complete_day") is not False and _num(r.get("max_soc")) is not None), key=lambda r: str(r["date"]), reverse=True)[:7]
+    facts["battery"] = {"peak_soc_avg_pct": _r(_mean([_num(r.get("max_soc")) for r in recent]), 0) if len(recent) >= 3 else None}
+
     # ── generator (off-grid only: nothing but a generator ever feeds the AC input) ─────
     if row and site.get("system_type") == "off_grid":
         last14 = [r for r in energy_rows if str(r.get("date")) <= str(row["date"]) and r.get("complete_day") is not False]
@@ -190,12 +198,31 @@ def observations(facts: dict, *, system_type: str | None) -> list[dict]:
         if alert["kind"] != "site_offline":
             add(f"alert_{alert['kind']}", ATTENTION, **({"equipment": alert["equipment"]} if alert.get("equipment") else {}))
     for anomaly in facts.get("open_anomalies") or []:
-        if anomaly.get("type"):
+        if not anomaly.get("type"):
+            continue
+        peak = (facts.get("battery") or {}).get("peak_soc_avg_pct")
+        if anomaly["type"] == "incomplete_charging" and peak is not None:
+            # "Not at float" is a strict bar: a battery that still peaks around 90% is working through its day, not failing.
+            if peak >= BATTERY_PEAK_FINE_PCT:
+                add("battery_not_full_peaks_high", INFO, peak=round(peak))
+            else:
+                add("anomaly_incomplete_charging", ATTENTION, peak=round(peak))
+        else:
             add(f"anomaly_{anomaly['type']}", ATTENTION)
 
     ahead = facts.get("forecast") or {}
     if ahead.get("storm"):
-        add("storm_ahead", ATTENTION, **({"windows": ahead["storm_windows"]} if ahead.get("storm_windows") else {}))
+        # A storm is news, not an alarm. It becomes a warning only when the battery is expected to still be low when it starts (the
+        # forecast steps the battery forward with the day's sun), the same reading the push notices use, so the two never disagree.
+        windows = ahead.get("storm_windows") or []
+        where = {"windows": windows} if windows else {}
+        expected = forecast_rules.expected_soc_at_storm(ahead.get("storm_battery"), windows[0] if windows else None)
+        if expected is None:
+            add("storm_ahead", INFO, **where)
+        elif expected < forecast_rules.storm_soc_floor(system_type):
+            add("storm_ahead_low_off_grid" if system_type == "off_grid" else "storm_ahead_low", ATTENTION, expected=round(expected), **where)
+        else:
+            add("storm_ahead_charged", INFO, expected=round(expected), **where)
     if ahead.get("backup_reaches_sunrise") is False:
         add("tonight_short", ATTENTION, hours=ahead.get("backup_hours"))
     pct = ahead.get("tomorrow_vs_typical_pct")
@@ -354,8 +381,12 @@ def build_fleet_facts(*, site_facts: list[dict], name: str, now: datetime) -> di
     }
     obs: list[dict] = []
     storm_sites = [f for f in site_facts if (f.get("forecast") or {}).get("storm")]
+    # Only a site whose battery is expected to still be low when the storm starts is a worry; the rest is a heads-up.
+    low_sites = [f for f in storm_sites if any(o["code"].startswith("storm_ahead_low") for o in f["observations"])]
+    if low_sites:
+        obs.append({"code": "fleet_storm_low", "severity": ATTENTION, "params": {"count": len(low_sites), "sites": group_by_place(low_sites)}})
     if storm_sites:
-        obs.append({"code": "fleet_storm", "severity": ATTENTION, "params": {"count": len(storm_sites), "sites": group_by_place(storm_sites)}})
+        obs.append({"code": "fleet_storm", "severity": INFO, "params": {"count": len(storm_sites), "sites": group_by_place(storm_sites)}})
     if silent:
         obs.append({"code": "fleet_silent", "severity": ATTENTION, "params": {"count": len(silent), "sites": group_by_place(silent)}})
     if needs_attention:

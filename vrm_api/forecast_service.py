@@ -195,7 +195,7 @@ def compact(result: dict | None) -> dict | None:
     return {
         "tomorrow_sky": tomorrow.get("sky"), "tomorrow_pv_kwh": solar.get("kwh"), "tomorrow_vs_typical_pct": solar.get("vs_typical_pct"),
         "typical_pv_kwh": (result.get("calibration") or {}).get("typical_pv_kwh"),
-        "storm": "storm" in advice, "storm_windows": result.get("storm_windows") or [],
+        "storm": "storm" in advice, "storm_windows": result.get("storm_windows") or [], "storm_battery": result.get("storm_battery") or [],
         "backup_hours": backup.get("hours") if backup else None, "backup_reaches_sunrise": backup.get("reaches_sunrise") if backup else None,
         "soc_at_sunrise_pct": backup.get("soc_at_sunrise_pct") if backup else None,
     }

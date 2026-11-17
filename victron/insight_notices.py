@@ -22,6 +22,8 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
+from victron import forecast as forecast_rules
+
 DAILY_BRIEFING = "daily_briefing"
 SOLAR_DAY = "solar_day"
 STORM_BATTERY = "storm_battery"
@@ -37,8 +39,6 @@ SOLAR_DAY_HOURS = (18, 21)
 AWAKE_HOURS = (7, 21)                    # storms and high use: never overnight
 
 STORM_LEAD_HOURS = 8                     # warn when a storm is this close or closer
-STORM_SOC_LOW_PCT = 60.0                 # "battery low" for a storm, grid-tied
-STORM_SOC_LOW_OFF_GRID_PCT = 70.0        # an off-grid battery is all the backup there is
 
 SOLAR_DAY_MIN_RATIO, SOLAR_DAY_MIN_EXTRA_KWH = 1.15, 2.0          # same bar the daily summary uses
 HIGH_USAGE_FACTOR = 2.0                  # now vs usual for this hour
@@ -85,9 +85,9 @@ def _soc_at_storm(m: "Member", window: dict, soc: float, now_local: datetime) ->
     """Where this site's battery is expected to stand when `window` starts: the forecast steps it forward with the day's sun and the
     usual load, so a battery that is low at 7 a.m. but will be topped up by noon is not a storm worry. Without that projection the
     battery of this minute stands in only when the storm is about to start (too soon for the sun to change much); otherwise None."""
-    for p in (m.forecast or {}).get("storm_battery") or []:
-        if p.get("day") == window.get("day") and p.get("from") == window.get("from") and _num(p.get("soc_pct")) is not None:
-            return round(p["soc_pct"])
+    projected = forecast_rules.expected_soc_at_storm((m.forecast or {}).get("storm_battery"), window)
+    if projected is not None:
+        return projected
     try:
         ahead = int(str(window["from"])[:2]) - now_local.hour + (24 if window.get("day") == "tomorrow" else 0)
     except (KeyError, ValueError):
@@ -220,7 +220,7 @@ def evaluate_group(*, key: str, name: str, members: list[Member], now_local: dat
             # Judged on where the battery is expected to be when the storm starts, not where it is now.
             expected = [(n, _soc_at_storm(m, window, v, now_local), m) for n, v, m in socs]
             low = [(n, v, m) for n, v, m in expected
-                   if v is not None and v < (STORM_SOC_LOW_OFF_GRID_PCT if m.site.get("system_type") == "off_grid" else STORM_SOC_LOW_PCT)]
+                   if v is not None and v < forecast_rules.storm_soc_floor(m.site.get("system_type"))]
             if low:
                 when = today + timedelta(days=1 if window.get("day") == "tomorrow" else 0)
                 out.append(Notice(STORM_BATTERY, f"storm:{key}:{when}:{window.get('from')}", "warning", {

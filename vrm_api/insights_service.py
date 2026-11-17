@@ -161,7 +161,7 @@ def signature_from_facts(facts: dict) -> list[str]:
             out.add("offline")
         elif code.startswith(("alert_", "anomaly_")):
             out.add(code)
-        elif code == "storm_ahead":
+        elif code.startswith("storm_ahead"):
             out.add("storm")
     return sorted(out)
 

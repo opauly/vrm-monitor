@@ -125,7 +125,7 @@ def test_forecast_findings_have_text_and_a_suggestion_in_both_languages():
     assert en["points"][:3] == ["A thunderstorm is forecast in the next day and a half.",
                                 "At your usual evening use, the battery is expected to run out about 5.3 hours from now, before sunrise.",
                                 "Tomorrow looks duller than usual: about 8 kWh of solar expected, against a typical 20 kWh."]
-    assert en["suggestion"] == "Storms can cause power cuts, so a well-charged battery before then gives you the most backup time."
+    assert en["suggestion"] == "Keeping heavy loads off tonight will help the battery last until sunrise."     # a plain storm brings no suggestion of its own
     es = AI.render_template(f, "es", "site")
     assert es["points"][0].startswith("Se pronostica una tormenta") and "8 kWh" in es["points"][2] and es["suggestion"]
     assert AI.numbers_ok(en["points"], f)
@@ -150,7 +150,7 @@ def test_a_storm_says_when_and_its_solar_figure_is_a_separate_point_of_its_own()
                      "typical_pv_kwh": 23.6, "tomorrow_vs_typical_pct": 11}
     f["observations"] = F.observations(f, system_type="hybrid")
     en = AI.render_template(f, "en", "site")
-    assert en["points"][0] == "Thunderstorms are possible tomorrow between 15:00 and 18:00. A storm can cause a power cut, so it matters for backup time."
+    assert en["points"][0] == "Thunderstorms are possible tomorrow between 15:00 and 18:00."
     assert en["points"][1].startswith("Even with the storm, tomorrow's solar is still expected to reach about 26.2 kWh, 11% above the typical 23.6 kWh")
     es = AI.render_template(f, "es", "site")
     assert "mañana entre las 15:00 y las 18:00" in es["points"][0] and "26.2" in es["points"][1] and "11%" in es["points"][1]
@@ -164,3 +164,39 @@ def test_a_storm_next_to_a_poor_solar_forecast_does_not_claim_the_solar_holds():
     en = AI.render_template(f, "en", "site")
     assert en["points"][0] == "A thunderstorm is forecast in the next day and a half."          # a cached forecast with no times yet
     assert en["points"][1].startswith("With the storm, tomorrow's solar is expected to be about 20 kWh, 15% below")
+
+
+def _storm_facts(system_type, expected):
+    f = facts()
+    f["forecast"] = {"storm": True, "storm_windows": [{"day": "today", "from": "14:00", "to": "15:00"}], "storm_battery": [{"day": "today", "from": "14:00", "soc_pct": expected}]}
+    f["observations"] = F.observations(f, system_type=system_type)
+    return f
+
+
+def test_the_summary_warns_about_a_storm_only_when_the_battery_is_expected_low_and_never_for_a_charged_one():
+    fine = AI.render_template(_storm_facts("hybrid", 95), "en", "site")
+    assert fine["points"][0] == "Thunderstorms are possible today between 14:00 and 15:00. The battery is expected to be at about 95% by then."
+    assert fine["suggestion"] is None and "power cut" not in " ".join(fine["points"])
+    low = AI.render_template(_storm_facts("hybrid", 44), "en", "site")
+    assert "expected to be at about 44% by then" in low["points"][0] and "power cut" in low["suggestion"]
+
+
+def test_an_off_grid_storm_warning_never_talks_about_power_cuts_in_either_language():
+    for lang in ("en", "es"):
+        out = AI.render_template(_storm_facts("off_grid", 55), lang, "site")
+        text = " ".join(out["points"] + [out["suggestion"] or ""])
+        assert out["suggestion"] and "power cut" not in text and "corte" not in text and "respaldo" not in text, lang
+
+
+def test_a_battery_that_peaks_near_full_is_stated_plainly_with_no_technician_suggestion():
+    f = facts()
+    f["observations"] = [{"code": "battery_not_full_peaks_high", "severity": "info", "params": {"peak": 91}}]
+    out = AI.render_template(f, "en", "site")
+    assert out["points"] == ["The battery has not reached a full charge on most days, though its daily peak still averages about 91%."] and out["suggestion"] is None
+    f["observations"] = [{"code": "anomaly_incomplete_charging", "severity": "attention", "params": {"peak": 78}}]
+    assert "peak averages about 78%" in AI.render_template(f, "en", "site")["points"][0]
+
+
+def test_the_ai_is_told_not_to_invent_storm_advice_or_a_different_action():
+    prompt = AI._system_prompt("en", "site")
+    assert "never invent a different action" in prompt and "Never mention a power cut" in prompt

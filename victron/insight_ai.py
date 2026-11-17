@@ -65,7 +65,13 @@ OBS = {
         "no_float": "The battery did not reach a full charge.",
         "self_sufficient": "{pct}% of the load was covered by solar and battery.",
         "storm_ahead": "A thunderstorm is forecast in the next day and a half.",
-        "storm_ahead_when": "Thunderstorms are possible {when}. A storm can cause a power cut, so it matters for backup time.",
+        "storm_ahead_when": "Thunderstorms are possible {when}.",
+        "storm_ahead_charged_when": "Thunderstorms are possible {when}. The battery is expected to be at about {expected}% by then.",
+        "storm_ahead_low_when": "Thunderstorms are possible {when}, and the battery is expected to be at about {expected}% by then.",
+        "storm_ahead_low_off_grid_when": "Thunderstorms are possible {when}, and the battery is expected to be at about {expected}% by then.",
+        "anomaly_incomplete_charging_peak": "The battery has not been reaching a full charge; its daily peak averages about {peak}%.",
+        "battery_not_full_peaks_high": "The battery has not reached a full charge on most days, though its daily peak still averages about {peak}%.",
+        "fleet_storm_low": "By the time the storm starts, the battery is expected to still be low at {sites}.",
         "tomorrow_solar_storm_above": "Even with the storm, tomorrow's solar is still expected to reach about {pv} kWh, {change_pct}% above the typical {typical} kWh — the sunlight forecast already allows for the cloud.",
         "tomorrow_solar_storm_near": "Even with the storm, tomorrow's solar is still expected to be about {pv} kWh, close to the typical {typical} kWh — the sunlight forecast already allows for the cloud.",
         "tomorrow_solar_storm_below": "With the storm, tomorrow's solar is expected to be about {pv} kWh, {change_pct}% below the typical {typical} kWh.",
@@ -108,7 +114,13 @@ OBS = {
         "no_float": "La batería no llegó a la carga completa.",
         "self_sufficient": "{pct}% de la carga lo cubrieron la energía solar y la batería.",
         "storm_ahead": "Se pronostica una tormenta eléctrica en el próximo día y medio.",
-        "storm_ahead_when": "Se esperan tormentas eléctricas {when}. Una tormenta puede causar un corte de luz, así que importa para el tiempo de respaldo.",
+        "storm_ahead_when": "Se esperan tormentas eléctricas {when}.",
+        "storm_ahead_charged_when": "Se esperan tormentas eléctricas {when}. Se espera que la batería esté en unos {expected}% para entonces.",
+        "storm_ahead_low_when": "Se esperan tormentas eléctricas {when}, y se espera que la batería esté en unos {expected}% para entonces.",
+        "storm_ahead_low_off_grid_when": "Se esperan tormentas eléctricas {when}, y se espera que la batería esté en unos {expected}% para entonces.",
+        "anomaly_incomplete_charging_peak": "La batería no ha estado llegando a la carga completa; su pico diario promedia unos {peak}%.",
+        "battery_not_full_peaks_high": "La batería no llegó a la carga completa la mayoría de los días, aunque su pico diario sigue promediando unos {peak}%.",
+        "fleet_storm_low": "Cuando empiece la tormenta, se espera que la batería siga baja en {sites}.",
         "tomorrow_solar_storm_above": "Aun con la tormenta, mañana se espera que la energía solar llegue a unos {pv} kWh, {change_pct}% más de lo típico ({typical} kWh); el pronóstico de luz ya considera las nubes.",
         "tomorrow_solar_storm_near": "Aun con la tormenta, mañana se espera que la energía solar sea de unos {pv} kWh, cerca de lo típico ({typical} kWh); el pronóstico de luz ya considera las nubes.",
         "tomorrow_solar_storm_below": "Con la tormenta, mañana se espera que la energía solar sea de unos {pv} kWh, {change_pct}% menos de lo típico ({typical} kWh).",
@@ -128,7 +140,9 @@ SUGGEST = {
     "en": {
         "offline": "Check the site's internet connection and power.",
         "offline_days": "Check the site's internet connection and power, or contact your installer.",
-        "storm_ahead": "Storms can cause power cuts, so a well-charged battery before then gives you the most backup time.",
+        "storm_ahead_low": "A storm can cause a power cut, so a well-charged battery before then gives you the most backup time.",
+        "storm_ahead_low_off_grid": "Storm clouds cut solar output, so a well-charged battery before then carries you through. Run heavy loads while the sun is out.",
+        "fleet_storm_low": "A well-charged battery before then gives you the most reserve.",
         "tonight_short": "Keeping heavy loads off tonight will help the battery last until sunrise.",
         "tomorrow_low_solar": "With less sun than usual, go easy on heavy loads, especially tonight.",
         "tomorrow_high_solar": "Tomorrow is a good day to run heavy loads around midday.",
@@ -145,7 +159,9 @@ SUGGEST = {
     "es": {
         "offline": "Revisa la conexión a internet y la energía del sitio.",
         "offline_days": "Revisa la conexión a internet y la energía del sitio, o contacta a tu instalador.",
-        "storm_ahead": "Las tormentas pueden causar cortes de luz, así que una batería bien cargada antes te da el mayor tiempo de respaldo.",
+        "storm_ahead_low": "Una tormenta puede causar un corte de luz, así que una batería bien cargada antes te da el mayor tiempo de respaldo.",
+        "storm_ahead_low_off_grid": "Las nubes de tormenta reducen la producción solar, así que una batería bien cargada antes te sostiene. Usa las cargas pesadas mientras haya sol.",
+        "fleet_storm_low": "Una batería bien cargada antes te da más reserva.",
         "tonight_short": "Evitar las cargas pesadas esta noche ayudará a que la batería dure hasta el amanecer.",
         "tomorrow_low_solar": "Con menos sol de lo normal, modera las cargas pesadas, sobre todo esta noche.",
         "tomorrow_high_solar": "Mañana es un buen día para usar las cargas pesadas alrededor del mediodía.",
@@ -170,11 +186,11 @@ HEAD = {
 }
 # Short reason labels for the fleet's "needs attention" lines.
 SHORT = {
-    "en": {"offline": "stopped reporting", "offline_days": "stopped reporting", "storm_ahead": "storm forecast", "tonight_short": "battery may not last the night", "alert_grid_outage": "grid out", "alert_low_battery": "low battery", "alert_system_alarm": "alarm", "alert_device_fault": "equipment problem", "device_fault": "equipment fault",
+    "en": {"offline": "stopped reporting", "offline_days": "stopped reporting", "storm_ahead": "storm forecast", "storm_ahead_low": "storm forecast, battery may be low", "storm_ahead_low_off_grid": "storm forecast, battery may be low", "tonight_short": "battery may not last the night", "alert_grid_outage": "grid out", "alert_low_battery": "low battery", "alert_system_alarm": "alarm", "alert_device_fault": "equipment problem", "device_fault": "equipment fault",
            "alert_vrm_link_broken": "VRM disconnected", "outage_deep": "battery ran low in an outage", "battery_low": "low battery", "generator_reliance": "frequent generator use",
            "solar_below": "solar well below normal", "import_high": "mostly on grid power", "anomaly_unexpected_silence": "no solar output",
            "anomaly_quiet_drift": "solar drifting down", "anomaly_underperformance": "solar underperforming", "anomaly_incomplete_charging": "battery not filling"},
-    "es": {"offline": "dejó de reportar", "offline_days": "dejó de reportar", "storm_ahead": "tormenta pronosticada", "tonight_short": "la batería podría no durar la noche", "alert_grid_outage": "red caída", "alert_low_battery": "batería baja", "alert_system_alarm": "alarma", "alert_device_fault": "problema de equipo", "device_fault": "falla de equipo",
+    "es": {"offline": "dejó de reportar", "offline_days": "dejó de reportar", "storm_ahead": "tormenta pronosticada", "storm_ahead_low": "tormenta pronosticada, batería posiblemente baja", "storm_ahead_low_off_grid": "tormenta pronosticada, batería posiblemente baja", "tonight_short": "la batería podría no durar la noche", "alert_grid_outage": "red caída", "alert_low_battery": "batería baja", "alert_system_alarm": "alarma", "alert_device_fault": "problema de equipo", "device_fault": "falla de equipo",
            "alert_vrm_link_broken": "VRM desconectado", "outage_deep": "batería baja en un corte", "battery_low": "batería baja", "generator_reliance": "uso frecuente del generador",
            "solar_below": "solar muy por debajo de lo normal", "import_high": "casi todo con energía de la red", "anomaly_unexpected_silence": "sin producción solar",
            "anomaly_quiet_drift": "solar bajando", "anomaly_underperformance": "solar con bajo rendimiento", "anomaly_incomplete_charging": "batería sin llenarse"},
@@ -210,8 +226,10 @@ def storm_when(windows: list[dict], lang: str) -> str:
 
 def _obs_text(obs_text: dict, o: dict, lang: str = "en") -> str | None:
     code = o["code"]
-    if code == "storm_ahead" and o["params"].get("windows"):
-        return _fill(obs_text["storm_ahead_when"], {"when": storm_when(o["params"]["windows"], lang)})
+    if code.startswith("storm_ahead") and o["params"].get("windows"):
+        return _fill(obs_text[f"{code}_when"], {**o["params"], "when": storm_when(o["params"]["windows"], lang)})
+    if code == "anomaly_incomplete_charging" and o["params"].get("peak") is not None:
+        code = "anomaly_incomplete_charging_peak"
     if code == "alert_device_fault" and o["params"].get("equipment"):
         # Name the equipment ("Solar charger 2 made almost nothing ...") rather than a generic line.
         return devices.describe_devices(email_i18n.get(lang), o["params"]["equipment"])
@@ -323,7 +341,10 @@ def _system_prompt(lang: str, scope: str) -> str:
         "Each point states exactly ONE finding. Never join two findings in one point, and never tuck one inside another's sentence (for example a storm and a solar figure, "
         "or the battery not filling and its lowest charge): give each its own point, in the DRAFT's order. Keep the DRAFT's explanation of what a finding means; do not shorten it into a fragment. "
         "Use a figure from the forecast section only when an OBSERVATION states it. Write times as 24-hour clock times exactly as they appear in the facts, never as 3 pm. "
-        "A thunderstorm matters mainly as a risk of a power cut; do not say it lowers solar unless an OBSERVATION says the solar is lower. "
+        "A thunderstorm is a heads-up, not a problem. Never mention a power cut, backup time, topping up the battery, checking the panels or watching the system because of a storm "
+        "unless an OBSERVATION or the DRAFT's suggestion says so; do not say a storm lowers solar unless an OBSERVATION says the solar is lower. "
+        "Never call a battery low, weak or failing unless an OBSERVATION says so; a battery that peaks near full is fine. "
+        "The suggestion is the DRAFT's suggestion, reworded, or null when the DRAFT has none; never invent a different action. "
         "A DRAFT is provided; improve its wording and flow but keep its meaning and facts.\n\n"
         f'Reply with JSON only: {{"headline": string (max {MAX_HEADLINE} chars), "points": [up to {MAX_POINTS if scope == "fleet" else MAX_SITE_POINTS} strings, max {MAX_POINT} chars each], "suggestion": string or null (max {MAX_POINT} chars)}}'
     )
