@@ -294,6 +294,11 @@ class VrmRemoteClient:
         """
         return self._request("GET", f"/installations/{id_site}/diagnostics")
 
+    def get_system_overview(self, id_site) -> dict:
+        """`GET /installations/{id_site}/system-overview` -> one record per device with Victron's own product name
+        ("MultiPlus-II 48/5000/70-95 120V") and, for a VE.Bus system, how many units sit on each phase."""
+        return self._request("GET", f"/installations/{id_site}/system-overview")
+
     def get_alarm_log(self, id_site, *, count: int = 100) -> dict:
         """`GET /installations/{id_site}/alarm-log` -> the official alarm log the VRM portal shows:
         `records` newest first, each with `description`, `nameEnum` (the state), `started`/`cleared`

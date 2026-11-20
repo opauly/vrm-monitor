@@ -30,6 +30,9 @@ export { listIngestions } from './ingestions';
 export type { ListIngestionsOptions } from './ingestions';
 
 export { getVrmLinkStatus } from './vrmLink';
+
+export { listNewInstallations } from './newInstallations';
+export type { NewInstallation, NewInstallationPrefill, NewInstallationEquipment } from './newInstallations';
 export type { VrmLinkStatusOut, VrmLinkSiteStatus } from './vrmLink';
 
 export { getBillingStatus, getBillingPlans, getBillingInvoices } from './billing';

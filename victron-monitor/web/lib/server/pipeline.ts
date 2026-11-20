@@ -344,6 +344,45 @@ export async function linkVrmFleetInstallation(body: {
   return pipelineJson('/v1/vrm-fleet/link', jsonInit(body));
 }
 
+// ── New systems found in a VRM account (vrm_api/routers/new_installations.py) ──
+export type NewSiteFieldsIn = {
+  display_name?: string | null;
+  pv_kwp?: number | null;
+  battery_nominal_kwh?: number | null;
+  battery_dod_pct?: number | null;
+  system_type?: 'hybrid' | 'off_grid' | 'grid_zero' | null;
+  report_language?: 'en' | 'es' | null;
+  location?: string | null;
+  timezone?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  country?: string | null;
+  savings_rate?: number | null;
+  savings_currency?: string | null;
+  exports_to_grid?: boolean | null;
+  inverter_nominal_kw?: number | null;
+  reserve_soc_pct?: number | null;
+};
+
+export type NewInstallationAdded = { site_id: string; customer_id: string; job_id: string; shared: boolean };
+
+export async function addNewInstallation(id: string, body: {
+  acting_customer_id?: string | null;
+  customer_id?: string | null;
+  new_customer_name?: string | null;
+  site_fields: NewSiteFieldsIn;
+}): Promise<NewInstallationAdded> {
+  return pipelineJson(`/v1/new-installations/${encodeURIComponent(id)}/add`, jsonInit(body));
+}
+
+export async function dismissNewInstallation(id: string, actingCustomerId: string | null): Promise<void> {
+  await pipelineJson(`/v1/new-installations/${encodeURIComponent(id)}/dismiss`, jsonInit({ acting_customer_id: actingCustomerId }));
+}
+
+export async function checkNewInstallations(): Promise<{ found: { found: number } }> {
+  return pipelineJson('/v1/new-installations/check', jsonInit({}));
+}
+
 export async function syncVrmFleetSite(body: { site_id: string; start: string; end: string }): Promise<{ job_id: string }> {
   return pipelineJson('/v1/vrm-fleet/sync', jsonInit(body));
 }

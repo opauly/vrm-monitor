@@ -43,6 +43,27 @@ class SiteFieldsIn(BaseModel):
     savings_currency: str | None = None
     exports_to_grid: bool | None = None
     active: bool | None = None
+    inverter_nominal_kw: float | None = None
+    reserve_soc_pct: float | None = None
+
+
+class NewInstallationAddRequest(BaseModel):
+    """`POST /v1/new-installations/{id}/add` — the new-site wizard's last step. `acting_customer_id` is set when a
+    customer adds a system found in their own VRM account (the site goes under them). Left out, the caller is the
+    admin, who names the customer the site goes to: an existing one, or a new one by name."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    acting_customer_id: str | None = None
+    customer_id: str | None = None
+    new_customer_name: str | None = None
+    site_fields: SiteFieldsIn = SiteFieldsIn()
+
+
+class NewInstallationActRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    acting_customer_id: str | None = None
 
 
 class IngestPreviewRequest(BaseModel):

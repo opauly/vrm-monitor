@@ -10,6 +10,7 @@ import { InfoTooltip } from '@/components/ui';
 import { formatDateTime, isWithinLastHours } from '@/lib/dates';
 import { systemScoreInfo, gridScoreInfo } from '@/lib/healthScoreInfo';
 import { t, type Lang } from '@/lib/i18n/strings';
+import { listAdminNewInstallations } from '@/lib/server/db/newInstallations';
 import { FleetFreshness } from './FleetFreshness';
 import { FleetSitesTable } from './FleetSitesTable';
 import { AiSummary, CustomerSwitcher, PropertyCards, PropertySwitcher } from '@/components/app';
@@ -88,6 +89,7 @@ export default async function AdminFleetPage({ searchParams }: { searchParams: P
   // `?property=<id>` narrows the whole page to one property's sites (every roll-up below is then that property's own).
   const properties = (await listAllProperties().catch(() => [])).filter((p) => !customerId || p.customer_id === customerId);
   const property = properties.find((p) => p.id === requestedProperty) ?? null;
+  const newInstallations = await listAdminNewInstallations();
   const overview = await getFleetOverview({ propertyId: property?.id, customerId: customerId ?? undefined });
   const propertySummaries = properties.length > 0 && !property
     ? summariseProperties(overview.sites, properties, await getSitePropertyMap(overview.sites.map((s) => s.site_id)))
@@ -188,6 +190,16 @@ export default async function AdminFleetPage({ searchParams }: { searchParams: P
               : t(lang, 'admin_alerts_banner_many').replace('{n}', String(adminAlerts.length))}
           </span>
           <span className={styles.healthBannerCta}>{t(lang, 'admin_alerts_banner_cta')} →</span>
+        </Link>
+      )}
+      {newInstallations.length > 0 && (
+        <Link href="/admin/vrm-fleet" className={styles.healthBanner}>
+          <span>
+            {newInstallations.length === 1
+              ? t(lang, 'newsite_banner_title').replace('{name}', newInstallations[0].name ?? String(newInstallations[0].vrm_installation_id))
+              : t(lang, 'newsite_admin_banner_many').replace('{n}', String(newInstallations.length))}
+          </span>
+          <span className={styles.healthBannerCta}>{t(lang, 'newsite_add_cta')} →</span>
         </Link>
       )}
       <Link href="/admin/vrm-fleet" className={styles.manageLink}>

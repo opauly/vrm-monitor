@@ -2,6 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/server/auth';
 import { listCustomers } from '@/lib/server/db/admin';
+import { listAdminNewInstallations } from '@/lib/server/db/newInstallations';
+import { NewSites } from '@/components/app';
+import { adminAddNewSiteAction, adminCheckNewSitesAction, adminDismissNewSiteAction } from './newSiteActions';
 import { t } from '@/lib/i18n/strings';
 import { VrmFleetManager } from './VrmFleetManager';
 
@@ -28,7 +31,7 @@ export const metadata: Metadata = {
 export default async function AdminVrmFleetPage() {
   const session = await requireAdmin();
   const lang = session.uiLanguage;
-  const customers = await listCustomers();
+  const [customers, newInstallations] = await Promise.all([listCustomers(), listAdminNewInstallations()]);
 
   return (
     <div>
@@ -38,6 +41,9 @@ export default async function AdminVrmFleetPage() {
       </div>
       <h1>{t(lang, 'admin_vrmfleet_title')}</h1>
       <p className="mono page-desc">{t(lang, 'admin_vrmfleet_desc')}</p>
+      <NewSites items={newInstallations} lang={lang} mode="admin"
+        customers={customers.map((c) => ({ id: c.id, name: c.name, slug: c.slug }))}
+        add={adminAddNewSiteAction} dismiss={adminDismissNewSiteAction} check={adminCheckNewSitesAction} />
       <VrmFleetManager customers={customers} lang={lang} />
     </div>
   );

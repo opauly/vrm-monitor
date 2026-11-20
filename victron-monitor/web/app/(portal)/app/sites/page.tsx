@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import { requireCustomerAllowPending } from '@/lib/server/auth';
-import { canAddSite, getCustomer, getReportModulesAccess, getVrmLinkStatus, listProperties, listSites } from '@/lib/server/db';
+import { canAddSite, getCustomer, getReportModulesAccess, getVrmLinkStatus, listNewInstallations, listProperties, listSites } from '@/lib/server/db';
 import { t } from '@/lib/i18n/strings';
-import { PendingSubscriptionUpsell, PropertiesManager, VrmConnectionBanner } from '@/components/app';
+import { NewSites, PendingSubscriptionUpsell, PropertiesManager, VrmConnectionBanner } from '@/components/app';
+import { addNewSiteAction, dismissNewSiteAction } from './newSiteActions';
 import { SitesManager } from './SitesManager';
 import { VrmLinkPanel } from './VrmLinkPanel';
 import {
@@ -38,12 +39,13 @@ export default async function SitesPage() {
   // in this page that came from a query param or a form; every site (and
   // every fact about the VRM connection) this page can possibly show is
   // already scoped before it reaches the client.
-  const [sites, canAdd, customer, vrmStatus, properties] = await Promise.all([
+  const [sites, canAdd, customer, vrmStatus, properties, newInstallations] = await Promise.all([
     listSites(session.customerId),
     canAddSite(session.customerId),
     getCustomer(session.customerId),
     getVrmLinkStatus(session.customerId),
     listProperties(session.customerId),
+    listNewInstallations(session.customerId),
   ]);
   // PLAN_PHASE18.md §5 — resolved once, here, same "Server Component
   // decides, client just renders what it's told" shape `canAdd`/`siteLimit`
@@ -56,6 +58,8 @@ export default async function SitesPage() {
       <h1>{t(session.uiLanguage, 'sites_title')}</h1>
       <p className={styles.intro}>{t(session.uiLanguage, 'sites_intro')}</p>
       <VrmConnectionBanner status={vrmStatus} lang={session.uiLanguage} />
+      <NewSites items={newInstallations} lang={session.uiLanguage} mode="customer" canAdd={canAdd.ok}
+        add={addNewSiteAction} dismiss={dismissNewSiteAction} />
       <VrmLinkPanel status={vrmStatus} sites={sites} lang={session.uiLanguage} canAdd={canAdd} siteLimit={customer.site_limit} />
       <SitesManager
         sites={sites}

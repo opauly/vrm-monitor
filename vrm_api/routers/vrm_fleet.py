@@ -82,7 +82,7 @@ from victron.vrm_remote import VrmRemoteAuthError, VrmRemoteClient
 from victron.vrm_series import DEFAULT_TZ_NAME
 from victron.vrm_savings import fetch_site_savings
 from victron.vrm_shape import RANGE_DAYS
-from vrm_api import samples_service
+from vrm_api import samples_service, site_discovery
 
 from vrm_api import jobs, secrets, tenancy
 from vrm_api.deps import require_pipeline_key
@@ -739,6 +739,15 @@ def _run_sweep() -> tuple[FleetSnapshotsRefreshOut, Callable[[], None]]:
                 logger.info("vrm-fleet refresh-snapshots: admin notifications %s", admin_alerts.deliver_pending())
         except Exception:  # noqa: BLE001
             logger.exception("vrm-fleet refresh-snapshots: admin alert pass failed (snapshots are unaffected)")
+
+    # New systems in a VRM account (vrm_api/site_discovery.py): looked for about once an hour, on the sweep that falls in
+    # the first quarter of the hour. Off with NEW_SITES=off. Like everything above, a failure never costs the sweep.
+    if os.environ.get("NEW_SITES", "on").strip().lower() != "off" and datetime.now(timezone.utc).minute < 15:
+        try:
+            logger.info("vrm-fleet refresh-snapshots: new installations %s", site_discovery.run_pass())
+            logger.info("vrm-fleet refresh-snapshots: new installation notifications %s", site_discovery.deliver())
+        except Exception:  # noqa: BLE001
+            logger.exception("vrm-fleet refresh-snapshots: new installation check failed (snapshots are unaffected)")
 
     logger.info("vrm-fleet refresh-snapshots: checked=%d refreshed=%d skipped=%d failed=%d in %.1fs",
                 len(sites), refreshed, skipped, failed, time.monotonic() - started)

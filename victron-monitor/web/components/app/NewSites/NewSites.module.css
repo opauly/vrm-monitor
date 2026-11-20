@@ -1,0 +1,289 @@
+/* The "New system found in VRM" banners and the add-site wizard. Built from styles/tokens.css. */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 24px;
+}
+
+.card {
+  border: 1px solid var(--victron);
+  background: rgba(var(--victron-rgb), 0.08);
+  border-radius: var(--radius-md);
+}
+
+.banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  padding: 14px 18px;
+}
+
+.bannerTitle {
+  margin: 0 0 4px;
+  color: var(--paper);
+  font-weight: 600;
+}
+
+.bannerActions,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.actions {
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.checkRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.muted {
+  margin: 0;
+  color: var(--mute);
+  font-size: 13px;
+}
+
+.lead {
+  margin: 0 0 10px;
+  color: var(--paper-dim);
+}
+
+.error {
+  margin: 8px 0 0;
+  color: var(--signal);
+  font-size: 13px;
+}
+
+/* ── wizard ─────────────────────────────────────────────── */
+
+.wizard {
+  padding: 18px;
+}
+
+.wizardHead {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.wizardTitle {
+  margin: 0;
+  font-size: 17px;
+  color: var(--paper);
+  text-wrap: balance;
+}
+
+.progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mute);
+}
+
+.progress li {
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.progressOn {
+  color: var(--victron-glow);
+  border-color: var(--victron) !important;
+}
+
+.progressDone {
+  color: var(--good);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0 16px;
+}
+
+.inline {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.inline > * {
+  flex: 1;
+  min-width: 0;
+}
+
+.inline > .times {
+  flex: 0 0 auto;
+  padding-bottom: 26px;
+  color: var(--mute);
+}
+
+.groupTitle {
+  margin: 18px 0 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mute);
+}
+
+.hint,
+.fromVrm {
+  margin: -6px 0 6px;
+  font-size: 12.5px;
+  color: var(--mute);
+}
+
+.fromVrm {
+  color: var(--victron-glow);
+}
+
+.fromVrm::before {
+  content: 'VRM · ';
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+}
+
+.equipment {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.equipment li {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--paper);
+  font-size: 14px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+.chip,
+.chipOn {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--paper-dim);
+  cursor: pointer;
+}
+
+.chipOn {
+  border-color: var(--victron);
+  color: var(--victron-glow);
+  background: rgba(var(--victron-rgb), 0.14);
+}
+
+.chip:focus-visible,
+.chipOn:focus-visible {
+  outline: 2px solid var(--victron-glow);
+  outline-offset: 2px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--paper-dim);
+}
+
+.review {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) 1fr;
+  gap: 8px 18px;
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+.review dt {
+  color: var(--mute);
+}
+
+.review dd {
+  margin: 0;
+  color: var(--paper);
+  font-variant-numeric: tabular-nums;
+}
+
+.checklist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checkDone,
+.checkTodo {
+  padding-left: 26px;
+  position: relative;
+  color: var(--paper);
+}
+
+.checkDone::before,
+.checkTodo::before {
+  position: absolute;
+  left: 0;
+  font-family: var(--font-mono);
+}
+
+.checkDone::before {
+  content: '✓';
+  color: var(--good);
+}
+
+.checkTodo::before {
+  content: '→';
+  color: var(--mute);
+}
+
+@media (max-width: 520px) {
+  .review {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .review dd {
+    margin-bottom: 8px;
+  }
+}

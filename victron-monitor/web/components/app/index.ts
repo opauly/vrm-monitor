@@ -32,3 +32,5 @@ export { PropertyRouting } from './Properties/PropertyRouting';
 export type { RoutingActions } from './Properties/PropertyRouting';
 export { PropertiesManager } from './Properties/PropertiesManager';
 export type { PropertyActions, ManagerGroup, ActionResult } from './Properties/PropertiesManager';
+export { NewSites } from './NewSites/NewSites';
+export type { NewSitesProps, NewSitesCustomer } from './NewSites/NewSites';
