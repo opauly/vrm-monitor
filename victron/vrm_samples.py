@@ -5,7 +5,7 @@ One site's 15-minute VRM readings as rows for `vrm.site_samples` (migration 056)
 The same signals the live snapshot and the hour-of-day shape already trust (`vrm_live.py`, `vrm_shape.py`), fetched
 for a window and kept slot by slot instead of reduced to a day's totals:
 
-  pv_w            PVP, every solar charger summed (`vrm_live.fetch_pv_power_series`)
+  pv_w            PVP (every solar charger) plus AC-coupled PV inverters (`vrm_live.fetch_pv_power_series`)
   load_w          a1 + a2 (AC consumption L1 + L2)
   battery_w       bp, positive = charging
   soc_pct         SOC
@@ -37,6 +37,7 @@ from victron.vrm_live import (
     LOAD_CODES,
     PV_POWER_CODE,
     SOC_CODE,
+    ac_pv_codes,
     fetch_pv_power_series,
 )
 from victron.vrm_series import DEFAULT_TZ_NAME, GENERATOR_CODE, _available_codes, _local_midnight_epoch_s, _series_to_pandas
@@ -144,8 +145,10 @@ def fetch_samples(client, id_site, start_s: int, end_s: int, *, diagnostics: dic
         records = body.get("records", body) if isinstance(body, dict) else {}
         for code in requested:
             raw[code] = _series_to_pandas(records.get(code, False) if isinstance(records, dict) else False, UTC)
-    pv = (fetch_pv_power_series(client, id_site, interval="15mins", start=start_s, end=int(end_s), zone=UTC)
-          if PV_POWER_CODE in available else pd.Series(dtype=float))
+    ac = ac_pv_codes(diagnostics)
+    pv = (fetch_pv_power_series(client, id_site, interval="15mins", start=start_s, end=int(end_s), zone=UTC,
+                                dc=PV_POWER_CODE in available, ac_codes=ac)
+          if PV_POWER_CODE in available or ac else pd.Series(dtype=float))
     return build_frame(raw, pv, grid_codes)
 
 

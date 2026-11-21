@@ -132,6 +132,22 @@ class VrmLiveError(ValueError):
     """The API returned nothing usable for a live snapshot."""
 
 
+# AC-coupled solar (a Fronius or other PV inverter on the inverter's AC output, AC input or generator input) is
+# reported by the "System overview" as one figure per phase — "PV - AC-coupled on output L1" (codes P/P2/P3 on
+# output) — already summed over every PV inverter. Matched on the description, so the input/generator variants
+# are found too without hard-coding their codes. Kame House (Fronius on AC-out) was the first site to need it.
+AC_PV_PREFIX = "pv - ac-coupled"
+
+
+def ac_pv_codes(diagnostics) -> list[str]:
+    """The codes this installation uses for AC-coupled solar power (empty when it has no PV inverter)."""
+    records = diagnostics.get("records", diagnostics) if isinstance(diagnostics, dict) else diagnostics
+    if not isinstance(records, list):
+        return []
+    return sorted({r["code"] for r in records if isinstance(r, dict) and r.get("code")
+                   and str(r.get("description") or "").strip().lower().startswith(AC_PV_PREFIX)})
+
+
 def _pv_power_from_diagnostics(
     diagnostics: dict,
     now: datetime | None = None,
@@ -160,13 +176,16 @@ def _pv_power_from_diagnostics(
     # (`_LOOKBACK_HOURS`) is dropped, not summed. A record with no usable
     # timestamp can't be judged and is kept.
     cutoff = (now or datetime.now(timezone.utc)).timestamp() - _LOOKBACK_HOURS * 3600
-    pv_records = [r for r in records if isinstance(r, dict) and r.get("code") == PV_POWER_CODE
-                 and isinstance(r.get("rawValue"), (int, float))
-                 and not (isinstance(r.get("timestamp"), (int, float)) and r["timestamp"] < cutoff)]
-    if not pv_records:
+    def fresh(r) -> bool:
+        return (isinstance(r.get("rawValue"), (int, float))
+                and not (isinstance(r.get("timestamp"), (int, float)) and r["timestamp"] < cutoff))
+    pv_records = [r for r in records if isinstance(r, dict) and r.get("code") == PV_POWER_CODE and fresh(r)]
+    ac_codes = set(ac_pv_codes(records))
+    ac_records = [r for r in records if isinstance(r, dict) and r.get("code") in ac_codes and fresh(r)]
+    if not pv_records and not ac_records:
         return None, None, None
-    total = sum(r["rawValue"] for r in pv_records)
-    timestamps = [r["timestamp"] for r in pv_records if isinstance(r.get("timestamp"), (int, float))]
+    total = sum(r["rawValue"] for r in pv_records) + sum(r["rawValue"] for r in ac_records)
+    timestamps = [r["timestamp"] for r in pv_records + ac_records if isinstance(r.get("timestamp"), (int, float))]
     latest = (datetime.fromtimestamp(max(timestamps), tz=timezone.utc)
              if timestamps else None)
     by_instance = sorted(
@@ -222,7 +241,7 @@ def check_live_alarms(diagnostics: dict) -> dict[str, dict]:
 
 
 def fetch_pv_power_series(client, id_site, *, interval: str, start: int, end: int,
-                          zone: ZoneInfo) -> pd.Series:
+                          zone: ZoneInfo, dc: bool = True, ac_codes=()) -> pd.Series:
     """A site's total PV power over `[start, end)`, correctly summed across
     every solar-charger instance — the historical counterpart to
     `_pv_power_from_diagnostics()`'s live total. Diagnostics only gives an
@@ -238,6 +257,22 @@ def fetch_pv_power_series(client, id_site, *, interval: str, start: int, end: in
     Returns an empty `pd.Series` (never raises) on any failure or when the
     installation publishes no `PVP` at all — same "no data over fabricated
     data" posture as every other optional signal here."""
+    # AC-coupled solar (`ac_codes`, from `ac_pv_codes()`): one system-level series per phase, added to the chargers'.
+    parts = []
+    if ac_codes:
+        try:
+            ac_body = client.get_stats(id_site, type="custom", interval=interval, start=start, end=end,
+                                       attribute_codes=sorted(ac_codes))
+            ac_records = ac_body.get("records", ac_body) if isinstance(ac_body, dict) else {}
+            for code in ac_codes:
+                series = _series_to_pandas(ac_records.get(code, False) if isinstance(ac_records, dict) else False, zone)
+                if not series.empty:
+                    parts.append(series)
+        except Exception:  # noqa: BLE001
+            logger.warning("vrm_live: AC-coupled PV stats failed for installation %s", id_site)
+    if not dc:
+        return pd.concat(parts, axis=1).sum(axis=1, min_count=1) if parts else pd.Series(dtype=float)
+
     try:
         body = client.get_stats(id_site, type="custom", interval=interval,
                                 start=start, end=end,
@@ -245,15 +280,14 @@ def fetch_pv_power_series(client, id_site, *, interval: str, start: int, end: in
     except Exception:  # noqa: BLE001 — one site's failure must not raise
         # past this function; callers already isolate per-site failures.
         logger.warning("vrm_live: get_stats(show_instance) failed for installation %s", id_site)
-        return pd.Series(dtype=float)
+        return pd.concat(parts, axis=1).sum(axis=1, min_count=1) if parts else pd.Series(dtype=float)
 
     records = body.get("records") if isinstance(body, dict) else None
     if isinstance(records, dict):
         records = list(records.values())
     if not isinstance(records, list):
-        return pd.Series(dtype=float)
+        records = []
 
-    parts = []
     for entry in records:
         if not isinstance(entry, dict):
             continue

@@ -35,6 +35,7 @@ from victron.vrm_live import (
     INVERTER_INPUT_CODES,
     LOAD_CODES,
     PV_POWER_CODE,
+    ac_pv_codes,
     fetch_pv_power_series,
 )
 from victron.vrm_series import DEFAULT_TZ_NAME, _available_codes, _series_to_pandas
@@ -81,7 +82,8 @@ def fetch_site_shape(client, id_site, *, range_key: str, tz: str = DEFAULT_TZ_NA
     if not available:
         return dict(_EMPTY_SHAPE)
 
-    has_pv = PV_POWER_CODE in available
+    ac_codes = ac_pv_codes(diagnostics)
+    has_pv = PV_POWER_CODE in available or bool(ac_codes)
     # Same meter-first, inverter-fallback preference as vrm_live.py's live
     # snapshot — see that module's GRID_POWER_CODES/INVERTER_INPUT_CODES
     # comment for why the two aren't interchangeable.
@@ -146,7 +148,8 @@ def fetch_site_shape(client, id_site, *, range_key: str, tz: str = DEFAULT_TZ_NA
     # request for PVP (the path every other code above still uses) returns
     # one ambiguous, unsummable series on a multi-charger site.
     solar_series = (fetch_pv_power_series(client, id_site, interval="15mins",
-                                          start=start_s, end=end_s, zone=zone)
+                                          start=start_s, end=end_s, zone=zone,
+                                          dc=PV_POWER_CODE in available, ac_codes=ac_codes)
                     if has_pv else pd.Series(dtype=float))
     battery_series = series_by_code.get(BATTERY_POWER_CODE, pd.Series(dtype=float))
     soc_series = series_by_code.get(SOC_CODE, pd.Series(dtype=float))

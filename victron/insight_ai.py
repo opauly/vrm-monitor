@@ -55,7 +55,8 @@ OBS = {
         "generator_used": "The batteries were topped up from the generator: {kwh} kWh over about {hours} hours.",
         "generator_used_kwh": "The batteries were topped up from the generator: {kwh} kWh.",
         "generator_reliance": "The generator was needed on {days} of the last {window} days.",
-        "at_reserve": "The battery rested at {min_soc}%, the minimum charge the system is set to keep — the grid covered the rest.",
+        "new_site": "This system was just added to monitoring, so there is no history to compare it with yet; the first days can include setup and commissioning.",
+        "at_reserve": "At its lowest the battery reached {min_soc}%, the minimum charge the system is set to keep — the grid covered the rest.",
         "solar_below": "Solar made {pv} kWh, well below the recent average of {average} kWh.",
         "solar_above": "Solar made {pv} kWh, above the recent average of {average} kWh.",
         "load_above": "Usage was {load} kWh, higher than the recent average of {average} kWh.",
@@ -104,7 +105,8 @@ OBS = {
         "generator_used": "Las baterías se recargaron con el generador: {kwh} kWh durante unas {hours} horas.",
         "generator_used_kwh": "Las baterías se recargaron con el generador: {kwh} kWh.",
         "generator_reliance": "Se necesitó el generador en {days} de los últimos {window} días.",
-        "at_reserve": "La batería se mantuvo en {min_soc}%, la carga mínima que el sistema está configurado para conservar; la red cubrió el resto.",
+        "new_site": "Este sistema se acaba de agregar al monitoreo, así que todavía no hay historial para compararlo; los primeros días pueden incluir la instalación y puesta en marcha.",
+        "at_reserve": "En su punto más bajo la batería llegó a {min_soc}%, la carga mínima que el sistema está configurado para conservar; la red cubrió el resto.",
         "solar_below": "La energía solar fue de {pv} kWh, bastante por debajo del promedio reciente de {average} kWh.",
         "solar_above": "La energía solar fue de {pv} kWh, por encima del promedio reciente de {average} kWh.",
         "load_above": "El consumo fue de {load} kWh, más alto que el promedio reciente de {average} kWh.",
@@ -179,9 +181,13 @@ SUGGEST = {
 HEAD = {
     "en": {"none": "No complete day of data yet.", "site": "{when}: {pv} kWh of solar, {load} kWh used.",
            "site_ss": "{when}: {pv} kWh of solar, {load} kWh used — {ss}% covered by solar and battery.",
+           "site_new": "{when}, first day of monitoring: {pv} kWh of solar, {load} kWh used.",
+           "site_new_n": "{when}, day {days} of monitoring: {pv} kWh of solar, {load} kWh used.",
            "fleet": "{n} sites made {pv} kWh of solar and used {load} kWh on {date}.", "yesterday": "Yesterday", "on": "On {date}"},
     "es": {"none": "Aún no hay un día completo de datos.", "site": "{when}: {pv} kWh de solar, {load} kWh de consumo.",
            "site_ss": "{when}: {pv} kWh de solar, {load} kWh de consumo — {ss}% cubierto por solar y batería.",
+           "site_new": "{when}, primer día de monitoreo: {pv} kWh de solar, {load} kWh de consumo.",
+           "site_new_n": "{when}, día {days} de monitoreo: {pv} kWh de solar, {load} kWh de consumo.",
            "fleet": "{n} sitios generaron {pv} kWh de solar y consumieron {load} kWh el {date}.", "yesterday": "Ayer", "on": "El {date}"},
 }
 # Short reason labels for the fleet's "needs attention" lines.
@@ -260,8 +266,13 @@ def render_template(facts: dict, lang: str, scope: str, *, today: str | None = N
                     when = head["yesterday"]
             except ValueError:
                 pass
-        key = "site_ss" if day.get("self_sufficiency_pct") is not None else "site"
-        headline = _fill(head[key], {"when": when, "pv": day["pv_kwh"], "load": day["load_kwh"], "ss": day.get("self_sufficiency_pct")})
+        new = facts.get("new_site")
+        if new:
+            key = "site_new" if new["days_monitored"] <= 1 else "site_new_n"
+        else:
+            key = "site_ss" if day.get("self_sufficiency_pct") is not None else "site"
+        headline = _fill(head[key], {"when": when, "pv": day["pv_kwh"], "load": day["load_kwh"], "ss": day.get("self_sufficiency_pct"),
+                                     "days": (new or {}).get("days_monitored")})
 
     if scope == "fleet":
         points = [t for t in (_obs_text(obs_text, o, lang) for o in observations) if t][:MAX_POINTS]
@@ -344,6 +355,9 @@ def _system_prompt(lang: str, scope: str) -> str:
         "A thunderstorm is a heads-up, not a problem. Never mention a power cut, backup time, topping up the battery, checking the panels or watching the system because of a storm "
         "unless an OBSERVATION or the DRAFT's suggestion says so; do not say a storm lowers solar unless an OBSERVATION says the solar is lower. "
         "Never call a battery low, weak or failing unless an OBSERVATION says so; a battery that peaks near full is fine. "
+        "A battery's lowest charge is not where it stayed: never say it stayed or was held at a level all day. "
+        "If an OBSERVATION says the system was just added, the headline says it is one of its first days of monitoring, and nothing in the summary judges "
+        "the day (grid use, battery, self-sufficiency) as a problem or as unusual. "
         "The suggestion is the DRAFT's suggestion, reworded, or null when the DRAFT has none; never invent a different action. "
         "A DRAFT is provided; improve its wording and flow but keep its meaning and facts.\n\n"
         f'Reply with JSON only: {{"headline": string (max {MAX_HEADLINE} chars), "points": [up to {MAX_POINTS if scope == "fleet" else MAX_SITE_POINTS} strings, max {MAX_POINT} chars each], "suggestion": string or null (max {MAX_POINT} chars)}}'

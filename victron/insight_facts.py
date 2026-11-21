@@ -27,13 +27,15 @@ OFFLINE_AFTER = timedelta(minutes=45)  # same freshness the dashboard and alerts
 GENERATOR_MIN_KWH = 0.5      # AC-input energy in a day (off-grid) that counts as "the generator ran"
 GENERATOR_WINDOW_DAYS = 14
 GENERATOR_RELIANCE_DAYS = 4  # generator days within the window that make it a pattern worth saying
+NEW_SITE_DAYS = 3            # a site with this many days of data or fewer is new: commissioning, no history to judge it against
+FULL_SOC_PCT = 98            # a day that peaked this high did fill the battery (many BMSs stop at 99%), whatever the float flag says
 BATTERY_PEAK_FINE_PCT = 90   # a battery whose daily peak averages this or more, though "not at float", is not a charging problem
 
 # Observation severities, most urgent first.
 ATTENTION, GOOD, INFO = "attention", "good", "info"
 
 _ORDER = [
-    "offline", "offline_days", "alert_", "storm_ahead_low", "storm_ahead_low_off_grid", "storm_ahead", "storm_ahead_charged", "outage_deep", "tonight_short", "tomorrow_solar_storm_", "anomaly_", "battery_not_full_", "battery_low", "generator_reliance", "at_reserve", "generator_used", "solar_below",
+    "offline", "offline_days", "alert_", "new_site", "storm_ahead_low", "storm_ahead_low_off_grid", "storm_ahead", "storm_ahead_charged", "outage_deep", "tonight_short", "tomorrow_solar_storm_", "anomaly_", "battery_not_full_", "battery_low", "generator_reliance", "at_reserve", "generator_used", "solar_below",
     "tomorrow_low_solar", "import_high", "outage_held", "load_above", "no_float", "export", "solar_above", "tomorrow_high_solar",
     "load_below", "self_sufficient",
 ]
@@ -132,6 +134,13 @@ def build_site_facts(*, site: dict, energy_rows: list[dict], health_row: dict | 
             "load": _pct_change(day["load_kwh"], base["load_kwh"]),
             "grid_import": _pct_change(day["grid_import_kwh"], base["grid_import_kwh"]),
         } if base["days"] >= 3 else None
+        # A site only just added: its first days include setup and commissioning (the battery charged from the grid, settings
+        # being tried), and there is nothing to compare them with. Said once, and the usual judgments are left out.
+        monitored = sum(1 for r in energy_rows if r.get("date") and str(r["date"]) <= str(row["date"]))
+        if monitored <= NEW_SITE_DAYS:
+            facts["new_site"] = {"days_monitored": monitored}
+        if row.get("complete_day") is False:
+            facts["day"]["partial_day"] = True
         if site.get("pv_kwp") and day["pv_kwh"] is not None and _num(site["pv_kwp"]):
             facts["day"]["yield_kwh_per_kwp"] = _r(day["pv_kwh"] / _num(site["pv_kwp"]), 2)
 
@@ -245,14 +254,19 @@ def observations(facts: dict, *, system_type: str | None) -> list[dict]:
     prev = facts.get("previous_days") or {}
     grid_system = system_type != "off_grid"
     floor = facts["site"].get("soc_floor_pct")
+    new_site = facts.get("new_site")
+    if new_site:
+        add("new_site", INFO, days=new_site["days_monitored"])
 
     if day["outage_minutes"]:
         low = day["min_soc_pct"] is not None and day["min_soc_pct"] < 20
         add("outage_deep" if low else "outage_held", ATTENTION if low else GOOD,
             minutes=day["outage_minutes"], count=day["outage_count"], min_soc=day["min_soc_pct"])
+    elif new_site:
+        pass                     # commissioning: where the battery sat says nothing yet
     elif day["min_soc_pct"] is not None and floor is not None and floor - 3 <= day["min_soc_pct"] <= floor + 5:
-        # Sat at the configured reserve: the grid covered everything below it.
-        add("at_reserve", INFO, min_soc=day["min_soc_pct"], floor=floor)
+        # Reached the configured reserve at its lowest: the grid covered everything below it.
+        add("at_reserve", INFO, min_soc=day["min_soc_pct"], floor=floor, max_soc=day["max_soc_pct"])
     elif day["min_soc_pct"] is not None and day["min_soc_pct"] < 30 and (facts["site"].get("battery_kwh") or system_type in ("off_grid", "hybrid")):
         add("battery_low", ATTENTION, min_soc=day["min_soc_pct"])
 
@@ -276,7 +290,7 @@ def observations(facts: dict, *, system_type: str | None) -> list[dict]:
         elif load <= 0.75 * avg_load:
             add("load_below", INFO, load=load, average=avg_load, change_pct=vs["load"])
 
-    if grid_system and day["load_kwh"] and day["grid_import_kwh"] is not None and day["load_kwh"] > 0:
+    if grid_system and not new_site and day["load_kwh"] and day["grid_import_kwh"] is not None and day["load_kwh"] > 0:
         share = round(day["grid_import_kwh"] / day["load_kwh"] * 100)
         if share >= 50:
             add("import_high", ATTENTION, share_pct=share, import_kwh=day["grid_import_kwh"])
@@ -285,9 +299,10 @@ def observations(facts: dict, *, system_type: str | None) -> list[dict]:
         add("export", GOOD, export_kwh=exp, share_pct=round(exp / pv_total * 100))
     # The open "battery not filling" anomaly already says this (and says it better).
     already_said = any(a.get("type") == "incomplete_charging" for a in facts.get("open_anomalies") or [])
-    if day.get("reached_full_charge") is False and not already_said and (facts["site"].get("battery_kwh") or system_type in ("off_grid", "hybrid")):
+    filled = day.get("max_soc_pct") is not None and day["max_soc_pct"] >= FULL_SOC_PCT
+    if day.get("reached_full_charge") is False and not already_said and not new_site and not filled and (facts["site"].get("battery_kwh") or system_type in ("off_grid", "hybrid")):
         add("no_float", INFO)
-    if day["self_sufficiency_pct"] is not None and day["self_sufficiency_pct"] >= 90:
+    if day["self_sufficiency_pct"] is not None and day["self_sufficiency_pct"] >= 90 and not new_site:
         add("self_sufficient", GOOD, pct=day["self_sufficiency_pct"])
     return _ordered(out)
 

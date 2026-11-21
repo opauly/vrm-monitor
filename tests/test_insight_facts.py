@@ -154,6 +154,7 @@ def test_a_site_dark_for_weeks_is_not_daily_fleet_news():
 def test_the_battery_not_filling_anomaly_replaces_the_plain_no_full_charge_note():
     rows = history()
     rows[-1]["battery_reached_float"] = False
+    rows[-1]["max_soc"] = 90.0
     assert "no_float" in codes(build(rows))
     for r in rows:
         r["max_soc"] = 78.0                                  # peaking at 78%: a real "not filling"
@@ -308,3 +309,27 @@ def test_the_fleet_only_flags_the_sites_whose_battery_is_expected_low_at_the_sto
     codes_ = {o["code"]: o for o in F.build_fleet_facts(site_facts=[low, fine], name="x", now=NOW)["observations"]}
     assert codes_["fleet_storm_low"]["params"]["sites"] == ["Low"] and codes_["fleet_storm_low"]["severity"] == "attention"
     assert codes_["fleet_storm"]["severity"] == "info" and codes_["fleet_storm"]["params"]["count"] == 2
+
+
+def test_a_battery_that_peaked_at_99_did_fill():
+    rows = history()
+    rows[-1].update(battery_reached_float=False, max_soc=99.0)
+    assert "no_float" not in codes(build(rows))
+
+
+def test_a_new_site_is_said_to_be_new_and_its_first_day_is_not_judged():
+    # Kame House, commissioned the day before: grid-charged battery, touched the reserve, "not at float".
+    rows = [day("2026-10-04", complete_day=False), day("2026-10-05", complete_day=False, grid=5.1, load=10.0, min_soc=40.0, max_soc=99.0,
+                                                    battery_reached_float=False)]
+    f = build(rows)
+    got = codes(f)
+    assert f["new_site"] == {"days_monitored": 2} and f["day"]["partial_day"] is True
+    assert "new_site" in got
+    assert not {"import_high", "at_reserve", "no_float", "battery_low", "self_sufficient"} & set(got)
+
+
+def test_new_site_headline():
+    from victron import insight_ai
+    rows = [day("2026-10-05", complete_day=False)]
+    out = insight_ai.render_template(build(rows), "en", "site", today="2026-10-06")
+    assert out["headline"].startswith("Yesterday, first day of monitoring:")
