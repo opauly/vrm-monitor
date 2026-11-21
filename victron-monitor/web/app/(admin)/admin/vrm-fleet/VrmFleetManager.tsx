@@ -397,8 +397,10 @@ export function VrmFleetManager({ customers, lang }: { customers: AdminCustomerR
                       <div className={styles.linksList}>
                         {inst.links.map((link) => (
                           <div key={link.site_id} className={styles.linkChip}>
-                            <span className={styles.statusLinked}>{link.customer_name ?? link.customer_id}</span>
-                            <span>→ {link.site_display_name}</span>
+                            <div className={styles.linkText}>
+                              <span className={styles.statusLinked}>{link.customer_name ?? link.customer_id}</span>
+                              <span>→ {link.site_display_name}</span>
+                            </div>
                             <Button type="button" variant="ghost" onClick={() => toggleSyncForm(link.site_id)}>
                               {t(lang, 'admin_vrmfleet_sync_button')}
                             </Button>

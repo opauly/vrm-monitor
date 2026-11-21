@@ -31,8 +31,22 @@
 .linkChip {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 8px 12px;
   font-size: 13px;
+}
+/* Customer and site stack in their own column, so a narrow screen wraps words, not letters. */
+.linkText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.linkChip > :last-child {
+  flex: none;
+  white-space: nowrap;
 }
 .linkMeta {
   color: var(--mute);

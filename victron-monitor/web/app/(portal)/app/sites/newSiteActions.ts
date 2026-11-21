@@ -20,7 +20,7 @@ export async function addNewSiteAction(id: string, values: NewSiteWizardValues):
   if (!checked.ok) return { ok: false, error: 'invalid', field: checked.field };
   try {
     const out = await addNewInstallation(id, { acting_customer_id: session.customerId, site_fields: checked.fields });
-    revalidatePath('/app/sites');
+    // The wizard goes straight to the new site's dashboard; the sites list refreshes when visited.
     return { ok: true, siteId: out.site_id, jobId: out.job_id };
   } catch (err) {
     if (err instanceof PipelineError && err.status === 404) return { ok: false, error: 'gone' };

@@ -20,7 +20,7 @@ export async function adminAddNewSiteAction(
   if (!!target.customerId === !!newName) return { ok: false, error: 'invalid', field: 'customer' };
   try {
     const out = await addNewInstallation(id, { customer_id: target.customerId, new_customer_name: newName, site_fields: checked.fields });
-    revalidatePath('/admin/vrm-fleet');
+    // The wizard goes straight to the new site's page; this page is not refreshed under it.
     revalidatePath('/admin/fleet');
     return { ok: true, siteId: out.site_id, jobId: out.job_id };
   } catch (err) {

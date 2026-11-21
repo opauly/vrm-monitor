@@ -5,10 +5,10 @@
 // page (systems in the admin's account, where the admin also picks the customer). What VRM already reports
 // (inverter, battery modules, solar equipment, system type, reserve) arrives filled in; the wizard only asks for
 // what VRM cannot know — the panels' kWp, the battery size when modules don't say it, and where the site is.
-// After "Add", the first import runs (from the day the system was created) and a short checklist follows.
+// After "Add", it goes straight to the new site; the first import (from the day the system was created) keeps running there.
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button, Field, Input, Select } from '@/components/ui';
-import { JobProgress } from '@/components/app/JobProgress/JobProgress';
 import { t, type Lang, type StringKey } from '@/lib/i18n/strings';
 import { listTimezones, DEFAULT_TIMEZONE } from '@/lib/timezones';
 import { SUPPORTED_FLAT_CURRENCIES } from '@/lib/currencies';
@@ -33,17 +33,9 @@ export type NewSitesProps = {
   check?: () => Promise<{ ok: boolean; found: number }>;
 };
 
-// A few common module sizes, so "4 modules" becomes a bank size in one tap. Any other battery is typed in.
-const MODULE_PRESETS: { label: string; kwh: number }[] = [
-  { label: 'Pylontech US2000C', kwh: 2.4 },
-  { label: 'Pylontech US3000C', kwh: 3.55 },
-  { label: 'Pylontech US5000', kwh: 4.8 },
-  { label: 'Pylontech UP5000', kwh: 4.8 },
-];
-
 const TIMEZONES = listTimezones();
 
-type Step = 'found' | 'system' | 'place' | 'review' | 'importing' | 'done';
+type Step = 'found' | 'system' | 'place' | 'review';
 
 type Form = {
   displayName: string;
@@ -53,6 +45,7 @@ type Form = {
   panelWatts: string;
   inverterKw: string;
   batteryKwh: string;
+  moduleCount: string;
   moduleKwh: string;
   batteryDod: string;
   reserve: string;
@@ -95,6 +88,7 @@ function initialForm(item: NewInstallation, lang: Lang, customers: NewSitesCusto
     panelWatts: '',
     inverterKw: f?.inverter_nominal_kw != null ? String(f.inverter_nominal_kw) : '',
     batteryKwh: f?.battery_nominal_kwh != null ? String(f.battery_nominal_kwh) : '',
+    moduleCount: f?.battery_nominal_kwh == null && item.prefill?.equipment?.battery?.modules ? String(item.prefill.equipment.battery.modules) : '',
     moduleKwh: '',
     batteryDod: f?.battery_dod_pct != null ? String(f.battery_dod_pct) : '',
     reserve: f?.reserve_soc_pct != null ? String(f.reserve_soc_pct) : '',
@@ -136,8 +130,7 @@ function Wizard({ item, lang, mode, customers, add, onClose }: {
   const [form, setForm] = useState<Form>(() => initialForm(item, lang, customers));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [job, setJob] = useState<{ jobId: string; siteId: string } | null>(null);
-  const [imported, setImported] = useState<number | null>(null);
+  const router = useRouter();
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   const eq = item.prefill?.equipment ?? null;
@@ -149,7 +142,7 @@ function Wizard({ item, lang, mode, customers, add, onClose }: {
 
   const fromPanels = num(form.panelCount) && num(form.panelWatts) ? Math.round((num(form.panelCount)! * num(form.panelWatts)!) / 10) / 100 : null;
   const pvKwp = num(form.pvKwp) ?? fromPanels;
-  const fromModules = modules && num(form.moduleKwh) ? Math.round(modules * num(form.moduleKwh)! * 100) / 100 : null;
+  const fromModules = num(form.moduleCount) && num(form.moduleKwh) ? Math.round(num(form.moduleCount)! * num(form.moduleKwh)! * 100) / 100 : null;
   const batteryKwh = num(form.batteryKwh) ?? fromModules;
 
   const systemReady = !!form.displayName.trim() && pvKwp != null && pvKwp > 0 && (!hasBattery || (batteryKwh != null && batteryKwh > 0));
@@ -183,16 +176,15 @@ function Wizard({ item, lang, mode, customers, add, onClose }: {
       ? { customerId: form.customerChoice === NEW ? null : form.customerChoice, newCustomerName: form.customerChoice === NEW ? form.newCustomerName : null }
       : { customerId: null, newCustomerName: null };
     const res = await add(item.id, values, target);
-    setBusy(false);
     if (res.ok) {
-      setJob({ jobId: res.jobId, siteId: res.siteId });
-      setStep('importing');
+      // Straight to the new site; its first import keeps running on the server and the page fills in as it lands.
+      router.push(mode === 'admin' ? `/admin/fleet/${encodeURIComponent(res.siteId)}` : `/app/dashboard/${encodeURIComponent(res.siteId)}`);
     } else {
+      setBusy(false);
       setError(t(lang, `newsite_err_${res.error}` as StringKey));
     }
   }
 
-  const siteHref = job ? (mode === 'admin' ? `/admin/fleet/${encodeURIComponent(job.siteId)}` : `/app/dashboard/${encodeURIComponent(job.siteId)}`) : '#';
   const steps: Step[] = ['found', 'system', 'place', 'review'];
   const stepIndex = steps.indexOf(step);
 
@@ -277,18 +269,19 @@ function Wizard({ item, lang, mode, customers, add, onClose }: {
             <>
               <h4 className={styles.groupTitle}>{t(lang, 'newsite_battery')}</h4>
               {modules != null && eq?.battery?.kwh == null && (
-                <>
-                  <p className={styles.fromVrm}>{t(lang, 'newsite_from_vrm_modules').replace('{n}', String(modules)).replace('{maker}', eq?.battery?.maker ?? '')}</p>
-                  <div className={styles.chips} role="group" aria-label={t(lang, 'newsite_module_size')}>
-                    {MODULE_PRESETS.filter((p) => !eq?.battery?.maker || p.label.toLowerCase().startsWith(eq.battery.maker.toLowerCase())).map((p) => (
-                      <button key={p.label} type="button" className={num(form.moduleKwh) === p.kwh && !form.batteryKwh ? styles.chipOn : styles.chip}
-                        onClick={() => setForm((f) => ({ ...f, moduleKwh: String(p.kwh), batteryKwh: '' }))}>
-                        {p.label} · {p.kwh} kWh
-                      </button>
-                    ))}
-                  </div>
-                </>
+                <p className={styles.fromVrm}>{t(lang, 'newsite_from_vrm_modules').replace('{n}', String(modules)).replace('{maker}', eq?.battery?.maker ?? '')}</p>
               )}
+              <div className={styles.grid}>
+                <div className={styles.inline}>
+                  <Field label={t(lang, 'newsite_modules')} htmlFor={`ns-mc-${item.id}`}>
+                    <Input id={`ns-mc-${item.id}`} inputMode="numeric" value={form.moduleCount} onChange={(e) => set('moduleCount', e.target.value)} />
+                  </Field>
+                  <span className={styles.times} aria-hidden="true">×</span>
+                  <Field label={t(lang, 'newsite_module_kwh')} htmlFor={`ns-mk-${item.id}`}>
+                    <Input id={`ns-mk-${item.id}`} inputMode="decimal" value={form.moduleKwh} onChange={(e) => set('moduleKwh', e.target.value)} />
+                  </Field>
+                </div>
+              </div>
               <div className={styles.grid}>
                 <Field label={t(lang, 'newsite_battery_kwh')} htmlFor={`ns-bat-${item.id}`} required>
                   <Input id={`ns-bat-${item.id}`} inputMode="decimal" value={form.batteryKwh} placeholder={fromModules != null ? String(fromModules) : ''}
@@ -404,40 +397,6 @@ function Wizard({ item, lang, mode, customers, add, onClose }: {
         </div>
       )}
 
-      {step === 'importing' && job && (
-        <div className={styles.body}>
-          <JobProgress
-            jobId={job.jobId}
-            endpoint={mode === 'admin' ? '/api/admin/pipeline/jobs' : '/api/pipeline/jobs'}
-            runningLabel={t(lang, 'newsite_importing')}
-            genericFailedLabel={t(lang, 'newsite_import_failed')}
-            unreachableLabel={t(lang, 'newsite_import_failed')}
-            onDone={(j) => {
-              const r = j.result as { rows_written?: number; samples_stored?: number } | null;
-              setImported(r?.samples_stored ?? null);
-              setStep('done');
-            }}
-            onFailed={() => setStep('done')}
-          />
-        </div>
-      )}
-
-      {step === 'done' && job && (
-        <div className={styles.body}>
-          <ul className={styles.checklist}>
-            <li className={styles.checkDone}>{t(lang, 'newsite_done_created')}</li>
-            <li className={imported != null ? styles.checkDone : styles.checkTodo}>
-              {imported != null ? t(lang, 'newsite_done_imported').replace('{n}', String(imported)) : t(lang, 'newsite_done_import_later')}
-            </li>
-            <li className={styles.checkDone}>{t(lang, 'newsite_done_watch')}</li>
-            <li className={styles.checkTodo}>{t(lang, mode === 'admin' ? 'newsite_done_next_admin' : 'newsite_done_next')}</li>
-          </ul>
-          <div className={styles.actions}>
-            <Button variant="ghost" type="button" onClick={onClose}>{t(lang, 'newsite_close')}</Button>
-            <Button href={siteHref} arrow>{t(lang, 'newsite_open_site')}</Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

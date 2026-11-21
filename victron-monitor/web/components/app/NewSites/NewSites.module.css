@@ -188,37 +188,6 @@
   font-size: 14px;
 }
 
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 4px 0 12px;
-}
-
-.chip,
-.chipOn {
-  font: inherit;
-  font-size: 12.5px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--paper-dim);
-  cursor: pointer;
-}
-
-.chipOn {
-  border-color: var(--victron);
-  color: var(--victron-glow);
-  background: rgba(var(--victron-rgb), 0.14);
-}
-
-.chip:focus-visible,
-.chipOn:focus-visible {
-  outline: 2px solid var(--victron-glow);
-  outline-offset: 2px;
-}
-
 .check {
   display: flex;
   align-items: center;
@@ -243,39 +212,6 @@
   margin: 0;
   color: var(--paper);
   font-variant-numeric: tabular-nums;
-}
-
-.checklist {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.checkDone,
-.checkTodo {
-  padding-left: 26px;
-  position: relative;
-  color: var(--paper);
-}
-
-.checkDone::before,
-.checkTodo::before {
-  position: absolute;
-  left: 0;
-  font-family: var(--font-mono);
-}
-
-.checkDone::before {
-  content: '✓';
-  color: var(--good);
-}
-
-.checkTodo::before {
-  content: '→';
-  color: var(--mute);
 }
 
 @media (max-width: 520px) {

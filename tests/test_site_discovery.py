@@ -140,10 +140,18 @@ def test_a_second_pass_does_not_record_it_again(store):
     assert run(store, accounts, records)["found"] == 0 and len(store["new_installations"]) == 1
 
 
-def test_customer_account_counts_only_its_own_sites(store):
-    # Emtec has a site, but under another customer: for customer c2 it is still new.
-    out = run(store, [("c2", "tok")], {"tok": [inst(997979, "Emtec", 2)]})
-    assert out["found"] == 1 and store["new_installations"][0]["customer_id"] == "c2"
+def test_a_system_watched_by_anyone_is_not_announced_to_a_customer(store):
+    # Emtec already has a site (under c1): customer c2 seeing it in their account is not told.
+    out = run(store, [("c2", "tok")], {"tok": [inst(997979, "Emtec", 2), inst(1060401, "Patrick Jagger", 2)]})
+    assert out["found"] == 1 and store["new_installations"][0]["name"] == "Patrick Jagger"
+
+
+def test_a_system_in_the_admin_account_is_only_the_admins(store):
+    # Kame House is in the admin's account and in an installer customer's: only the admin is told.
+    records = {"admin": [inst(1068118, "Kame House", 1)], "tok": [inst(1068118, "Kame House", 1), inst(1060401, "Patrick Jagger", 1)]}
+    run(store, [("c2", "tok"), (None, "admin")], records)
+    found = {(r["customer_id"], r["name"]) for r in store["new_installations"]}
+    assert found == {(None, "Kame House"), ("c2", "Patrick Jagger")}
 
 
 def test_a_waiting_row_closes_once_a_site_exists(store):
@@ -185,3 +193,19 @@ def test_deliver_tells_the_admin_once(store, monkeypatch):
     out = sd.deliver(now=NOW, push=True, email=False)
     assert out["pushed"] == 1 and sent[0][0]["title"] == "New system found in VRM" and sent[0][0]["body"].startswith("Kame House")
     assert sd.deliver(now=NOW, push=True, email=False)["pushed"] == 0
+
+
+def test_one_email_per_address(store, monkeypatch):
+    # In test mode every account's email goes to one inbox: one email, each system listed once.
+    store["new_installations"] += [
+        {"id": "a", "customer_id": None, "vrm_installation_id": 1, "name": "Kame House", "status": "new", "notified_at": None},
+        {"id": "b", "customer_id": "c2", "vrm_installation_id": 1, "name": "Kame House", "status": "new", "notified_at": None},
+        {"id": "c", "customer_id": "c2", "vrm_installation_id": 2, "name": "Patrick Jagger", "status": "new", "notified_at": None}]
+    store["customers"] = [{"id": "c2", "contact_email": "x@y.com", "ui_language": "en"}]
+    monkeypatch.setattr(__import__('vrm_api.alerts_delivery', fromlist=['x']), "email_mode", lambda: "test")
+    monkeypatch.setenv("ALERTS_EMAIL_TEST_TO", "inbox@test.com")
+    sent = []
+    monkeypatch.setattr(sd, "_email", lambda to, cards, strings, lang: sent.append((to, [c["name"] for c in cards])))
+    out = sd.deliver(now=NOW, push=False, email=True)
+    assert out["emailed"] == 1 and sent == [("inbox@test.com", ["Kame House", "Patrick Jagger"])]
+    assert all(r["notified_at"] for r in store["new_installations"])

@@ -5,9 +5,9 @@ theirs, and keeps a `vrm.new_installations` row (sql/vrm_new_installations.sql) 
 the last `RECENT` days that has no site yet. Older unmonitored installations are left alone: they are already
 listed on the admin's "Link installations" page, and announcing them all at once would be noise.
 
-"No site yet" depends on whose account it is:
-  admin account     no site anywhere for that installation (the admin decides which customer it goes to)
-  a customer's      no site for it under THAT customer
+Only systems nobody watches yet are announced: one with a site anywhere is never announced (and a waiting row
+for it is closed). A system that is also in the admin's own account is the admin's to add, so customers who can
+see it too (an installer account, the QA customer) are not told about it.
 
 `deliver()` sends one push (and, for the admin, one email) per new row. `add()` creates the site from the
 wizard's values and starts its first import: the daily totals and the 15-minute readings from the day the
@@ -84,16 +84,13 @@ def run_pass(*, now: datetime | None = None, client_factory=VrmRemoteClient, acc
     summary = {"accounts": 0, "found": 0, "closed": 0, "failed": 0}
     sites = _t("sites").select("site_id, customer_id, vrm_installation_id").not_.is_("vrm_installation_id", "null").execute().data or []
     site_of_any: dict[int, str] = {}
-    site_of: dict[tuple[str, int], str] = {}
     for s in sites:
-        iid = int(s["vrm_installation_id"])
-        site_of_any.setdefault(iid, s["site_id"])
-        site_of[(s["customer_id"], iid)] = s["site_id"]
+        site_of_any.setdefault(int(s["vrm_installation_id"]), s["site_id"])
     known = {(r.get("customer_id"), int(r["vrm_installation_id"])): r
              for r in (_t("new_installations").select("id, customer_id, vrm_installation_id, status").execute().data or [])}
 
     def linked(customer_id, iid) -> str | None:
-        return site_of_any.get(iid) if customer_id is ADMIN_KEY else site_of.get((customer_id, iid))
+        return site_of_any.get(iid)
 
     # A waiting row whose installation got a site some other way (the old link page, a customer connecting) is closed.
     for (customer_id, iid), row in known.items():
@@ -102,7 +99,10 @@ def run_pass(*, now: datetime | None = None, client_factory=VrmRemoteClient, acc
             _t("new_installations").update({"status": "added", "site_id": site_id, "closed_at": now.isoformat()}).eq("id", row["id"]).execute()
             summary["closed"] += 1
 
-    for customer_id, token in (accounts if accounts is not None else _accounts()):
+    admin_sees: set[int] = set()
+    accounts = accounts if accounts is not None else _accounts()
+    accounts = sorted(accounts, key=lambda a: a[0] is not ADMIN_KEY)      # the admin's account first
+    for customer_id, token in accounts:
         summary["accounts"] += 1
         try:
             client = client_factory(token)
@@ -116,6 +116,10 @@ def run_pass(*, now: datetime | None = None, client_factory=VrmRemoteClient, acc
             if not isinstance(record, dict) or record.get("idSite") is None:
                 continue
             iid = int(record["idSite"])
+            if customer_id is ADMIN_KEY:
+                admin_sees.add(iid)
+            elif iid in admin_sees:
+                continue
             created = _epoch(record.get("syscreated"))
             if (customer_id, iid) in known or linked(customer_id, iid) or created is None or now - created > RECENT:
                 continue
@@ -165,6 +169,10 @@ def _email(to: str, cards: list[dict], strings: dict, lang: str) -> None:
     mailer_send(to, f"[VRM Monitor] {subject}", html)
 
 
+def _mark_told(ids: list[str], now: datetime) -> None:
+    _t("new_installations").update({"notified_at": now.isoformat()}).in_("id", ids).is_("notified_at", "null").execute()
+
+
 def deliver(*, now: datetime | None = None, push: bool | None = None, email: bool | None = None, site_url: str | None = None) -> dict:
     """One message per account for everything found since the last one. A row is marked told once ANY channel reached
     someone; with no channel at all it stays untold, and the in-app banner still shows it."""
@@ -183,20 +191,22 @@ def deliver(*, now: datetime | None = None, push: bool | None = None, email: boo
     if ids:
         customers = {c["id"]: c for c in (_t("customers").select("id, contact_email, auth_email, ui_language").in_("id", ids).execute().data or [])}
 
+    emails: dict[str, dict] = {}       # one email per address, even when several accounts send to it (test mode)
     for customer_id, group in by_account.items():
         admin = customer_id is None
         customer = customers.get(customer_id) or {}
         lang = ((os.environ.get("ADMIN_ALERTS_LANG") or "en") if admin else (customer.get("ui_language") or "en")).strip().lower()
         strings = {**email_i18n.get(lang), "alert_footer": email_i18n.get(lang)["new_site_found_footer"]}
         cards = _cards(group, strings, admin=admin, site_url=site_url)
-        reached = False
+        ids = [r["id"] for r in group]
         if push_on:
             try:
                 devices = alerts_push.destinations(include_admin_devices=True) if admin else alerts_push.destinations(customer_id=customer_id)
                 if devices:
                     result = alerts_push.deliver(devices, _push(cards, strings), urgency="normal", now=now)
                     summary["pushed"] += result["delivered"]
-                    reached = reached or result["delivered"] > 0
+                    if result["delivered"] > 0:
+                        _mark_told(ids, now)
             except Exception:  # noqa: BLE001
                 logger.exception("site_discovery: push failed for %s", customer_id or "the admin")
         if email_on:
@@ -208,15 +218,20 @@ def deliver(*, now: datetime | None = None, push: bool | None = None, email: boo
             else:
                 to = (customer.get("contact_email") or customer.get("auth_email") or "").strip()
             if to and "@" in to:
-                try:
-                    _email(to, cards, strings, lang)
-                    summary["emailed"] += 1
-                    reached = True
-                except Exception:  # noqa: BLE001
-                    logger.exception("site_discovery: email failed for %s", customer_id or "the admin")
-        if reached:
-            _t("new_installations").update({"notified_at": now.isoformat()}).in_("id", [r["id"] for r in group]).execute()
-            summary["accounts"] += 1
+                slot = emails.setdefault(to.lower(), {"to": to, "cards": [], "names": set(), "ids": [], "strings": strings, "lang": lang})
+                for card in cards:
+                    if card["name"] not in slot["names"]:      # the same system found in two accounts is listed once
+                        slot["names"].add(card["name"])
+                        slot["cards"].append(card)
+                slot["ids"] += ids
+        summary["accounts"] += 1
+    for slot in emails.values():
+        try:
+            _email(slot["to"], slot["cards"], slot["strings"], slot["lang"])
+            summary["emailed"] += 1
+            _mark_told(slot["ids"], now)
+        except Exception:  # noqa: BLE001
+            logger.exception("site_discovery: email failed for %s", slot["to"])
     return summary
 
 
