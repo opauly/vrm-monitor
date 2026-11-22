@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from database.supabase_client import get_client
-from victron import forecast, open_meteo, weather_store
+from victron import export_policy, forecast, open_meteo, weather_store
 from victron.vrm_remote import VrmRemoteClient
 from victron.vrm_series import DEFAULT_TZ_NAME
 from vrm_api import samples_service, secrets
@@ -113,7 +113,7 @@ def usual_load_profile(site: dict) -> list[float] | None:
 
 def _history(site_id: str, now_utc: datetime) -> list[dict]:
     since = (now_utc - timedelta(days=HISTORY_DAYS)).date().isoformat()
-    rows = (_t("energy_daily").select("id, date, pv_kwh, battery_reached_float, complete_day").eq("site_id", site_id).gte("date", since).execute().data or [])
+    rows = (_t("energy_daily").select("id, date, pv_kwh, max_soc, battery_reached_float, complete_day").eq("site_id", site_id).gte("date", since).execute().data or [])
     by_date: dict[str, dict] = {}
     for row in rows:
         if row.get("complete_day") is False:
@@ -130,6 +130,13 @@ def _soc(site_id: str, now_utc: datetime) -> float | None:
     seen = _parse(rows[0].get("captured_at"))
     soc = rows[0].get("soc_pct")
     return float(soc) if seen is not None and now_utc - seen <= OFFLINE_AFTER and isinstance(soc, (int, float)) else None
+
+
+def _export_limit_w(site_id: str) -> float | None:
+    """The most this site may export (0 = nothing), from the GX settings the live sweep stores; None = no limit or not known."""
+    rows = _t("site_snapshots").select("raw").eq("site_id", site_id).execute().data or []
+    policy = ((rows[0].get("raw") or {}) if rows else {}).get("export")
+    return float(policy["limit_w"]) if export_policy.capped(policy) and policy.get("limit_w") is not None else None
 
 
 def get_forecast(site_id: str, *, now: datetime | None = None, force: bool = False, mode: str | None = None,
@@ -175,7 +182,8 @@ def get_forecast(site_id: str, *, now: datetime | None = None, force: bool = Fal
 
     result = forecast.build_forecast(
         weather=weather, now=_local_now(tz, now), pv_history=_history(site_id, now), load_profile_w=profile.get("load_w"),
-        soc_pct=_soc(site_id, now), battery_kwh=site.get("battery_usable_kwh"), pv_kwp=site.get("pv_kwp"), system_type=site.get("system_type"))
+        soc_pct=_soc(site_id, now), battery_kwh=site.get("battery_usable_kwh"), pv_kwp=site.get("pv_kwp"), system_type=site.get("system_type"),
+        export_limit_w=_export_limit_w(site_id))
     result = {"available": True, "generated_at": now.isoformat(), "source": "open-meteo", "timezone": tz, **result}
 
     row = {"site_id": site_id, "generated_at": now.isoformat(), "load_profile": profile or None, "result": result}
@@ -194,6 +202,7 @@ def compact(result: dict | None) -> dict | None:
     solar = tomorrow.get("solar") or {}
     return {
         "tomorrow_sky": tomorrow.get("sky"), "tomorrow_pv_kwh": solar.get("kwh"), "tomorrow_vs_typical_pct": solar.get("vs_typical_pct"),
+        "export_capped": bool((result.get("export") or {}).get("capped")),
         "typical_pv_kwh": (result.get("calibration") or {}).get("typical_pv_kwh"),
         "storm": "storm" in advice, "storm_windows": result.get("storm_windows") or [], "storm_battery": result.get("storm_battery") or [],
         "backup_hours": backup.get("hours") if backup else None, "backup_reaches_sunrise": backup.get("reaches_sunrise") if backup else None,

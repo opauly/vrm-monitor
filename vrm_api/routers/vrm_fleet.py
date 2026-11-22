@@ -75,6 +75,7 @@ from database.supabase_client import get_client
 from victron import ingest as victron_ingest
 from vrm_api import admin_alerts, alarm_log_service, alerts_delivery, alerts_push, alerts_service, devices_service, insight_notices_service
 from victron.anomaly_battery import check_incomplete_charging
+from victron import export_policy
 from victron.anomaly_drift import check_quiet_drift, check_underperformance
 from victron.anomaly_silence import check_unexpected_silence
 from victron.vrm_live import fetch_live_snapshot
@@ -808,10 +809,17 @@ def post_detect_anomalies_daily() -> FleetAnomalyDetectDailyOut:
     energy_daily_by_site: dict[str, list[dict]] = {}
     if site_ids:
         lookback_date = (datetime.now(timezone.utc) - timedelta(days=_DRIFT_ENERGY_LOOKBACK_DAYS)).date().isoformat()
-        energy_rows = (_t("energy_daily").select("site_id, date, pv_kwh, complete_day, battery_reached_float")
+        energy_rows = (_t("energy_daily").select("site_id, date, pv_kwh, max_soc, complete_day, battery_reached_float")
                       .in_("site_id", site_ids).gte("date", lookback_date).execute().data or [])
         for row in energy_rows:
             energy_daily_by_site.setdefault(row["site_id"], []).append(row)
+    # A grid site that may not export (or only up to a limit; the GX settings the live sweep stores) holds its panels back
+    # once the battery is full: those days say nothing about the panels, so the solar checks leave them out.
+    capped_sites: set[str] = set()
+    if site_ids:
+        for snap in _t("site_snapshots").select("site_id, raw").in_("site_id", site_ids).execute().data or []:
+            if export_policy.capped((snap.get("raw") or {}).get("export") if isinstance(snap.get("raw"), dict) else None):
+                capped_sites.add(snap["site_id"])
 
     checked, skipped, failed = 0, 0, 0
     for site in sites:
@@ -829,6 +837,10 @@ def post_detect_anomalies_daily() -> FleetAnomalyDetectDailyOut:
             logger.exception("vrm-fleet detect-anomalies-daily: incomplete_charging check failed for site %s",
                              site["site_id"])
             failed += 1
+
+        if site["site_id"] in capped_sites and site.get("system_type") != "off_grid":
+            rows = [r for r in rows if not (r.get("battery_reached_float") is True
+                                            or (r.get("max_soc") is not None and float(r["max_soc"]) >= 98))]
 
         lat, lon = site.get("latitude"), site.get("longitude")
         if lat is None or lon is None:

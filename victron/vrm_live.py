@@ -82,6 +82,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pandas as pd
 
+from victron import export_policy
 from victron.vrm_series import (
     ALARM_CATEGORIES,
     CRITICAL_ALARM_CATEGORIES,
@@ -477,6 +478,8 @@ def fetch_live_snapshot(client, id_site, site_id: str, *, tz: str = DEFAULT_TZ_N
             # docstring. `None` when the site has no PVP at all, same as
             # every other missing signal here.
             "pv_chargers": pv_chargers,
+            # May this site export, and how much (`export_policy.read`): the forecast and the daily summary read it.
+            "export": export_policy.read(diagnostics),
             # Per-phase load breakdown — same idea as pv_chargers, always
             # present when load_power_w is (both come from the same a1/a2
             # series), `None` only when this site publishes no AC

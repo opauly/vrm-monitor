@@ -333,3 +333,14 @@ def test_new_site_headline():
     rows = [day("2026-10-05", complete_day=False)]
     out = insight_ai.render_template(build(rows), "en", "site", today="2026-10-06")
     assert out["headline"].startswith("Yesterday, first day of monitoring:")
+
+
+def test_a_capped_site_with_a_full_battery_held_its_solar_back_on_purpose():
+    snap = {"captured_at": (NOW - timedelta(minutes=5)).isoformat(), "soc_pct": 99.0, "raw": {"export": {"mode": "none", "limit_w": 0}}}
+    rows = history(pv=8.0, max_soc=99.0)            # well below the usual 20 kWh, battery full
+    got = codes(build(rows, snapshot=snap))
+    assert "solar_held_back" in got and "solar_below" not in got
+    # The same day on a site that may export is low solar.
+    free = {**snap, "raw": {"export": {"mode": "free", "limit_w": None}}}
+    got = codes(build(rows, snapshot=free))
+    assert "solar_below" in got and "solar_held_back" not in got

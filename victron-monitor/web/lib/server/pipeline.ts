@@ -460,7 +460,9 @@ export type ForecastDay = {
   temp_max_c: number | null;
   rain_prob_pct: number | null;
   storm: boolean;
-  solar: { kwh: number | null; low_kwh: number | null; high_kwh: number | null; vs_typical_pct: number | null } | null;
+  solar: { kwh: number | null; low_kwh: number | null; high_kwh: number | null; vs_typical_pct: number | null;
+    /** Set when the site may not export (or only up to a limit): `kwh` is what it can use, this is what the sun could give. */
+    potential_kwh?: number | null; capped?: boolean; export_limit_w?: number | null } | null;
 };
 
 /** Mirrors `vrm_api/forecast_service.py:get_forecast()`. `available: false` = nothing to show. */

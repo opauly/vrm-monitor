@@ -134,7 +134,7 @@ def site_facts_for(sites: list[dict], now: datetime, *, build_forecasts: bool = 
                 floors[row["site_id"]] = float(value)
     except Exception:  # noqa: BLE001 — table not created yet
         logger.info("insights: could not read vrm.site_devices")
-    snapshots = {r["site_id"]: r for r in (_t("site_snapshots").select("site_id, captured_at, soc_pct, pv_power_w, load_power_w")
+    snapshots = {r["site_id"]: r for r in (_t("site_snapshots").select("site_id, captured_at, soc_pct, pv_power_w, load_power_w, raw")
                                            .in_("site_id", ids).execute().data or [])}
 
     out: dict[str, dict] = {}

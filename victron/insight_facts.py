@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from victron import forecast as forecast_rules
+from victron import export_policy, forecast as forecast_rules
 
 OFFLINE_AFTER = timedelta(minutes=45)  # same freshness the dashboard and alerts use
 GENERATOR_MIN_KWH = 0.5      # AC-input energy in a day (off-grid) that counts as "the generator ran"
@@ -35,7 +35,7 @@ BATTERY_PEAK_FINE_PCT = 90   # a battery whose daily peak averages this or more,
 ATTENTION, GOOD, INFO = "attention", "good", "info"
 
 _ORDER = [
-    "offline", "offline_days", "alert_", "new_site", "storm_ahead_low", "storm_ahead_low_off_grid", "storm_ahead", "storm_ahead_charged", "outage_deep", "tonight_short", "tomorrow_solar_storm_", "anomaly_", "battery_not_full_", "battery_low", "generator_reliance", "at_reserve", "generator_used", "solar_below",
+    "offline", "offline_days", "alert_", "new_site", "storm_ahead_low", "storm_ahead_low_off_grid", "storm_ahead", "storm_ahead_charged", "outage_deep", "tonight_short", "tomorrow_solar_storm_", "anomaly_", "battery_not_full_", "battery_low", "generator_reliance", "at_reserve", "generator_used", "solar_held_back_", "solar_held_back", "solar_below",
     "tomorrow_low_solar", "import_high", "outage_held", "load_above", "no_float", "export", "solar_above", "tomorrow_high_solar",
     "load_below", "self_sufficient",
 ]
@@ -113,6 +113,11 @@ def build_site_facts(*, site: dict, energy_rows: list[dict], health_row: dict | 
                  "battery_kwh": _r(_num(site.get("battery_usable_kwh"))),
                  "soc_floor_pct": _r(soc_floor_pct) if soc_floor_pct is not None and site.get("system_type") != "off_grid" else None},
     }
+    # May it send solar to the grid (the GX's settings, stored by the live sweep)? A grid site that may not, or only up to
+    # a limit, holds its panels back once the battery is full: a low-solar day can be the cap, not the panels.
+    policy = ((snapshot or {}).get("raw") or {}).get("export") if isinstance((snapshot or {}).get("raw"), dict) else None
+    if site.get("system_type") != "off_grid" and export_policy.capped(policy):
+        facts["site"]["export"] = {"mode": policy["mode"], "limit_w": policy.get("limit_w")}
 
     # ── the latest complete day, and the days before it ──────────────────
     row = latest_day(energy_rows)
@@ -277,8 +282,15 @@ def observations(facts: dict, *, system_type: str | None) -> list[dict]:
         if gen["days"] >= GENERATOR_RELIANCE_DAYS:
             add("generator_reliance", ATTENTION, days=gen["days"], window=gen["window_days"])
 
+    export = facts["site"].get("export")
+    held_back = bool(export) and day.get("max_soc_pct") is not None and day["max_soc_pct"] >= FULL_SOC_PCT
+    if held_back:
+        if export["mode"] == "limited":
+            add("solar_held_back_limited", INFO, limit_w=export["limit_w"])
+        else:
+            add("solar_held_back", INFO)
     pv, avg_pv = day["pv_kwh"], prev.get("pv_kwh")
-    if pv is not None and avg_pv and avg_pv >= 1 and vs.get("pv") is not None:
+    if pv is not None and avg_pv and avg_pv >= 1 and vs.get("pv") is not None and not (held_back and pv < avg_pv):
         if pv < 0.7 * avg_pv:
             add("solar_below", ATTENTION, pv=pv, average=avg_pv, change_pct=vs["pv"])
         elif pv > 1.2 * avg_pv:

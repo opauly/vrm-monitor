@@ -91,13 +91,21 @@ export function ForecastPanel({ lang, endpoint }: { lang: Lang; endpoint: string
           </div>
           {solar && solar.kwh !== null && (
             <div className={styles.line}>
-              {fill(t(lang, 'forecast_solar'), { kwh: solar.kwh, low: solar.low_kwh, high: solar.high_kwh })}
+              {solar.capped
+                ? fill(t(lang, 'forecast_solar_capped'), { kwh: solar.kwh })
+                : fill(t(lang, 'forecast_solar'), { kwh: solar.kwh, low: solar.low_kwh, high: solar.high_kwh })}
               {vs !== null && (
                 <span className={styles.muted}>
                   {' · '}
                   {Math.abs(vs) < 5 ? t(lang, 'forecast_vs_typical') : fill(t(lang, vs < 0 ? 'forecast_vs_below' : 'forecast_vs_above'), { pct: Math.abs(vs) })}
                 </span>
               )}
+            </div>
+          )}
+          {solar?.capped && solar.potential_kwh != null && solar.kwh != null && solar.potential_kwh > solar.kwh && (
+            <div className={styles.muted}>
+              {fill(t(lang, solar.export_limit_w ? 'forecast_solar_capped_limit_note' : 'forecast_solar_capped_note'),
+                { potential: solar.potential_kwh, limit: solar.export_limit_w ?? 0 })}
             </div>
           )}
           {battery && (battery.full_by || battery.show_peak) && (

@@ -57,6 +57,8 @@ OBS = {
         "generator_reliance": "The generator was needed on {days} of the last {window} days.",
         "new_site": "This system was just added to monitoring, so there is no history to compare it with yet; the first days can include setup and commissioning.",
         "at_reserve": "At its lowest the battery reached {min_soc}%, the minimum charge the system is set to keep — the grid covered the rest.",
+        "solar_held_back": "The battery filled up, and this system is set not to send solar to the grid, so once the home's needs were covered the panels were held back on purpose.",
+        "solar_held_back_limited": "The battery filled up, and this system is set to send at most {limit_w} W to the grid, so beyond that the panels were held back on purpose.",
         "solar_below": "Solar made {pv} kWh, well below the recent average of {average} kWh.",
         "solar_above": "Solar made {pv} kWh, above the recent average of {average} kWh.",
         "load_above": "Usage was {load} kWh, higher than the recent average of {average} kWh.",
@@ -107,6 +109,8 @@ OBS = {
         "generator_reliance": "Se necesitó el generador en {days} de los últimos {window} días.",
         "new_site": "Este sistema se acaba de agregar al monitoreo, así que todavía no hay historial para compararlo; los primeros días pueden incluir la instalación y puesta en marcha.",
         "at_reserve": "En su punto más bajo la batería llegó a {min_soc}%, la carga mínima que el sistema está configurado para conservar; la red cubrió el resto.",
+        "solar_held_back": "La batería se llenó y este sistema está configurado para no enviar energía solar a la red, así que una vez cubierto el consumo de la casa los paneles se limitaron a propósito.",
+        "solar_held_back_limited": "La batería se llenó y este sistema está configurado para enviar como máximo {limit_w} W a la red, así que por encima de eso los paneles se limitaron a propósito.",
         "solar_below": "La energía solar fue de {pv} kWh, bastante por debajo del promedio reciente de {average} kWh.",
         "solar_above": "La energía solar fue de {pv} kWh, por encima del promedio reciente de {average} kWh.",
         "load_above": "El consumo fue de {load} kWh, más alto que el promedio reciente de {average} kWh.",
@@ -148,6 +152,8 @@ SUGGEST = {
         "tonight_short": "Keeping heavy loads off tonight will help the battery last until sunrise.",
         "tomorrow_low_solar": "With less sun than usual, go easy on heavy loads, especially tonight.",
         "tomorrow_high_solar": "Tomorrow is a good day to run heavy loads around midday.",
+        "solar_held_back": "Sunny hours with a full battery are the best time for heavy loads: they use solar that would otherwise be held back.",
+        "solar_held_back_limited": "Sunny hours with a full battery are the best time for heavy loads: they use solar that would otherwise be held back.",
         "solar_below": "If this keeps up, check the panels for dirt or shade.",
         "import_high": "Running heavy loads around midday uses more of your own solar.",
         "battery_low": "Keeping the battery topped up ahead of an outage gives you more backup time.",
@@ -167,6 +173,8 @@ SUGGEST = {
         "tonight_short": "Evitar las cargas pesadas esta noche ayudará a que la batería dure hasta el amanecer.",
         "tomorrow_low_solar": "Con menos sol de lo normal, modera las cargas pesadas, sobre todo esta noche.",
         "tomorrow_high_solar": "Mañana es un buen día para usar las cargas pesadas alrededor del mediodía.",
+        "solar_held_back": "Las horas soleadas con la batería llena son el mejor momento para las cargas pesadas: usan energía solar que de otro modo se limitaría.",
+        "solar_held_back_limited": "Las horas soleadas con la batería llena son el mejor momento para las cargas pesadas: usan energía solar que de otro modo se limitaría.",
         "solar_below": "Si esto continúa, revisa si los paneles tienen suciedad o sombra.",
         "import_high": "Usar las cargas pesadas alrededor del mediodía aprovecha más tu propia energía solar.",
         "battery_low": "Mantener la batería cargada antes de un corte te da más tiempo de respaldo.",
@@ -356,6 +364,7 @@ def _system_prompt(lang: str, scope: str) -> str:
         "unless an OBSERVATION or the DRAFT's suggestion says so; do not say a storm lowers solar unless an OBSERVATION says the solar is lower. "
         "Never call a battery low, weak or failing unless an OBSERVATION says so; a battery that peaks near full is fine. "
         "A battery's lowest charge is not where it stayed: never say it stayed or was held at a level all day. "
+        "If an OBSERVATION says the solar was held back on purpose, never call the solar low or poor and never suggest checking the panels. "
         "If an OBSERVATION says the system was just added, the headline says it is one of its first days of monitoring, and nothing in the summary judges "
         "the day (grid use, battery, self-sufficiency) as a problem or as unusual. "
         "The suggestion is the DRAFT's suggestion, reworded, or null when the DRAFT has none; never invent a different action. "

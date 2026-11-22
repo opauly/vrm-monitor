@@ -132,17 +132,25 @@ def sky(day: dict) -> str:
 
 # ── solar response ───────────────────────────────────────────────────────────
 
-def calibrate(history: list[dict], day_weather: dict[str, dict], *, today: str, pv_kwp: float | None) -> dict:
-    """`{k, low, high, days, source}`: kWh made per kWh/m² of sunlight, and its spread."""
-    ratios, produced = [], []
+def calibrate(history: list[dict], day_weather: dict[str, dict], *, today: str, pv_kwp: float | None, capped: bool = False) -> dict:
+    """`{k, low, high, days, source}`: kWh made per kWh/m² of sunlight, and its spread.
+    `capped`: the site may not export everything, so a day whose battery filled was held back and says nothing about
+    what the panels can do; only the days whose battery did not fill calibrate it."""
+    ratios, all_ratios, produced = [], [], []
     for row in history:
         date, pv = str(row.get("date")), row.get("pv_kwh")
         if date >= today or pv is None or pv <= 0.2:
             continue
         produced.append(float(pv))
         ghi = (day_weather.get(date) or {}).get("ghi_kwh_m2")
-        if ghi and ghi >= MIN_GHI_KWH_M2:
+        if not ghi or ghi < MIN_GHI_KWH_M2:
+            continue
+        all_ratios.append(float(pv) / ghi)
+        held_back = row.get("battery_reached_float") is True or (row.get("max_soc") is not None and float(row["max_soc"]) >= FULL_PCT)
+        if not (capped and held_back):
             ratios.append(float(pv) / ghi)
+    if capped and len(ratios) < MIN_CALIBRATION_DAYS and not pv_kwp:
+        ratios = all_ratios        # no size to fall back on: the held-back days still beat nothing (they read low, never high)
     typical = _r(median(produced[-14:]), 1) if produced else None
     if len(ratios) >= MIN_CALIBRATION_DAYS:
         k = median(ratios)
@@ -221,6 +229,27 @@ def simulate(*, start: datetime, end: datetime, energy_kwh: float, capacity_kwh:
     return {"energy_kwh": energy, "empty_at": empty_at, "full_at": full_at, "peak_kwh": peak}
 
 
+def usable_solar(*, start: datetime, end: datetime, energy_kwh: float, capacity_kwh: float, k: float, ghi: dict[str, float],
+                 load_w: list[float], export_limit_w: float) -> float:
+    """The solar a site that may export at most `export_limit_w` can actually use between `start` and `end`: what the
+    loads take, what fits in the battery, and what may go to the grid. The rest is held back by the inverter."""
+    energy, used = energy_kwh, 0.0
+    for hour, frac in _hour_steps(start, end):
+        pv = k * ghi.get(hour.strftime("%Y-%m-%dT%H"), 0.0) / 1000 * frac
+        use = load_w[hour.hour] / 1000 * frac
+        to_load = min(pv, use)
+        surplus = pv - to_load
+        to_battery = min(surplus, max(capacity_kwh - energy, 0.0))
+        to_grid = min(surplus - to_battery, export_limit_w / 1000 * frac)
+        used += to_load + to_battery + to_grid
+        energy = min(max(energy + pv - use, 0.0), capacity_kwh)
+    return used
+
+
+def _sun_before(ghi: dict[str, float], k: float, day_start: datetime, now: datetime) -> float:
+    return sum(k * ghi.get(h.strftime("%Y-%m-%dT%H"), 0.0) / 1000 * f for h, f in _hour_steps(day_start, now))
+
+
 def usually_fills(history: list[dict], *, today: str) -> bool:
     """Has this site's battery regularly reached a full charge lately? (>= half of the
     last 14 recorded days, with at least 5 of them recorded.)"""
@@ -232,12 +261,18 @@ def usually_fills(history: list[dict], *, today: str) -> bool:
 # ── the forecast ─────────────────────────────────────────────────────────────
 
 def build_forecast(*, weather: dict, now: datetime, pv_history: list[dict], load_profile_w: list[float] | None,
-                   soc_pct: float | None, battery_kwh: float | None, pv_kwp: float | None, system_type: str | None) -> dict:
-    """`now` = local naive time at the site. `load_profile_w` = 24 usual-hour load figures (W)."""
+                   soc_pct: float | None, battery_kwh: float | None, pv_kwp: float | None, system_type: str | None,
+                   export_limit_w: float | None = None) -> dict:
+    """`now` = local naive time at the site. `load_profile_w` = 24 usual-hour load figures (W).
+    `export_limit_w` = the most this site may send to the grid (0 = none; None = no limit or not known, see
+    `export_policy`). With a limit, the solar figures are what the site can use, not what the sun could give."""
     today = now.date().isoformat()
     tomorrow = (now.date() + timedelta(days=1)).isoformat()
     day_weather = daily_weather(weather)
-    calib = calibrate(pv_history, day_weather, today=today, pv_kwp=pv_kwp)
+    if system_type == "off_grid":
+        export_limit_w = 0.0
+    capped = export_limit_w is not None
+    calib = calibrate(pv_history, day_weather, today=today, pv_kwp=pv_kwp, capped=capped)
     k = calib["k"]
     ghi = _ghi_by_hour(weather)
     typical = calib.get("typical_pv_kwh")
@@ -299,6 +334,39 @@ def build_forecast(*, weather: dict, now: datetime, pv_history: list[dict], load
                     # that never fills (its usual load outweighs its solar) it would be a false alarm.
                     "show_peak": system_type == "off_grid" or usually_fills(pv_history, today=today),
                 }
+
+    # Export capped: the sun's figure becomes what the site can use (loads + battery room + allowed export), hour by hour.
+    if capped and k is not None and load_profile_w and len(load_profile_w) == 24:
+        capacity = float(battery_kwh) if battery_kwh and system_type != "grid_zero" else 0.0
+        energy_now = max(min(soc_pct if soc_pct is not None else 50.0, 100.0), 0.0) / 100 * capacity
+        def daylight(date: str):
+            d = next((x for x in weather.get("daily", []) if str(x.get("sunrise", ""))[:10] == date), None)
+            return (_dt(d["sunrise"]), _dt(d["sunset"])) if d and _dt(d.get("sunrise")) and _dt(d.get("sunset")) else (None, None)
+
+        def cap_card(card: dict, start: datetime, end: datetime, energy: float, before: float) -> None:
+            solar = card.get("solar")
+            if not solar:
+                return
+            def used(kk):
+                return before * (kk / k) + usable_solar(start=start, end=end, energy_kwh=energy, capacity_kwh=capacity, k=kk, ghi=ghi,
+                                                        load_w=load_profile_w, export_limit_w=float(export_limit_w))
+            kwh, low, high = used(k), used(calib["low"]), used(calib["high"])
+            card["solar"] = {**solar, "potential_kwh": solar["kwh"], "kwh": _r(min(kwh, solar["kwh"])),
+                             "low_kwh": _r(min(low, solar["low_kwh"])), "high_kwh": _r(min(high, solar["high_kwh"])), "capped": True,
+                             "export_limit_w": export_limit_w,
+                             "vs_typical_pct": round((min(kwh, solar["kwh"]) / typical - 1) * 100) if typical else None}
+
+        rise, sset = daylight(today)
+        if rise and sset:
+            start = min(max(now, rise), sset)
+            cap_card(result["today"], start, sset, energy_now, _sun_before(ghi, k, rise, start))
+        rise2, sset2 = daylight(tomorrow)
+        if rise2 and sset2:
+            # The battery at tomorrow's sunrise: the night simulation's figure when there was one.
+            night_end = (result.get("backup") or {}).get("soc_at_sunrise_pct")
+            energy_rise = (night_end / 100 * capacity) if night_end is not None else energy_now
+            cap_card(result["tomorrow"], rise2, sset2, energy_rise, 0.0)
+    result["export"] = {"capped": capped, "limit_w": export_limit_w}
 
     result["advice"] = advice(result, typical=typical, system_type=system_type)
     return result
