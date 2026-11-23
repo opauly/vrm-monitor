@@ -52,6 +52,7 @@
      and-replace across nine rules across as many files. */
   --victron-rgb: 7, 137, 212;
   --victron-glow-rgb: 79, 200, 236;
+  --signal-rgb: 242, 169, 59;
   --good-rgb: 63, 191, 143;
   --low-rgb: 229, 100, 90;
 

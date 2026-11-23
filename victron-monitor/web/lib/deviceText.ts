@@ -13,6 +13,7 @@ export function deviceName(lang: Lang, kind: string, n?: number | null, of?: num
   if (kind === 'charger') return (of ?? 1) > 1 ? fill(t(lang, 'devices_name_charger'), { n }) : t(lang, 'devices_name_charger_single');
   if (kind === 'battery') return t(lang, 'devices_name_battery');
   if (kind === 'inverter') return t(lang, 'devices_name_inverter');
+  if (kind === 'pv_inverter') return (of ?? 1) > 1 ? fill(t(lang, 'devices_name_pv_inverter_n'), { n }) : t(lang, 'devices_name_pv_inverter');
   return kind;
 }
 

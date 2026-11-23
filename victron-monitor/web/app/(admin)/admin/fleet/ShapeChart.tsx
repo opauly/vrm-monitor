@@ -478,42 +478,36 @@ export function ShapeChart({
             {status === 'loading' && <div className={styles.updating}>{t(lang, 'shape_chart_updating')}</div>}
             {status === 'partial' && <div className={styles.updating}>{t(lang, 'shape_chart_partial')}</div>}
             {status === 'error' && <div className={styles.updating}>{t(lang, 'shape_chart_refresh_error')}</div>}
-            <svg viewBox={`0 0 ${W} ${layout.height}`} preserveAspectRatio="none">
-              <line x1="0" y1={layout.zeroY} x2={W} y2={layout.zeroY} stroke="var(--line)" strokeWidth={1.2} />
-              {[6, 12, 18].map((h) => (
-                <line key={h} x1={xFor(h)} y1={0} x2={xFor(h)} y2={layout.height} stroke="var(--line)" strokeWidth={1} strokeDasharray="2 4" />
-              ))}
-              {/* Y-axis gridlines behind the data, matching the layout
-                  exactly since both come from the same computeLayout() call
-                  — never a separately-guessed set of numbers that could
-                  drift out of sync with where the lines actually are. */}
-              <line x1="0" y1={4} x2={W} y2={4} stroke="var(--line)" strokeWidth={1} strokeDasharray="2 4" opacity={0.5} />
+            {/* Fixed pixel height at every width (only the width stretches), so a phone gets the same
+                readable chart as a desktop rather than a thin strip. Strokes do not stretch with it, and
+                the axis labels are HTML so they never squash. Colours go through `style`: iOS Safari
+                does not resolve var() inside SVG presentation attributes (the fill rendered black). */}
+            <div className={styles.plot} style={{ height: layout.height }}>
+              <svg viewBox={`0 0 ${W} ${layout.height}`} preserveAspectRatio="none" style={{ height: layout.height }}>
+                <line x1="0" y1={layout.zeroY} x2={W} y2={layout.zeroY} style={{ stroke: 'var(--line)' }} strokeWidth={1.2} vectorEffect="non-scaling-stroke" />
+                {[6, 12, 18].map((h) => (
+                  <line key={h} x1={xFor(h)} y1={0} x2={xFor(h)} y2={layout.height} style={{ stroke: 'var(--line)' }} strokeWidth={1} strokeDasharray="2 4" vectorEffect="non-scaling-stroke" />
+                ))}
+                <line x1="0" y1={4} x2={W} y2={4} style={{ stroke: 'var(--line)' }} strokeWidth={1} strokeDasharray="2 4" opacity={0.5} vectorEffect="non-scaling-stroke" />
+                {layout.hasNegative && (
+                  <line x1="0" y1={layout.height - 4} x2={W} y2={layout.height - 4} style={{ stroke: 'var(--line)' }} strokeWidth={1} strokeDasharray="2 4" opacity={0.5} vectorEffect="non-scaling-stroke" />
+                )}
+                {paths.map(
+                  (p) =>
+                    p.linePath && (
+                      <g key={p.key}>
+                        {p.fillPath && <path d={p.fillPath} style={{ fill: p.fill, stroke: 'none' }} />}
+                        <path d={p.linePath} style={{ fill: 'none', stroke: p.color }} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                      </g>
+                    )
+                )}
+              </svg>
+              <span className={styles.yLabel} style={{ top: 2 }}>{formatW(layout.topW)}</span>
+              <span className={styles.yLabel} style={{ top: Math.max(layout.zeroY - 16, 16) }}>0</span>
               {layout.hasNegative && (
-                <line x1="0" y1={layout.height - 4} x2={W} y2={layout.height - 4} stroke="var(--line)" strokeWidth={1} strokeDasharray="2 4" opacity={0.5} />
+                <span className={styles.yLabel} style={{ top: layout.height - 16 }}>-{formatW(layout.bottomW)}</span>
               )}
-              {paths.map(
-                (p) =>
-                  p.linePath && (
-                    <g key={p.key}>
-                      {p.fillPath && <path d={p.fillPath} fill={p.fill} stroke="none" />}
-                      <path d={p.linePath} fill="none" stroke={p.color} strokeWidth={2.5} strokeLinecap="round" />
-                    </g>
-                  )
-              )}
-              {/* Labels drawn last (on top of the data) so a line passing
-                  near the left edge never covers the axis text. */}
-              <text x={6} y={13} fontSize={11} fill="var(--paper-dim)" fontFamily="var(--font-mono)" style={{ paintOrder: 'stroke' }} stroke="var(--panel)" strokeWidth={3}>
-                {formatW(layout.topW)}
-              </text>
-              <text x={6} y={layout.zeroY - 5} fontSize={11} fill="var(--paper-dim)" fontFamily="var(--font-mono)" style={{ paintOrder: 'stroke' }} stroke="var(--panel)" strokeWidth={3}>
-                0
-              </text>
-              {layout.hasNegative && (
-                <text x={6} y={layout.height - 8} fontSize={11} fill="var(--paper-dim)" fontFamily="var(--font-mono)" style={{ paintOrder: 'stroke' }} stroke="var(--panel)" strokeWidth={3}>
-                  -{formatW(layout.bottomW)}
-                </text>
-              )}
-            </svg>
+            </div>
           </>
         )}
       </div>

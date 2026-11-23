@@ -22,6 +22,9 @@ What is checked (note codes in brackets):
             a VE.Bus error                                     [inverter_error]  bad
             fewer units than ever seen                         [units_missing]   bad
             a unit's warning flags set                         [inverter_warning] warn
+  pv_inverter  (an AC-coupled one such as a Fronius) reports an error status  [pv_inverter_error]  bad
+            It sleeps at night and drops out of the diagnostics, so it is never flagged for
+            not reporting or for going missing.
   any       gone from the diagnostics for 2 sweeps             [missing]        bad
 
 Chargers on a weather day: when EVERY charger at a site is low it is cloud, not a
@@ -69,7 +72,8 @@ def _num(value) -> float | None:
 def _by_instance(records: list[dict]) -> dict[tuple[str, int], dict[str, dict]]:
     out: dict[tuple[str, int], dict[str, dict]] = {}
     for r in records:
-        kind = {"Solar Charger": "charger", "VE.Bus System": "inverter", "Battery Monitor": "battery"}.get(r.get("Device"))
+        kind = {"Solar Charger": "charger", "VE.Bus System": "inverter", "Battery Monitor": "battery",
+                "PV Inverter": "pv_inverter"}.get(r.get("Device"))
         if kind and r.get("instance") is not None and r.get("code"):
             out.setdefault((kind, int(r["instance"])), {})[r["code"]] = r
     return out
@@ -167,6 +171,19 @@ def parse(diagnostics) -> list[dict]:
                 "seen": _ts(rec, ("S", "ERR")), "warning_units": warning_units,
                 "metrics": {"units": len(serial_slots), "state": _text(rec, "S"), "ess_min_soc_pct": ess_floor(records),
                             "vrm_system_type": _system_type(records), "ess_setting_pct": _ess_setting(records)},
+            })
+        elif kind == "pv_inverter":
+            if not any(c in rec for c in ("pS", "pP1")):
+                continue
+            status = _text(rec, "pS") or ""
+            if any(word in status.lower() for word in ("error", "fault")):
+                faults.append(("pv_inverter_error", {"error": status}))
+            # A 240 V inverter on a split-phase system reports half its output on each leg: the legs add up.
+            power = [p for p in (_num(_raw(rec, f"pP{phase}")) for phase in (1, 2, 3)) if p is not None]
+            devices.append({
+                "key": key, "kind": kind, "instance": instance, "label": "Fronius" if "pF" in rec else "", "faults": faults,
+                "seen": _ts(rec, ("pP1", "pS")),
+                "metrics": {"power_w": sum(power) if power else None, "state": status, "position": _text(rec, "pL")},
             })
     totals: dict[str, int] = {}
     for d in devices:
@@ -312,7 +329,7 @@ def evaluate(parsed: list[dict], existing: list[dict], *, now: datetime, local: 
             if RANK[level] > RANK[status]:
                 status, note = level, {"code": code, "params": params}
 
-        if not d["reporting"]:
+        if not d["reporting"] and d["kind"] != "pv_inverter":
             raise_to(BAD, "not_reporting", minutes=int((reference - d["seen"]).total_seconds() // 60))
         for code, params in d["faults"]:
             raise_to(BAD, code, **params)
@@ -357,6 +374,9 @@ def evaluate(parsed: list[dict], existing: list[dict], *, now: datetime, local: 
     present = {d["key"] for d in parsed}
     for key, row in prior.items():
         if key in present:
+            continue
+        if row.get("kind") == "pv_inverter":     # asleep for the night, not gone
+            rows.append({**row, "missing_sweeps": 0})
             continue
         missing = int(row.get("missing_sweeps") or 0) + 1
         gone = {**row, "missing_sweeps": missing, "updated_at": stamp}

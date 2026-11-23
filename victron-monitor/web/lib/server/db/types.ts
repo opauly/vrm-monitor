@@ -422,8 +422,8 @@ export type SiteAlarmPattern = {
 };
 export type SiteDevice = {
   device_key: string;
-  kind: 'charger' | 'battery' | 'inverter';
-  /** Model or maker ("a115", "Pylontech"). */
+  kind: 'charger' | 'battery' | 'inverter' | 'pv_inverter';
+  /** Model or maker ("a115", "Pylontech", "Fronius"). */
   label: string;
   status: DeviceStatus;
   note: { code: string; params: Record<string, string | number | null> } | null;
@@ -434,6 +434,8 @@ export type SiteDevice = {
     modules_online?: number;
     modules_offline?: number;
     units?: number;
+    /** PV inverter: AC output right now, all phases. */
+    power_w?: number | null;
   };
   last_seen: string;
 };

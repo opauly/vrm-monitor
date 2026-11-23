@@ -7,7 +7,7 @@ import 'server-only';
 import { getSupabaseAdmin } from '@/lib/server/supabase';
 import type { SiteAlarmPattern, SiteDevice } from './types';
 
-const KIND_ORDER = { charger: 0, battery: 1, inverter: 2 } as const;
+const KIND_ORDER = { charger: 0, pv_inverter: 1, battery: 2, inverter: 3 } as const;
 const STATUS_ORDER = { bad: 0, warn: 1, ok: 2 } as const;
 
 export async function getSiteDevices(siteId: string): Promise<SiteDevice[]> {
@@ -21,7 +21,7 @@ export async function getSiteDevices(siteId: string): Promise<SiteDevice[]> {
     throw error;
   }
   const rows = (data ?? []) as SiteDevice[];
-  // Problems first, then chargers, battery, inverter, each in its own numbering.
+  // Problems first, then chargers, PV inverters, battery, inverter, each in its own numbering.
   return rows.sort(
     (a, b) =>
       STATUS_ORDER[a.status] - STATUS_ORDER[b.status] ||

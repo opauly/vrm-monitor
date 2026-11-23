@@ -19,6 +19,11 @@ function nowText(lang: Lang, device: SiteDevice): string {
     const online = m.modules_online ?? 0;
     return fill(t(lang, 'devices_now_battery'), { online, total: online + (m.modules_offline ?? 0) });
   }
+  if (device.kind === 'pv_inverter') {
+    const w = m.power_w;
+    if (w === null || w === undefined || w < 1) return t(lang, 'devices_now_pv_inverter_idle');
+    return fill(t(lang, 'devices_now_pv_inverter'), { power: w >= 1000 ? `${(w / 1000).toFixed(1)} kW` : `${Math.round(w)} W` });
+  }
   const units = m.units ?? 1;
   return units === 1 ? t(lang, 'devices_now_inverter_one') : fill(t(lang, 'devices_now_inverter_many'), { n: units });
 }

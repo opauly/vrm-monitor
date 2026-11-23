@@ -98,7 +98,6 @@
 
 .chartWrap {
   position: relative;
-  min-height: 140px;
 }
 .updating {
   /* In the flow above the chart, never over it: on a phone the message wraps
@@ -114,10 +113,22 @@
   border-radius: 12px;
   padding: 3px 10px;
 }
-.chartWrap svg {
+.plot {
+  position: relative;
+}
+.plot svg {
   width: 100%;
-  height: auto;
   display: block;
+}
+.yLabel {
+  position: absolute;
+  left: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--paper-dim);
+  text-shadow: 0 0 3px var(--panel), 0 0 3px var(--panel);
+  pointer-events: none;
 }
 .status {
   font-family: var(--font-mono);

@@ -218,3 +218,28 @@ def test_a_charger_far_below_its_own_normal_while_the_other_is_normal_is_warn_th
     assert again["charger:1"]["status"] == "warn"                    # the same day seen again is still day one
     rows = a_day(again, DAY15, datetime(2026, 10, 15, 22), [10.0, 1.2])
     assert rows["charger:1"]["status"] == "bad"
+
+
+def fronius(status="Running (Throttled)", l1=170, l2=170, ts=TS):
+    d = "PV Inverter"
+    return [rec(d, 20, "pF", 70, ts=ts), rec(d, 20, "pL", 1, "AC output", ts=ts), rec(d, 20, "pS", 0, status, ts=ts),
+            rec(d, 20, "pP1", l1, ts=ts), rec(d, 20, "pP2", l2, ts=ts)]
+
+
+def test_an_ac_coupled_fronius_is_listed_with_its_output_across_both_legs():
+    rows = run(fronius() + battery() + inverter())
+    f = rows["pv_inverter:20"]
+    assert f["status"] == "ok" and f["label"] == "Fronius" and f["metrics"]["power_w"] == 340
+
+
+def test_a_pv_inverter_error_is_bad():
+    assert run(fronius(status="Error"))["pv_inverter:20"]["note"]["code"] == "pv_inverter_error"
+
+
+def test_a_pv_inverter_asleep_at_night_is_never_flagged():
+    first = run(fronius() + battery())
+    stale = run(fronius(ts=TS - 3 * 3600) + battery())         # stopped reporting hours ago
+    assert stale["pv_inverter:20"]["status"] == "ok"
+    gone = run(battery(), list(first.values()))
+    gone = run(battery(), list(gone.values()))                  # gone for two sweeps
+    assert gone["pv_inverter:20"]["status"] == "ok"

@@ -13,7 +13,7 @@ import { t, type Lang } from '@/lib/i18n/strings';
 import { listAdminNewInstallations } from '@/lib/server/db/newInstallations';
 import { FleetFreshness } from './FleetFreshness';
 import { FleetSitesTable } from './FleetSitesTable';
-import { AiSummary, CustomerSwitcher, PropertyCards, PropertySwitcher } from '@/components/app';
+import { AiSummary, CustomerSwitcher, Fold, PropertyCards, PropertySwitcher, SiteFinder, siteItems } from '@/components/app';
 import { FleetLiveSection } from './FleetLiveSection';
 import { ShapeChart } from './ShapeChart';
 import styles from './fleet.module.css';
@@ -202,6 +202,7 @@ export default async function AdminFleetPage({ searchParams }: { searchParams: P
           <span className={styles.healthBannerCta}>{t(lang, 'newsite_add_cta')} →</span>
         </Link>
       )}
+      <SiteFinder sites={siteItems(sites, '/admin/fleet/', true)} lang={lang} />
       <Link href="/admin/vrm-fleet" className={styles.manageLink}>
         {t(lang, 'admin_fleet_link_new')} →
       </Link>
@@ -219,313 +220,320 @@ export default async function AdminFleetPage({ searchParams }: { searchParams: P
 
       <p className={styles.rollupHint}>{t(lang, 'admin_fleet_rollup_hint')}</p>
 
-      <h2 className={styles.rollupGroupLabel}>{t(lang, 'admin_fleet_group_connectivity')}</h2>
-      <div className={styles.rollupRow}>
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_sites_label')}</span>
-            <span className={styles.rollupValue}>{overview.rollup.site_count}</span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_sites_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {sortedAlphabetically(sites).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{connectionLabel(s.connection_status, lang)}</span>
-              </div>
-            ))}
-          </div>
-        </details>
+      <Fold title={t(lang, 'admin_fleet_group_connectivity')}>
+        <div className={styles.rollupRow}>
+          <details className={styles.rollupCard}>
+            <summary>
+              <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_sites_label')}</span>
+              <span className={styles.rollupValue}>{overview.rollup.site_count}</span>
+              <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_sites_desc')}</span>
+            </summary>
+            <div className={styles.rollupBreakdown}>
+              {sortedAlphabetically(sites).map((s) => (
+                <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                  <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                  <span>{connectionLabel(s.connection_status, lang)}</span>
+                </div>
+              ))}
+            </div>
+          </details>
 
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_online_label')}</span>
-            <span className={styles.rollupValue}>
-              {overview.rollup.online_count} / {overview.rollup.site_count}
-            </span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_online_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {sortedByValue(sites, (s) => _CONNECTION_RANK[s.connection_status]).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{connectionLabel(s.connection_status, lang)}</span>
-              </div>
-            ))}
-          </div>
-        </details>
+          <details className={styles.rollupCard}>
+            <summary>
+              <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_online_label')}</span>
+              <span className={styles.rollupValue}>
+                {overview.rollup.online_count} / {overview.rollup.site_count}
+              </span>
+              <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_online_desc')}</span>
+            </summary>
+            <div className={styles.rollupBreakdown}>
+              {sortedByValue(sites, (s) => _CONNECTION_RANK[s.connection_status]).map((s) => (
+                <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                  <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                  <span>{connectionLabel(s.connection_status, lang)}</span>
+                </div>
+              ))}
+            </div>
+          </details>
 
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_grid_reading_label')}</span>
-            <span className={styles.rollupValue}>
-              {meteredSites.length}/{sites.length}
-            </span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_grid_reading_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {sortedAlphabetically(sites).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>
-                  {s.live_grid_source === 'meter' ? t(lang, 'admin_fleet_grid_source_meter')
-                    : s.live_grid_source === 'inverter' ? t(lang, 'admin_fleet_grid_source_inverter')
-                    : t(lang, 'admin_fleet_grid_source_none')}
-                </span>
-              </div>
-            ))}
-          </div>
-        </details>
+          <details className={styles.rollupCard}>
+            <summary>
+              <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_grid_reading_label')}</span>
+              <span className={styles.rollupValue}>
+                {meteredSites.length}/{sites.length}
+              </span>
+              <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_grid_reading_desc')}</span>
+            </summary>
+            <div className={styles.rollupBreakdown}>
+              {sortedAlphabetically(sites).map((s) => (
+                <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                  <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                  <span>
+                    {s.live_grid_source === 'meter' ? t(lang, 'admin_fleet_grid_source_meter')
+                      : s.live_grid_source === 'inverter' ? t(lang, 'admin_fleet_grid_source_inverter')
+                      : t(lang, 'admin_fleet_grid_source_none')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </details>
 
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_history_sync_label')}</span>
-            <span className={styles.rollupValue}>
-              {historySyncedSites.length}/{sites.length}
-            </span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_history_sync_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {/* Oldest/never-synced first — a negated epoch so "never"
-               (null) sorts as the largest, most-concerning value via the
-               same descending numeric sort every other card uses. */}
-            {sortedByValue(sites, (s) => (s.vrm_last_synced_at ? -new Date(s.vrm_last_synced_at).getTime() : Infinity)).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{s.vrm_last_synced_at ? formatDateTime(s.vrm_last_synced_at, 'en-US') : t(lang, 'admin_fleet_never')}</span>
-              </div>
-            ))}
-          </div>
-        </details>
-      </div>
+          <details className={styles.rollupCard}>
+            <summary>
+              <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_history_sync_label')}</span>
+              <span className={styles.rollupValue}>
+                {historySyncedSites.length}/{sites.length}
+              </span>
+              <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_history_sync_desc')}</span>
+            </summary>
+            <div className={styles.rollupBreakdown}>
+              {/* Oldest/never-synced first — a negated epoch so "never"
+                 (null) sorts as the largest, most-concerning value via the
+                 same descending numeric sort every other card uses. */}
+              {sortedByValue(sites, (s) => (s.vrm_last_synced_at ? -new Date(s.vrm_last_synced_at).getTime() : Infinity)).map((s) => (
+                <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                  <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                  <span>{s.vrm_last_synced_at ? formatDateTime(s.vrm_last_synced_at, 'en-US') : t(lang, 'admin_fleet_never')}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+        </div>
+      </Fold>
 
-      <h2 className={styles.rollupGroupLabel}>{t(lang, 'admin_fleet_group_health')}</h2>
-      <div className={styles.rollupRow}>
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>
-              {t(lang, 'admin_fleet_card_avg_system_label')}
-              <InfoTooltip label={t(lang, 'score_info_system_tooltip_label')}>{systemScoreInfo(lang)}</InfoTooltip>
-            </span>
-            <span className={styles.rollupValue}>{overview.rollup.avg_system_score === null ? '—' : `${overview.rollup.avg_system_score}/100`}</span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_avg_system_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {sortedByValue(sites, (s) => s.system_score).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{s.system_score === null ? '—' : `${s.system_score}/100`}</span>
-              </div>
-            ))}
-          </div>
-        </details>
+      <Fold title={t(lang, 'admin_fleet_group_health')}>
+        <div className={styles.rollupRow}>
+          <details className={styles.rollupCard}>
+            <summary>
+              <span className={styles.rollupLabel}>
+                {t(lang, 'admin_fleet_card_avg_system_label')}
+                <InfoTooltip label={t(lang, 'score_info_system_tooltip_label')}>{systemScoreInfo(lang)}</InfoTooltip>
+              </span>
+              <span className={styles.rollupValue}>{overview.rollup.avg_system_score === null ? '—' : `${overview.rollup.avg_system_score}/100`}</span>
+              <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_avg_system_desc')}</span>
+            </summary>
+            <div className={styles.rollupBreakdown}>
+              {sortedByValue(sites, (s) => s.system_score).map((s) => (
+                <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                  <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                  <span>{s.system_score === null ? '—' : `${s.system_score}/100`}</span>
+                </div>
+              ))}
+            </div>
+          </details>
 
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>
-              {t(lang, 'admin_fleet_card_avg_grid_label')}
-              <InfoTooltip label={t(lang, 'score_info_grid_tooltip_label')}>{gridScoreInfo(lang)}</InfoTooltip>
-            </span>
-            <span className={styles.rollupValue}>{overview.rollup.avg_grid_score === null ? '—' : `${overview.rollup.avg_grid_score}/100`}</span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_avg_grid_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {sortedByValue(sites, (s) => s.grid_score).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{s.grid_score === null ? '—' : `${s.grid_score}/100`}</span>
-              </div>
-            ))}
-          </div>
-        </details>
+          <details className={styles.rollupCard}>
+            <summary>
+              <span className={styles.rollupLabel}>
+                {t(lang, 'admin_fleet_card_avg_grid_label')}
+                <InfoTooltip label={t(lang, 'score_info_grid_tooltip_label')}>{gridScoreInfo(lang)}</InfoTooltip>
+              </span>
+              <span className={styles.rollupValue}>{overview.rollup.avg_grid_score === null ? '—' : `${overview.rollup.avg_grid_score}/100`}</span>
+              <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_avg_grid_desc')}</span>
+            </summary>
+            <div className={styles.rollupBreakdown}>
+              {sortedByValue(sites, (s) => s.grid_score).map((s) => (
+                <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                  <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                  <span>{s.grid_score === null ? '—' : `${s.grid_score}/100`}</span>
+                </div>
+              ))}
+            </div>
+          </details>
 
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_alarms_combined_label')}</span>
-            <span className={styles.rollupValue}>
-              {overview.rollup.total_active_alarms} / {overview.rollup.total_active_critical_alerts}
-            </span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_alarms_combined_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {sortedByValue(sites, (s) => s.active_alarms + s.active_critical_alerts).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>
-                  {t(lang, 'admin_fleet_alarms_breakdown')
-                    .replace('{alarms}', String(s.active_alarms))
-                    .replace('{critical}', String(s.active_critical_alerts))}
-                </span>
-              </div>
-            ))}
-          </div>
-        </details>
+          <details className={styles.rollupCard}>
+            <summary>
+              <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_alarms_combined_label')}</span>
+              <span className={styles.rollupValue}>
+                {overview.rollup.total_active_alarms} / {overview.rollup.total_active_critical_alerts}
+              </span>
+              <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_alarms_combined_desc')}</span>
+            </summary>
+            <div className={styles.rollupBreakdown}>
+              {sortedByValue(sites, (s) => s.active_alarms + s.active_critical_alerts).map((s) => (
+                <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                  <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                  <span>
+                    {t(lang, 'admin_fleet_alarms_breakdown')
+                      .replace('{alarms}', String(s.active_alarms))
+                      .replace('{critical}', String(s.active_critical_alerts))}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </details>
 
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_outages_label')}</span>
-            <span className={styles.rollupValue}>
-              {outageSites.length}/{sites.length}
-            </span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_outages_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {sortedByValue(sites, (s) => (s.week.daysWithData === 0 ? null : s.week.outageMinutes)).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{s.week.daysWithData === 0 ? '—' : s.week.outageCount > 0 ? `${s.week.outageCount} (${s.week.outageMinutes} min)` : '0'}</span>
-              </div>
-            ))}
-          </div>
-        </details>
-      </div>
+          <details className={styles.rollupCard}>
+            <summary>
+              <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_outages_label')}</span>
+              <span className={styles.rollupValue}>
+                {outageSites.length}/{sites.length}
+              </span>
+              <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_outages_desc')}</span>
+            </summary>
+            <div className={styles.rollupBreakdown}>
+              {sortedByValue(sites, (s) => (s.week.daysWithData === 0 ? null : s.week.outageMinutes)).map((s) => (
+                <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                  <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                  <span>{s.week.daysWithData === 0 ? '—' : s.week.outageCount > 0 ? `${s.week.outageCount} (${s.week.outageMinutes} min)` : '0'}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+        </div>
+      </Fold>
 
-      <h2 className={styles.rollupGroupLabel}>{t(lang, 'admin_fleet_group_energy')}</h2>
-      <div className={styles.rollupRow}>
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_avg_soc_label')}</span>
-            <span className={styles.rollupValue}>{avgSoc === null ? '—' : `${avgSoc}%`}</span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_avg_soc_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {sortedByValue(sites, (s) => s.live_soc_pct).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{s.live_soc_pct === null ? '—' : `${s.live_soc_pct}%`}</span>
-              </div>
-            ))}
-          </div>
-        </details>
+      <Fold title={t(lang, 'admin_fleet_group_energy')}>
+        <div className={styles.rollupRow}>
+          <details className={styles.rollupCard}>
+            <summary>
+              <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_avg_soc_label')}</span>
+              <span className={styles.rollupValue}>{avgSoc === null ? '—' : `${avgSoc}%`}</span>
+              <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_avg_soc_desc')}</span>
+            </summary>
+            <div className={styles.rollupBreakdown}>
+              {sortedByValue(sites, (s) => s.live_soc_pct).map((s) => (
+                <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                  <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                  <span>{s.live_soc_pct === null ? '—' : `${s.live_soc_pct}%`}</span>
+                </div>
+              ))}
+            </div>
+          </details>
 
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_self_sufficiency_label')}</span>
-            <span className={styles.rollupValue}>{avgSelfSufficiency === null ? '—' : `${avgSelfSufficiency}%`}</span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_self_sufficiency_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {sortedByValue(sites, (s) => s.self_sufficiency_pct).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{s.self_sufficiency_pct === null ? '—' : `${s.self_sufficiency_pct}%`}</span>
-              </div>
-            ))}
-          </div>
-        </details>
+          <details className={styles.rollupCard}>
+            <summary>
+              <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_self_sufficiency_label')}</span>
+              <span className={styles.rollupValue}>{avgSelfSufficiency === null ? '—' : `${avgSelfSufficiency}%`}</span>
+              <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_self_sufficiency_desc')}</span>
+            </summary>
+            <div className={styles.rollupBreakdown}>
+              {sortedByValue(sites, (s) => s.self_sufficiency_pct).map((s) => (
+                <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                  <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                  <span>{s.self_sufficiency_pct === null ? '—' : `${s.self_sufficiency_pct}%`}</span>
+                </div>
+              ))}
+            </div>
+          </details>
 
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_self_consumption_label')}</span>
-            <span className={styles.rollupValue}>{avgSelfConsumption === null ? '—' : `${avgSelfConsumption}%`}</span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_self_consumption_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {sortedByValue(sites, (s) => s.self_consumption_pct).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{s.self_consumption_pct === null ? '—' : `${s.self_consumption_pct}%`}</span>
-              </div>
-            ))}
-          </div>
-        </details>
+          <details className={styles.rollupCard}>
+            <summary>
+              <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_self_consumption_label')}</span>
+              <span className={styles.rollupValue}>{avgSelfConsumption === null ? '—' : `${avgSelfConsumption}%`}</span>
+              <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_self_consumption_desc')}</span>
+            </summary>
+            <div className={styles.rollupBreakdown}>
+              {sortedByValue(sites, (s) => s.self_consumption_pct).map((s) => (
+                <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                  <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                  <span>{s.self_consumption_pct === null ? '—' : `${s.self_consumption_pct}%`}</span>
+                </div>
+              ))}
+            </div>
+          </details>
 
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_grid_dependency_label')}</span>
-            <span className={styles.rollupValue}>{avgGridDependency === null ? '—' : `${avgGridDependency}%`}</span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_grid_dependency_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {sortedByValue(sites, (s) => s.grid_dependency_pct).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{s.grid_dependency_pct === null ? '—' : `${s.grid_dependency_pct}%`}</span>
-              </div>
-            ))}
-          </div>
-        </details>
-      </div>
+          <details className={styles.rollupCard}>
+            <summary>
+              <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_grid_dependency_label')}</span>
+              <span className={styles.rollupValue}>{avgGridDependency === null ? '—' : `${avgGridDependency}%`}</span>
+              <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_grid_dependency_desc')}</span>
+            </summary>
+            <div className={styles.rollupBreakdown}>
+              {sortedByValue(sites, (s) => s.grid_dependency_pct).map((s) => (
+                <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                  <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                  <span>{s.grid_dependency_pct === null ? '—' : `${s.grid_dependency_pct}%`}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+        </div>
+      </Fold>
 
-      <h2 className={styles.rollupGroupLabel}>{t(lang, 'admin_fleet_group_ai')}</h2>
-      <p className={styles.sub}>{t(lang, 'admin_fleet_ai_desc')}</p>
-      <div className={styles.rollupRow}>
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_silence_label')}</span>
-            <span className={styles.rollupValue}>{silenceCount}</span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_silence_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {sortedByValue(sites, (s) => s.active_anomalies.filter((a) => a.anomaly_type === 'unexpected_silence').length).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{s.active_anomalies.filter((a) => a.anomaly_type === 'unexpected_silence').length}</span>
-              </div>
-            ))}
-          </div>
-        </details>
+      <Fold title={t(lang, 'admin_fleet_group_ai')}>
+        <p className={styles.sub}>{t(lang, 'admin_fleet_ai_desc')}</p>
+        <div className={styles.rollupRow}>
+          <details className={styles.rollupCard}>
+            <summary>
+              <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_silence_label')}</span>
+              <span className={styles.rollupValue}>{silenceCount}</span>
+              <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_silence_desc')}</span>
+            </summary>
+            <div className={styles.rollupBreakdown}>
+              {sortedByValue(sites, (s) => s.active_anomalies.filter((a) => a.anomaly_type === 'unexpected_silence').length).map((s) => (
+                <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                  <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                  <span>{s.active_anomalies.filter((a) => a.anomaly_type === 'unexpected_silence').length}</span>
+                </div>
+              ))}
+            </div>
+          </details>
 
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_drift_label')}</span>
-            <span className={styles.rollupValue}>{driftCount}</span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_drift_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {sortedByValue(sites, (s) => s.active_anomalies.filter((a) => a.anomaly_type === 'quiet_drift').length).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{s.active_anomalies.filter((a) => a.anomaly_type === 'quiet_drift').length}</span>
-              </div>
-            ))}
-          </div>
-        </details>
+          <details className={styles.rollupCard}>
+            <summary>
+              <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_drift_label')}</span>
+              <span className={styles.rollupValue}>{driftCount}</span>
+              <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_drift_desc')}</span>
+            </summary>
+            <div className={styles.rollupBreakdown}>
+              {sortedByValue(sites, (s) => s.active_anomalies.filter((a) => a.anomaly_type === 'quiet_drift').length).map((s) => (
+                <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                  <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                  <span>{s.active_anomalies.filter((a) => a.anomaly_type === 'quiet_drift').length}</span>
+                </div>
+              ))}
+            </div>
+          </details>
 
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_underperf_label')}</span>
-            <span className={styles.rollupValue}>{underperformanceCount}</span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_underperf_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {sortedByValue(sites, (s) => s.active_anomalies.filter((a) => a.anomaly_type === 'underperformance').length).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{s.active_anomalies.filter((a) => a.anomaly_type === 'underperformance').length}</span>
-              </div>
-            ))}
-          </div>
-        </details>
+          <details className={styles.rollupCard}>
+            <summary>
+              <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_underperf_label')}</span>
+              <span className={styles.rollupValue}>{underperformanceCount}</span>
+              <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_underperf_desc')}</span>
+            </summary>
+            <div className={styles.rollupBreakdown}>
+              {sortedByValue(sites, (s) => s.active_anomalies.filter((a) => a.anomaly_type === 'underperformance').length).map((s) => (
+                <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                  <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                  <span>{s.active_anomalies.filter((a) => a.anomaly_type === 'underperformance').length}</span>
+                </div>
+              ))}
+            </div>
+          </details>
 
-        <details className={styles.rollupCard}>
-          <summary>
-            <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_incomplete_label')}</span>
-            <span className={styles.rollupValue}>{incompleteChargingCount}</span>
-            <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_incomplete_desc')}</span>
-          </summary>
-          <div className={styles.rollupBreakdown}>
-            {sortedByValue(sites, (s) => s.active_anomalies.filter((a) => a.anomaly_type === 'incomplete_charging').length).map((s) => (
-              <div key={s.site_id} className={styles.rollupBreakdownRow}>
-                <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
-                <span>{s.active_anomalies.filter((a) => a.anomaly_type === 'incomplete_charging').length}</span>
-              </div>
-            ))}
-          </div>
-        </details>
-      </div>
+          <details className={styles.rollupCard}>
+            <summary>
+              <span className={styles.rollupLabel}>{t(lang, 'admin_fleet_card_incomplete_label')}</span>
+              <span className={styles.rollupValue}>{incompleteChargingCount}</span>
+              <span className={styles.rollupDesc}>{t(lang, 'admin_fleet_card_incomplete_desc')}</span>
+            </summary>
+            <div className={styles.rollupBreakdown}>
+              {sortedByValue(sites, (s) => s.active_anomalies.filter((a) => a.anomaly_type === 'incomplete_charging').length).map((s) => (
+                <div key={s.site_id} className={styles.rollupBreakdownRow}>
+                  <Link href={`/admin/fleet/${encodeURIComponent(s.site_id)}`} className={styles.rollupBreakdownLink}>{s.display_name}</Link>
+                  <span>{s.active_anomalies.filter((a) => a.anomaly_type === 'incomplete_charging').length}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+        </div>
+      </Fold>
 
       {sites.length === 0 ? (
         <p className={styles.sub}>{t(lang, 'admin_fleet_no_sites')}</p>
       ) : (
         <>
-          <ShapeChart
-            siteIds={sites.map((s) => s.site_id)}
-            title={t(lang, 'admin_fleet_shape_title')}
-            cardSub={t(lang, 'admin_fleet_shape_sub')}
-            lang={lang}
-          />
+          <Fold title={t(lang, 'fleet_shape_fold')}>
+            <ShapeChart
+              siteIds={sites.map((s) => s.site_id)}
+              title={t(lang, 'admin_fleet_shape_title')}
+              cardSub={t(lang, 'admin_fleet_shape_sub')}
+              lang={lang}
+            />
+          </Fold>
 
+          <h2 className={styles.rollupGroupLabel}>{t(lang, 'site_list_title')} ({sites.length})</h2>
           <FleetSitesTable sites={sites} lang={lang} />
         </>
       )}

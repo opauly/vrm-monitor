@@ -22,6 +22,9 @@ from victron.vrm_series import DEFAULT_TZ_NAME
 logger = logging.getLogger("vrm_api.devices")
 
 
+OLD_KINDS = ("charger", "battery", "inverter")
+
+
 def devices_mode() -> str:
     return "off" if os.environ.get("DEVICES", "on").strip().lower() == "off" else "on"
 
@@ -72,5 +75,17 @@ def run_pass(sites: list[dict], diagnostics_by_site: dict[str, dict], *, now: da
         out[site_id] = [{"site_id": site_id, **row} for row in rows]
         writes += out[site_id]
     if writes:
-        _t("site_devices").upsert(writes, on_conflict="site_id,device_key").execute()
+        try:
+            _t("site_devices").upsert(writes, on_conflict="site_id,device_key").execute()
+        except Exception:  # noqa: BLE001
+            # Until sql/vrm_site_devices_pv_inverter.sql is run, the table refuses the PV inverter
+            # kind: save every other device rather than none.
+            older = [w for w in writes if w.get("kind") in OLD_KINDS]
+            if len(older) == len(writes):
+                raise
+            logger.warning("devices: PV inverter rows refused (run sql/vrm_site_devices_pv_inverter.sql); saving the rest")
+            if older:
+                _t("site_devices").upsert(older, on_conflict="site_id,device_key").execute()
+            for site_id in out:
+                out[site_id] = [r for r in out[site_id] if r.get("kind") in OLD_KINDS]
     return out

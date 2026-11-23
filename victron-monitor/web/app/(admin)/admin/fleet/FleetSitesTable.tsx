@@ -15,6 +15,9 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Input, Table } from '@/components/ui';
+import { SiteRows } from '@/components/app/SiteFinder/SiteRow';
+import { siteItems } from '@/components/app/SiteFinder/siteItems';
+import finder from '@/components/app/SiteFinder/SiteFinder.module.css';
 import { formatDateTime, formatDateTimeInZone } from '@/lib/dates';
 import type { FleetConnectionStatus, FleetOverviewRow } from '@/lib/server/db/admin';
 import { t, type Lang } from '@/lib/i18n/strings';
@@ -156,6 +159,11 @@ export function FleetSitesTable({ sites, lang }: { sites: FleetOverviewRow[]; la
       {filteredSites.length === 0 ? (
         <p className={styles.empty}>{t(lang, 'admin_search_no_results')}</p>
       ) : (
+        <>
+        <div className={finder.narrowOnly}>
+          <SiteRows sites={siteItems(filteredSites, '/admin/fleet/', true)} />
+        </div>
+        <div className={finder.wideOnly}>
         <Table className={styles.sitesTable}>
           <thead>
             <tr>
@@ -172,6 +180,8 @@ export function FleetSitesTable({ sites, lang }: { sites: FleetOverviewRow[]; la
           </thead>
           <tbody>{filteredSites.map((s) => row(s, lang))}</tbody>
         </Table>
+        </div>
+        </>
       )}
 
       {lowestSoc && (

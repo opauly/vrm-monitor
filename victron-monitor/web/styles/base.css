@@ -133,3 +133,14 @@ section.band {
     padding: 68px 0;
   }
 }
+
+/* iPhone zooms the whole page into any text box set smaller than 16px when it is tapped, and
+   stays zoomed. On touch screens every text box is 16px, which stops it without disabling
+   pinch-zoom for people who need it. */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='button']):not([type='submit']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
