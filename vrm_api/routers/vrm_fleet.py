@@ -490,7 +490,7 @@ def _sweep_sites() -> list[dict]:
     """The sites the live sweep covers: active VRM-API sites, EXCEPT shared ones. A shared site is an installation another account
     registered first (`vrm.sites.is_shared`, vrm_shared_sites.sql): that account already gets its live data and its alerts, so
     polling it again would only duplicate every notification. A database without the column yet has none."""
-    columns = "site_id, customer_id, vrm_installation_id, timezone, system_type, reserve_soc_pct"
+    columns = "site_id, customer_id, vrm_installation_id, timezone, system_type, reserve_soc_pct, latitude, longitude"
     try:
         rows = _t("sites").select(columns + ", is_shared").eq("source", "vrm_api").eq("active", True).execute().data or []
     except Exception:  # noqa: BLE001 — the column does not exist yet

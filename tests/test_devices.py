@@ -33,10 +33,10 @@ def inverter(units=2, error=0, warn_slot=None):
     return out
 
 
-def run(records, existing=None, *, local=LOCAL, now=NOW, reference=None):
+def run(records, existing=None, *, local=LOCAL, now=NOW, reference=None, sun_wm2=None):
     parsed = dev.parse(records)
     ref = reference or max(datetime.fromtimestamp(r["timestamp"], tz=timezone.utc) for r in records)
-    return {r["device_key"]: r for r in dev.evaluate(parsed, existing or [], now=now, local=local, reference=ref)}
+    return {r["device_key"]: r for r in dev.evaluate(parsed, existing or [], now=now, local=local, reference=ref, sun_wm2=sun_wm2)}
 
 
 def test_a_healthy_site_has_every_device_ok():
@@ -232,8 +232,32 @@ def test_an_ac_coupled_fronius_is_listed_with_its_output_across_both_legs():
     assert f["status"] == "ok" and f["label"] == "Fronius" and f["metrics"]["power_w"] == 340
 
 
-def test_a_pv_inverter_error_is_bad():
-    assert run(fronius(status="Error"))["pv_inverter:20"]["note"]["code"] == "pv_inverter_error"
+def test_a_pv_inverter_error_at_dawn_is_not_flagged():
+    # A Fronius says "Error" whenever the sun is too weak to run it: expected, not a fault.
+    rows = {}
+    for _ in range(5):
+        rows = run(fronius(status="Error", l1=0, l2=0), list(rows.values()), sun_wm2=40)
+    assert rows["pv_inverter:20"]["status"] == "ok"
+
+
+def test_a_pv_inverter_error_in_full_sun_is_bad_after_three_sweeps():
+    rows, statuses = {}, []
+    for _ in range(3):
+        rows = run(fronius(status="Error", l1=0, l2=0), list(rows.values()), sun_wm2=700)
+        statuses.append(rows["pv_inverter:20"]["status"])
+    assert statuses == ["ok", "ok", "bad"] and rows["pv_inverter:20"]["note"]["code"] == "pv_inverter_error"
+    rows = run(fronius(), list(rows.values()), sun_wm2=700)
+    assert rows["pv_inverter:20"]["status"] == "ok"
+
+
+def test_a_pv_inverter_error_without_weather_counts_only_at_midday():
+    rows = {}
+    for _ in range(3):
+        rows = run(fronius(status="Error", l1=0, l2=0), list(rows.values()))          # 21:00 local
+    assert rows["pv_inverter:20"]["status"] == "ok"
+    for _ in range(3):
+        rows = run(fronius(status="Error", l1=0, l2=0), list(rows.values()), local=datetime(2026, 10, 14, 12, 0))
+    assert rows["pv_inverter:20"]["status"] == "bad"
 
 
 def test_a_pv_inverter_asleep_at_night_is_never_flagged():

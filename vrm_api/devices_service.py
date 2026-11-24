@@ -12,11 +12,11 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from database.supabase_client import get_client
-from victron import devices
+from victron import devices, samples_store, weather_store
 from victron.vrm_series import DEFAULT_TZ_NAME
 
 logger = logging.getLogger("vrm_api.devices")
@@ -46,6 +46,21 @@ def _newest_record(diagnostics) -> datetime | None:
     return datetime.fromtimestamp(max(stamps), tz=timezone.utc) if stamps else None
 
 
+def _sun_now(site: dict, now: datetime) -> float | None:
+    """The site's sunlight this hour (W/m²) from its stored local weather, or None when it has none."""
+    lat, lon = site.get("latitude"), site.get("longitude")
+    if lat is None or lon is None:
+        return None
+    lat, lon = weather_store.place(lat, lon)
+    hour = now.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    try:
+        rows = samples_store.load_weather(lat, lon, hour, hour + timedelta(hours=1))
+    except Exception:  # noqa: BLE001 — no weather: the rule falls back to the midday hours
+        return None
+    ghi = rows[0].get("ghi_wm2") if rows else None
+    return float(ghi) if isinstance(ghi, (int, float)) else None
+
+
 def run_pass(sites: list[dict], diagnostics_by_site: dict[str, dict], *, now: datetime | None = None) -> dict[str, list[dict]]:
     now = now or datetime.now(timezone.utc)
     site_ids = [s["site_id"] for s in sites if s["site_id"] in diagnostics_by_site]
@@ -68,7 +83,8 @@ def run_pass(sites: list[dict], diagnostics_by_site: dict[str, dict], *, now: da
                 continue    # nothing recognisable here, nothing remembered: leave the site alone
             rows = devices.evaluate(parsed, stored.get(site_id, []), now=now, local=_local(now, site.get("timezone")),
                                     reference=_newest_record(diagnostics), site_type=site.get("system_type"),
-                                    reserve_set_by_hand=isinstance(site.get("reserve_soc_pct"), (int, float)))
+                                    reserve_set_by_hand=isinstance(site.get("reserve_soc_pct"), (int, float)),
+                                    sun_wm2=_sun_now(site, now) if any(d["kind"] == "pv_inverter" for d in parsed) else None)
         except Exception:  # noqa: BLE001 — one odd site must not cost the others
             logger.exception("devices: could not evaluate site %s", site_id)
             continue

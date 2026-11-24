@@ -22,8 +22,12 @@ What is checked (note codes in brackets):
             a VE.Bus error                                     [inverter_error]  bad
             fewer units than ever seen                         [units_missing]   bad
             a unit's warning flags set                         [inverter_warning] warn
-  pv_inverter  (an AC-coupled one such as a Fronius) reports an error status  [pv_inverter_error]  bad
-            It sleeps at night and drops out of the diagnostics, so it is never flagged for
+  pv_inverter  (an AC-coupled one such as a Fronius) says Error while the local
+            weather has strong sun, 3 sweeps in a row                  [pv_inverter_error]  bad
+            A Fronius shows "Error" whenever there is too little sun to run it (dawn, dusk, a dark
+            storm), so the status alone means nothing: it counts only when the site's own hourly
+            weather has at least PV_ERROR_MIN_SUN_WM2 of sunlight (10:00-14:00 local when the
+            site has no weather). It sleeps at night and drops out of the diagnostics, so it is never flagged for
             not reporting or for going missing.
   any       gone from the diagnostics for 2 sweeps             [missing]        bad
 
@@ -56,6 +60,8 @@ LOW_RATIO = 0.3
 NORMAL_RATIO = 0.7
 SOC_FULL_PCT = 90          # a BMS blocks charge near full on purpose
 MIN_RESERVE_PCT = 30       # a grid-connected battery should hold back at least this much for an outage
+PV_ERROR_MIN_SUN_WM2 = 300  # sunlight (W/m², local weather) at which a PV inverter has no reason to say Error
+PV_ERROR_SWEEPS = 3         # about 45 minutes of it
 
 _BATTERY_MAKERS = {"PYLON": "Pylontech"}
 
@@ -176,13 +182,13 @@ def parse(diagnostics) -> list[dict]:
             if not any(c in rec for c in ("pS", "pP1")):
                 continue
             status = _text(rec, "pS") or ""
-            if any(word in status.lower() for word in ("error", "fault")):
-                faults.append(("pv_inverter_error", {"error": status}))
+            in_error = any(word in status.lower() for word in ("error", "fault"))
             # A 240 V inverter on a split-phase system reports half its output on each leg: the legs add up.
             power = [p for p in (_num(_raw(rec, f"pP{phase}")) for phase in (1, 2, 3)) if p is not None]
             devices.append({
                 "key": key, "kind": kind, "instance": instance, "label": "Fronius" if "pF" in rec else "", "faults": faults,
                 "seen": _ts(rec, ("pP1", "pS")),
+                "in_error": in_error,
                 "metrics": {"power_w": sum(power) if power else None, "state": status, "position": _text(rec, "pL")},
             })
     totals: dict[str, int] = {}
@@ -294,13 +300,14 @@ def _judge_chargers(devices: list[dict], states: dict[str, dict]) -> dict[str, t
 
 
 def evaluate(parsed: list[dict], existing: list[dict], *, now: datetime, local: datetime, reference: datetime | None,
-             site_type: str | None = None, reserve_set_by_hand: bool = False) -> list[dict]:
+             site_type: str | None = None, reserve_set_by_hand: bool = False, sun_wm2: float | None = None) -> list[dict]:
     """The rows to store for one site. `existing` are the stored rows (any order); `now` is UTC,
     `local` the same instant in the site's time zone, `reference` the newest record time in the
     diagnostics (what "this device stopped reporting" is measured against). `site_type` is the
     site's system type (hybrid / off_grid / ...): the outage-reserve check is for hybrid sites, and is
     skipped when `reserve_set_by_hand` (the site says its reserve is held by something VRM cannot
-    see, e.g. a Virtual Switch assistant)."""
+    see, e.g. a Virtual Switch assistant). `sun_wm2` is the site's sunlight this hour from its local
+    weather (None when unknown): what tells a PV inverter's real error from too little sun."""
     prior = {row["device_key"]: row for row in existing}
     today = local.date()
     states: dict[str, dict] = {}
@@ -350,6 +357,12 @@ def evaluate(parsed: list[dict], existing: list[dict], *, now: datetime, local: 
                     raise_to(WARN, "reserve_not_enforced", system=m.get("vrm_system_type") or "?")
                 elif m.get("ess_min_soc_pct") is not None and m["ess_min_soc_pct"] < MIN_RESERVE_PCT:
                     raise_to(WARN, "reserve_low", floor=m["ess_min_soc_pct"], recommended=MIN_RESERVE_PCT)
+        elif d["kind"] == "pv_inverter":
+            strong_sun = sun_wm2 >= PV_ERROR_MIN_SUN_WM2 if sun_wm2 is not None else 10 <= local.hour < 14
+            in_error = bool(d.get("in_error")) and strong_sun and d["reporting"]
+            state["error_sweeps"] = int(state.get("error_sweeps") or 0) + 1 if in_error else 0
+            if state["error_sweeps"] >= PV_ERROR_SWEEPS:
+                raise_to(BAD, "pv_inverter_error", error=m.get("state") or "Error")
         elif d["kind"] == "charger" and key in yield_verdict:
             verdict, vnote, day = yield_verdict[key]
             streak = int(state.get("low_streak") or 0)
